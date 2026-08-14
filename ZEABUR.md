@@ -14,23 +14,24 @@ POST /api/auth/login → 502
 
 ---
 
-## 一步到位：用真实内网主机名
+## 推荐做法（内网 hostname 解析失败时）
 
-1. 打开 **backend** 服务 → **网络 / Networking**
-2. 复制 **内网访问** 里的 Hostname（例如可能是 `backend.zeabur.internal`，也可能是别的名字如 `wa-demo.zeabur.internal`）
-3. 打开 **game** → **环境变量**，设置：
+你的环境里 `backend.zeabur.internal` 一直 **Host not found**，请改用公网域名反代：
 
-```text
-BACKEND_UPSTREAM=http://【上一步复制的主机名】:8080
-```
-
-示例：
+1. **backend → 网络 → 公网访问 → 生成域名**  
+   得到例如：`https://xxxx.zeabur.app`
+2. 确认 backend **运行中**（端口 HTTP 8080 已暴露）
+3. **game → 环境变量**：
 
 ```text
-BACKEND_UPSTREAM=http://backend.zeabur.internal:8080
+BACKEND_UPSTREAM=https://xxxx.zeabur.app
 ```
 
-4. **保存后重新部署 / 重启 game**
+注意：不要加路径，不要末尾 `/`，不要写 `:8080`（公网域名已映射到 8080）。
+
+4. **重新部署 / 重启 game**
+
+登录请求会变成：浏览器 → game → `https://xxxx.zeabur.app/api/...` → backend。
 
 ---
 

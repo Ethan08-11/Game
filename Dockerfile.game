@@ -15,10 +15,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 RUN chmod +x /docker-entrypoint.game.sh
 
-# 默认走 Zeabur 内网服务名；无 backend 时请求层返回 502，不影响 Nginx 启动
+# 默认占位；请在 Zeabur 设置 BACKEND_UPSTREAM 为 backend 的公网域名
 ENV PORT=8080 \
     HOST=0.0.0.0 \
-    BACKEND_UPSTREAM=http://backend.zeabur.internal:8080
+    BACKEND_UPSTREAM=http://127.0.0.1:9
 
 EXPOSE 8080
 CMD ["/docker-entrypoint.game.sh"]
