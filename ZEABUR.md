@@ -112,9 +112,27 @@ mysql -u"$MYSQL_USERNAME" -p"$PASSWORD" -e "SHOW DATABASES; SELECT COUNT(*) AS t
 ```
 
 - `tables_cnt` 应接近 **26**
-- 若很少或为 0：需要重新完整导入 `backend/sql_file/wa_demo最终版.sql`
+- 若很少或为 0：需要导入 SQL
 
-公网导入请在**本机 cmd**（不要用 PowerShell 的 `<`）：
+### 推荐：Zeabur 精简版（表结构齐全 + 卡牌/用户等基础数据，去掉对战历史）
+
+文件：`backend/sql_file/wa_demo_zeabur.sql`（约 85KB，公网可稳定导入）
+
+本机 cmd：
+
+```bat
+copy /Y "项目路径\Game\backend\sql_file\wa_demo_zeabur.sql" "%TEMP%\wa_demo_zeabur.sql"
+
+"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 公网IP -P 端口 -u root -p你的密码 --default-character-set=utf8mb4 -e "DROP DATABASE IF EXISTS wa_demo; CREATE DATABASE wa_demo DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+
+"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 公网IP -P 端口 -u root -p你的密码 --default-character-set=utf8mb4 --max_allowed_packet=512M --binary-mode wa_demo < "%TEMP%\wa_demo_zeabur.sql"
+```
+
+### 完整最终版（含大量 match_cards 历史，公网易 Lost connection）
+
+文件：`backend/sql_file/wa_demo最终版.sql`
+
+更稳妥在 **mysql 容器内**下载后导入；公网导入常在 `match_cards` 处断线。
 
 ```bat
 "C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 43.133.220.242 -P 32030 -u root -p你的密码 --default-character-set=utf8mb4 -e "DROP DATABASE IF EXISTS wa_demo; CREATE DATABASE wa_demo DEFAULT CHARACTER SET utf8mb4;"
@@ -122,7 +140,7 @@ mysql -u"$MYSQL_USERNAME" -p"$PASSWORD" -e "SHOW DATABASES; SELECT COUNT(*) AS t
 "C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 43.133.220.242 -P 32030 -u root -p你的密码 --default-character-set=utf8mb4 --max_allowed_packet=256M wa_demo < "C:\Users\30543\AppData\Local\Temp\wa_demo_final.sql"
 ```
 
-（先把 SQL 复制到无中文路径：`copy` 到 `%TEMP%\wa_demo_final.sql`）
+（完整版请先把 SQL 复制到无中文路径：`copy` 到 `%TEMP%\wa_demo_final.sql`）
 
 ---
 
