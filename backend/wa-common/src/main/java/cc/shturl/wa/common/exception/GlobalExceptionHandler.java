@@ -67,12 +67,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理未知异常
+     * 处理未知异常（返回根因，便于 Zeabur 排查）
      */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception e) {
+        Throwable root = rootCause(e);
+        String detail = root.getMessage() == null ? e.getClass().getSimpleName() : root.getMessage();
         log.error("系统异常", e);
-        return Result.fail(ResultCode.INTERNAL_ERROR);
+        return Result.fail(ResultCode.INTERNAL_ERROR.getCode(), "服务器内部错误: " + detail);
+    }
+
+    private static Throwable rootCause(Throwable e) {
+        Throwable cur = e;
+        while (cur.getCause() != null && cur.getCause() != cur) {
+            cur = cur.getCause();
+        }
+        return cur;
     }
 }
