@@ -48,13 +48,14 @@ spring:
           min-idle: 0
           max-wait: -1ms
 
-  # 默认连同项目 rabbitmq 服务；请在 Zeabur 设置 RABBITMQ_* 覆盖
+  # Zeabur：必须在 backend 单独设置 RABBITMQ_USERNAME / RABBITMQ_PASSWORD
+  # 不要用通用名 PASSWORD（会和 MySQL 的 PASSWORD 冲突）
   rabbitmq:
     host: ${RABBITMQ_HOST:rabbitmq.zeabur.internal}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:${RABBITMQ_DEFAULT_USER:guest}}
-    password: ${RABBITMQ_PASSWORD:${RABBITMQ_DEFAULT_PASS:guest}}
-    virtual-host: ${RABBITMQ_VHOST:/}
+    username: ${RABBITMQ_USERNAME:${RABBITMQ_DEFAULT_USER:admin}}
+    password: ${RABBITMQ_PASSWORD:${RABBITMQ_DEFAULT_PASS:}}
+    virtual-host: ${RABBITMQ_VHOST:${RABBITMQ_DEFAULT_VHOST:/}}
     connection-timeout: 10000
     publisher-confirm-type: correlated
     publisher-returns: true
