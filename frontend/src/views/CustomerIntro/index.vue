@@ -14,7 +14,7 @@
             </div>
 
             <div class="highlight-section" :style="{ top: (traitsTop - 240) + 'px', height: (240) + 'px' }">
-              <img :src="getImageUrl(customer.imageUrl) || avatarImg" alt="顾客形象" class="customer-avatar-img" />
+              <img :src="getImageUrl(customer.imageUrl) || avatarImg" alt="顾客形象" class="customer-avatar-img" loading="lazy" decoding="async" />
             </div>
 
             <div class="traits-section" :style="{ top: traitsTop + 'px' }">

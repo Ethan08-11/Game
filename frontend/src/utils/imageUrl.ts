@@ -14,5 +14,8 @@ export function getImageUrl(path: string | null | undefined): string | null {
   if (!path) return null
   if (/^(https?:|data:|blob:)/i.test(path)) return path
   const normalized = path.startsWith('/') ? path : `/${path}`
-  return `${BACKEND_HTTP_BASE}${normalized}`
+  const webpPath = /\.(png|jpe?g)$/i.test(normalized)
+    ? normalized.replace(/\.(png|jpe?g)$/i, '.webp')
+    : normalized
+  return `${BACKEND_HTTP_BASE}${webpPath}`
 }

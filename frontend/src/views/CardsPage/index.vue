@@ -17,7 +17,14 @@
         <div class="card-grid">
           <div v-for="card in group.cards" :key="card.id" class="card-item">
             <div class="card-image-box">
-              <img v-if="card.imageUrl" :src="getImageUrl(card.imageUrl)!" :alt="card.cardName" class="card-img" />
+              <img
+                v-if="card.imageUrl"
+                :src="getImageUrl(card.imageUrl)!"
+                :alt="card.cardName"
+                class="card-img"
+                loading="lazy"
+                decoding="async"
+              />
               <span v-else class="card-placeholder">+</span>
             </div>
             <div class="card-name">{{ card.cardName }}</div>
