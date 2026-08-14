@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  示例 Mapper XML（复杂 SQL 可在此编写）
+  简单 CRUD 由 MyBatis-Plus BaseMapper 自动生成，无需 XML
+-->
+<mapper namespace="cc.shturl.wa.demo.mapper.ExampleMapper">
+
+    <!-- 示例：自定义查询（按需启用） -->
+    <!--
+    <select id="selectCustomList" resultType="cc.shturl.wa.demo.entity.ExampleEntity">
+        SELECT * FROM t_example WHERE name LIKE CONCAT('%', #{name}, '%')
+    </select>
+    -->
+
+</mapper>

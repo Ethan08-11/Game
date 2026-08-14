@@ -1,0 +1,132 @@
+# 这个 compose 文件只负责启动本地开发所需的基础设施
+# 日常开发推荐只启动这些服务，然后在 IDEA 中直接运行 Java 应用
+#
+# 启动基础设施：
+#   docker compose up -d
+#
+# 停止基础设施：
+#   docker compose down
+
+services:
+  # -----------------------------
+  # MySQL：业务数据库
+  # -----------------------------
+  mysql:
+    image: mysql:8.0.33
+    container_name: wa-mysql
+    restart: unless-stopped
+    environment:
+      # root 密码，和 application.yml 中默认值保持一致
+      MYSQL_ROOT_PASSWORD: root
+      # 启动时自动创建业务库 wa_demo
+      MYSQL_DATABASE: wa_demo
+      # 容器时区，避免日志时间差异
+      TZ: Asia/Shanghai
+    command:
+      # 让 MySQL 使用旧式密码插件，兼容性更好
+      - --default-authentication-plugin=mysql_native_password
+      # 统一字符集，避免中文乱码
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      # 暴露给宿主机，方便 IDEA、Navicat、DataGrip 等工具连接
+      - "3308:3306"
+    volumes:
+      # 持久化数据库数据，删除容器不会丢数据
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      # 检查数据库是否可用
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # -----------------------------
+  # Redis：缓存 / 分布式数据存储
+  # -----------------------------
+  redis:
+    image: redis:7.2-alpine
+    container_name: wa-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      # 暴露给宿主机，Java 本地启动时可通过 127.0.0.1:6379 访问
+      - "6379:6379"
+    volumes:
+      # 持久化 Redis 数据
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # -----------------------------
+  # RabbitMQ：消息队列
+  # -----------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: wa-rabbitmq
+    restart: unless-stopped
+    environment:
+      # 默认账号密码，与 application.yml 中默认值一致
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: /
+      TZ: Asia/Shanghai
+    ports:
+      # 5672：给应用连接；15672：管理后台
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      # 持久化 RabbitMQ 数据
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  # -----------------------------
+  # Nacos：服务注册发现 + 配置中心
+  # -----------------------------
+  nacos:
+    image: nacos/nacos-server:v2.4.2
+    container_name: wa-nacos
+    restart: unless-stopped
+    environment:
+      # 单机模式，适合本地开发
+      MODE: standalone
+      # 让 Nacos 更适合容器环境
+      PREFER_HOST_MODE: hostname
+      # JVM 内存参数
+      JVM_XMS: 256m
+      JVM_XMX: 256m
+      JVM_XMN: 128m
+      # 先关闭鉴权，降低本地开发复杂度
+      NACOS_AUTH_ENABLE: "false"
+      # Nacos 使用 MySQL 存储配置和元数据
+      MYSQL_SERVICE_HOST: mysql
+      MYSQL_SERVICE_DB_NAME: nacos_config
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: root
+      TZ: Asia/Shanghai
+    ports:
+      # 8848：Nacos 控制台和客户端访问；9848：Nacos 2.x gRPC 通信端口
+      - "8848:8848"
+      - "9848:9848"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - nacos_data:/home/nacos/data
+      - nacos_logs:/home/nacos/logs
+
+volumes:
+  # 数据持久化卷，删除容器不影响数据
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
+  nacos_data:
+  nacos_logs:

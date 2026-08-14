@@ -1,0 +1,154 @@
+<template>
+  <div class="page" :style="{ '--page-bg': `url(${pageBg})`, '--hall-bg': `url(${hallBg})` }">
+    <BackButton to="/game-hall" text="返回大厅" />
+    <div class="title-bar" :style="{ '--title-bg': `url(${titleBg})` }">排行榜</div>
+    <div class="tabs">
+      <button :class="{ active: tab === 'total' }" @click="tab = 'total'">总榜</button>
+      <button :class="{ active: tab === 'weekly' }" @click="tab = 'weekly'">周榜</button>
+    </div>
+    <div class="list" :key="tab">
+      <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${idx * 0.08}s` }">
+        <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
+        <span class="name">{{ item.displayName || item.username }}</span>
+        <span class="pts">{{ item.money }} 资金</span>
+      </div>
+      <div v-if="list.length === 0" class="empty">暂无排行数据</div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, watch, onMounted } from 'vue'
+import { getLeaderboard } from '@/api'
+import type { LeaderboardEntry } from '@/api'
+import BackButton from '@/components/BackButton.vue'
+import titleBg from '@/assets/title-bg-leaderboard.png'
+import rowBg from '@/assets/row-bg-leaderboard.png'
+import pageBg from '@/assets/beijing0.png'
+import hallDay from '@/assets/hall-bg2.png'
+import hallNight from '@/assets/hall-bg.png'
+
+const tab = ref<'total' | 'weekly'>('total')
+const list = ref<LeaderboardEntry[]>([])
+const hour = new Date().getHours()
+const hallBg = hour >= 6 && hour < 18 ? hallDay : hallNight
+
+async function loadLeaderboard() {
+  try {
+    list.value = await getLeaderboard(tab.value)
+  } catch { list.value = [] }
+}
+
+onMounted(loadLeaderboard)
+watch(tab, loadLeaderboard)
+</script>
+
+<style scoped>
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  padding: calc(var(--space-10) + 36px) var(--space-10) 0;
+  color: var(--color-text-primary); text-align: center;
+  isolation: isolate;
+}
+.page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: var(--hall-bg) center/cover no-repeat;
+  filter: blur(6px);
+  pointer-events: none;
+}
+.page::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--page-bg) center/cover no-repeat;
+  pointer-events: none;
+}
+.title-bar {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto var(--space-5);
+  font-size: 32px;
+  font-weight: var(--weight-semibold);
+  padding: var(--space-3) var(--space-8);
+  color: #4a3520;
+  text-indent: -32px;
+  isolation: isolate;
+}
+.title-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--title-bg) center/contain no-repeat;
+  transform: scale(3.5) translateY(-9px);
+  transform-origin: center center;
+  pointer-events: none;
+}
+.tabs { display: flex; gap: var(--space-2); justify-content: center; margin-bottom: var(--space-5); }
+.tabs button {
+  padding: var(--space-1) var(--space-5);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--text-md);
+  transition: all var(--transition-fast);
+}
+.tabs button.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-bg-base);
+}
+.list { max-width: 700px; margin: 0 auto; flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 120px; }
+.row {
+  display: flex; align-items: center;
+  padding: var(--space-3) var(--space-5); margin-bottom: var(--space-2);
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: filter var(--transition-fast);
+  animation: bounceIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.row:hover { filter: brightness(1.1); }
+.rank {
+  font-size: 16px;
+  color: #4a3520;
+  width: 48px;
+  text-align: left;
+  flex-shrink: 0;
+}
+.rank.top {
+  font-size: 24px;
+  font-weight: var(--weight-bold);
+  color: #4a3520;
+}
+.name {
+  flex: 1;
+  text-align: left;
+  margin-left: 128px;
+  font-size: 18px;
+  color: #4a3520;
+}
+.pts {
+  color: #4a3520;
+  font-weight: var(--weight-medium);
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-right: 128px;
+}
+.empty { color: var(--color-text-tertiary); padding: var(--space-4); }
+
+@keyframes bounceIn {
+  0% { opacity: 0; transform: translateY(24px) scale(0.92); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+</style>

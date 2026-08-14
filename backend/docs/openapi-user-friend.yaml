@@ -1,0 +1,627 @@
+openapi: 3.0.3
+info:
+  title: Game Backend - 用户与好友模块新增接口
+  description: |
+    本文档描述 Game_backend（卡牌对战游戏后端）中**本次新增**的 9 个 REST 接口，
+    涉及认证（修改密码）、用户（用户搜索）、好友（申请列表 / 拒绝申请 / 拉黑 / 取消拉黑 / 拉黑列表 / 修改备注）。
+
+    ## 鉴权方式
+    除注册/登录外，所有接口都需要在请求头携带 Access Token：
+    ```
+    Authorization: Bearer <accessToken>
+    ```
+    Token 由 `/api/auth/login` 或 `/api/auth/register` 返回，存储于 Redis（非 JWT）。
+    Token 失效或缺失时返回业务码 401。
+
+    ## 统一响应封装
+    所有接口返回 `Result<T>` 结构：
+    ```json
+    { "code": 200, "message": "操作成功", "data": <T>, "timestamp": 1700000000000 }
+    ```
+    - `code=200` 表示业务成功。
+    - **注意**：业务异常（如"已经是好友""原密码错误"）由全局异常处理器处理后，
+      **HTTP 状态码仍为 200**，但 `code` 字段为 400/500 等业务错误码，`data` 为 null。
+      因此前端应始终以 `code` 字段判断业务成败，而非 HTTP 状态码。
+
+    ## 业务状态码
+    | code | 含义 |
+    |------|------|
+    | 200  | 操作成功 |
+    | 400  | 请求参数错误 / 校验失败 |
+    | 401  | 未授权 / 登录态失效 |
+    | 403  | 禁止访问 |
+    | 404  | 资源不存在 |
+    | 500  | 操作失败 / 服务器内部错误 |
+
+    ## 好友关系状态（friendships.status）
+    | 值 | 含义 |
+    |----|------|
+    | 0  | PENDING  待确认 |
+    | 1  | ACCEPTED 已是好友 |
+    | 2  | BLOCKED  已拉黑 |
+
+    ## 实时通知（WebSocket，本接口文档之外）
+    以下场景会通过 `/ws/room` 连接向相关用户推送消息：
+    - `friend.request.received`：被申请方收到好友申请时
+    - `friend.request.accepted`：申请发起方收到对方接受通知时
+  version: 1.0.0
+  contact:
+    name: Game_backend Team
+servers:
+  - url: http://127.0.0.1:8080
+    description: 本地开发环境
+  - url: http://{host}:{port}
+    description: 自定义地址
+    variables:
+      host:
+        default: 127.0.0.1
+      port:
+        default: "8080"
+
+tags:
+  - name: 认证
+    description: 账号认证相关（本次新增：修改密码）
+  - name: 用户
+    description: 用户信息相关（本次新增：用户搜索）
+  - name: 好友
+    description: 好友关系相关（本次新增：申请列表 / 拒绝 / 拉黑 / 备注）
+
+paths:
+  # ============================================================
+  # 认证模块
+  # ============================================================
+  /api/auth/password:
+    put:
+      tags: [认证]
+      summary: 修改密码
+      description: |
+        当前登录用户修改密码，需提供正确的原密码。新旧密码不能相同。
+        本次实现保留当前登录态，不会强制其他设备下线。
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordReq'
+            examples:
+              normal:
+                summary: 正常修改
+                value: { "oldPassword": "oldpass123", "newPassword": "newpass456" }
+      responses:
+        '200':
+          description: 修改成功（业务码 200）或业务失败（业务码非 200）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+              examples:
+                success:
+                  summary: 修改成功
+                  value: { "code": 200, "message": "操作成功", "data": null, "timestamp": 1700000000000 }
+                wrongOldPassword:
+                  summary: 原密码错误
+                  value: { "code": 500, "message": "原密码错误", "data": null, "timestamp": 1700000000000 }
+                samePassword:
+                  summary: 新旧密码相同
+                  value: { "code": 500, "message": "新密码不能与原密码相同", "data": null, "timestamp": 1700000000000 }
+                invalid:
+                  summary: 参数校验失败（如新密码长度不足）
+                  value: { "code": 400, "message": "新密码须为8-64位", "data": null, "timestamp": 1700000000000 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 用户模块
+  # ============================================================
+  /api/users/search:
+    get:
+      tags: [用户]
+      summary: 用户搜索
+      description: |
+        按关键字搜索用户，用于"添加好友"前查找目标。
+        - 关键字为**纯数字**时：按用户 ID 精确匹配，至多返回 1 条。
+        - 关键字为**非纯数字**时：按用户名模糊匹配（`LIKE '%keyword%'`），至多返回 20 条。
+        - 空白关键字返回空列表。
+        返回结果会标注每个用户与当前用户的好友关系（`isFriend`、`friendshipStatus`）。
+      operationId: searchUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          description: 搜索关键字（用户名或纯数字用户 ID）
+          schema:
+            type: string
+            minLength: 1
+          example: alice
+      responses:
+        '200':
+          description: 搜索结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultUserSearchList'
+              example:
+                code: 200
+                message: 操作成功
+                timestamp: 1700000000000
+                data:
+                  - id: 2
+                    username: alice
+                    displayName: 爱丽丝
+                    avatarUrl: http://cdn/avatar/2.png
+                    level: 5
+                    isFriend: true
+                    friendshipStatus: 1
+                  - id: 3
+                    username: alice_2
+                    displayName: 小爱
+                    avatarUrl: null
+                    level: 1
+                    isFriend: false
+                    friendshipStatus: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 好友模块 - 申请列表
+  # ============================================================
+  /api/friends/requests/incoming:
+    get:
+      tags: [好友]
+      summary: 我收到的好友申请列表
+      description: |
+        返回所有发给当前用户、且状态为 PENDING（待确认）的好友申请。
+        列表中 `friendId` 表示申请发起方（对方），`userId` 表示当前用户。
+      operationId: listIncomingFriendRequests
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 申请列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultFriendList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/friends/requests/outgoing:
+    get:
+      tags: [好友]
+      summary: 我发出的好友申请列表
+      description: |
+        返回当前用户发出、且状态为 PENDING（待确认）的好友申请。
+        列表中 `userId` 表示当前用户，`friendId` 表示申请接收方（对方）。
+      operationId: listOutgoingFriendRequests
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 申请列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultFriendList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/friends/requests/{id}/reject:
+    delete:
+      tags: [好友]
+      summary: 拒绝好友申请
+      description: |
+        拒绝一条发给当前用户的好友申请，拒绝后**删除该记录**（不留历史）。
+        - 仅申请的接收方（`friend_id` = 当前用户）可拒绝。
+        - 仅 PENDING 状态的申请可拒绝。
+      operationId: rejectFriendRequest
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FriendshipId'
+      responses:
+        '200':
+          description: 拒绝成功或业务失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+              examples:
+                success:
+                  summary: 拒绝成功
+                  value: { "code": 200, "message": "操作成功", "data": null, "timestamp": 1700000000000 }
+                notPending:
+                  summary: 该申请非待处理状态
+                  value: { "code": 500, "message": "该申请当前不可拒绝", "data": null, "timestamp": 1700000000000 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 好友模块 - 备注
+  # ============================================================
+  /api/friends/{id}/remark:
+    put:
+      tags: [好友]
+      summary: 修改好友备注
+      description: |
+        修改一条好友关系的备注名。仅 ACCEPTED（已是好友）状态的关系可修改备注。
+        关系任一方（当前用户为 `user_id` 或 `friend_id`）均可修改。
+      operationId: updateFriendRemark
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FriendshipId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRemarkReq'
+            example: { "remarkName": "老王" }
+      responses:
+        '200':
+          description: 修改成功或业务失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultFriend'
+              examples:
+                success:
+                  summary: 修改成功
+                  value:
+                    code: 200
+                    message: 操作成功
+                    timestamp: 1700000000000
+                    data:
+                      id: 10
+                      userId: 1
+                      friendId: 2
+                      status: 1
+                      remarkName: 老王
+                      username: alice
+                      displayName: 爱丽丝
+                      avatarUrl: http://cdn/avatar/2.png
+                      onlineStatus: 1
+                      presenceStatus: IDLE
+                      invitable: true
+                notAccepted:
+                  summary: 非好友关系不可改备注
+                  value: { "code": 500, "message": "仅好友关系可修改备注", "data": null, "timestamp": 1700000000000 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================
+  # 好友模块 - 拉黑
+  # ============================================================
+  /api/friends/block:
+    post:
+      tags: [好友]
+      summary: 拉黑用户
+      description: |
+        将目标用户加入黑名单。
+        - 不能拉黑自己。
+        - 若双方已是好友或存在待处理申请：原记录会被删除，并以
+          **`user_id`=当前用户、`friend_id`=对方** 的方向重建为 BLOCKED 记录。
+        - 若已经拉黑过对方：幂等返回，不重复操作。
+        - 拉黑后，对方将无法向当前用户发起好友申请（提示"无法添加该用户"）。
+      operationId: blockUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FriendRequestReq'
+            example: { "friendId": 2 }
+      responses:
+        '200':
+          description: 拉黑成功或业务失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultFriend'
+              examples:
+                success:
+                  summary: 拉黑成功
+                  value:
+                    code: 200
+                    message: 操作成功
+                    timestamp: 1700000000000
+                    data:
+                      id: 70
+                      userId: 1
+                      friendId: 2
+                      status: 2
+                      remarkName: null
+                      username: alice
+                      displayName: 爱丽丝
+                      avatarUrl: http://cdn/avatar/2.png
+                      onlineStatus: 0
+                      presenceStatus: OFFLINE
+                      invitable: false
+                blockSelf:
+                  summary: 拉黑自己
+                  value: { "code": 500, "message": "不能拉黑自己", "data": null, "timestamp": 1700000000000 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/friends/block/{id}:
+    delete:
+      tags: [好友]
+      summary: 取消拉黑
+      description: |
+        取消对某用户的拉黑，删除对应的 BLOCKED 记录。
+        - 仅拉黑发起方（记录的 `user_id` = 当前用户）可取消。
+        - 仅 BLOCKED 状态的记录可取消。
+      operationId: unblockUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FriendshipId'
+      responses:
+        '200':
+          description: 取消成功或业务失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+              examples:
+                success:
+                  summary: 取消成功
+                  value: { "code": 200, "message": "操作成功", "data": null, "timestamp": 1700000000000 }
+                notBlocked:
+                  summary: 该记录不是拉黑关系
+                  value: { "code": 500, "message": "该记录不是拉黑关系", "data": null, "timestamp": 1700000000000 }
+                forbidden:
+                  summary: 非拉黑发起方
+                  value: { "code": 500, "message": "无权取消该拉黑", "data": null, "timestamp": 1700000000000 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/friends/blocked:
+    get:
+      tags: [好友]
+      summary: 我的拉黑列表
+      description: |
+        返回当前用户拉黑的所有用户（`user_id` = 当前用户 且 status = BLOCKED）。
+        列表项的 `onlineStatus` 固定为 0、`presenceStatus` 固定为 `OFFLINE`（拉黑列表不查询在线状态）。
+      operationId: listBlockedUsers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 拉黑列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultFriendList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+# ============================================================
+# 组件定义
+# ============================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: UUID
+      description: Access Token（UUID 字符串，不带 "Bearer " 前缀也可，服务端会自动去除）。
+
+  parameters:
+    FriendshipId:
+      name: id
+      in: path
+      required: true
+      description: 好友关系记录 ID（friendships.id）
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 10
+
+  responses:
+    Unauthorized:
+      description: 未授权（缺少 / 无效 / 过期的 Token）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResultVoid'
+          example: { "code": 401, "message": "登录态已失效", "data": null, "timestamp": 1700000000000 }
+
+  schemas:
+    # ---------- 请求体 ----------
+    ChangePasswordReq:
+      type: object
+      title: 修改密码请求
+      required: [oldPassword, newPassword]
+      properties:
+        oldPassword:
+          type: string
+          description: 原密码（明文，服务端用 BCrypt 校验）
+          example: oldpass123
+        newPassword:
+          type: string
+          description: 新密码（明文，8-64 位，服务端加密后存储）
+          minLength: 8
+          maxLength: 64
+          example: newpass456
+
+    FriendRequestReq:
+      type: object
+      title: 好友/拉黑目标请求
+      required: [friendId]
+      properties:
+        friendId:
+          type: integer
+          format: int64
+          description: 目标用户 ID
+          minimum: 1
+          example: 2
+
+    FriendRemarkReq:
+      type: object
+      title: 好友备注请求
+      properties:
+        remarkName:
+          type: string
+          description: 备注名（最多 50 个字符）
+          maxLength: 50
+          example: 老王
+
+    # ---------- 响应数据 ----------
+    UserSearchResp:
+      type: object
+      title: 用户搜索结果项
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 用户 ID
+        username:
+          type: string
+          description: 用户名
+        displayName:
+          type: string
+          description: 展示昵称（无则回退为用户名）
+        avatarUrl:
+          type: string
+          nullable: true
+          description: 头像地址
+        level:
+          type: integer
+          description: 等级
+          example: 5
+        isFriend:
+          type: boolean
+          description: 是否已是当前用户的好友
+        friendshipStatus:
+          type: integer
+          nullable: true
+          description: |
+            与当前用户的好友关系状态：
+            - `null` 无关系
+            - `0` PENDING 申请中
+            - `1` ACCEPTED 已是好友
+            - `2` BLOCKED 拉黑
+
+    FriendResp:
+      type: object
+      title: 好友/申请/拉黑信息
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 好友关系记录 ID（friendships.id）
+        userId:
+          type: integer
+          format: int64
+          description: 关系所有者 ID（在好友列表/申请列表中通常指对方视角的拥有者）
+        friendId:
+          type: integer
+          format: int64
+          description: 对方用户 ID
+        status:
+          type: integer
+          description: |
+            好友关系状态：0=PENDING, 1=ACCEPTED, 2=BLOCKED
+          enum: [0, 1, 2]
+        remarkName:
+          type: string
+          nullable: true
+          description: 备注名
+        username:
+          type: string
+          description: 对方用户名
+        displayName:
+          type: string
+          description: 对方展示昵称
+        avatarUrl:
+          type: string
+          nullable: true
+          description: 对方头像地址
+        onlineStatus:
+          type: integer
+          description: 在线状态（0=离线，1=在线）。拉黑列表固定为 0。
+          enum: [0, 1]
+        presenceStatus:
+          type: string
+          description: 业务状态（OFFLINE/IDLE/IN_ROOM/IN_MATCH）。拉黑列表固定为 OFFLINE。
+          enum: [OFFLINE, IDLE, IN_ROOM, IN_MATCH]
+        invitable:
+          type: boolean
+          description: 是否可被邀请（仅 IDLE 时为 true）
+
+    # ---------- 统一响应封装 ----------
+    ResultVoid:
+      type: object
+      title: 统一响应（无数据）
+      properties:
+        code:
+          type: integer
+          description: 业务码，200 表示成功
+          example: 200
+        message:
+          type: string
+          description: 响应消息
+          example: 操作成功
+        data:
+          nullable: true
+          description: 始终为 null
+        timestamp:
+          type: integer
+          format: int64
+          description: 服务器时间戳（毫秒）
+          example: 1700000000000
+
+    ResultFriend:
+      allOf:
+        - $ref: '#/components/schemas/ResultEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/FriendResp'
+
+    ResultFriendList:
+      allOf:
+        - $ref: '#/components/schemas/ResultEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              description: 列表（无记录时为空数组）
+              items:
+                $ref: '#/components/schemas/FriendResp'
+
+    ResultUserSearchList:
+      allOf:
+        - $ref: '#/components/schemas/ResultEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              description: 搜索结果（无匹配时为空数组）
+              items:
+                $ref: '#/components/schemas/UserSearchResp'
+
+    ResultEnvelope:
+      type: object
+      title: 统一响应基础结构
+      properties:
+        code:
+          type: integer
+          description: 业务码，200 表示成功
+          example: 200
+        message:
+          type: string
+          example: 操作成功
+        timestamp:
+          type: integer
+          format: int64
+          example: 1700000000000

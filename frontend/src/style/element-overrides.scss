@@ -1,0 +1,144 @@
+// ============================================================
+// Element Plus 主题覆盖
+// 让所有 EP 组件自动继承瑞士水疗调色板
+// ============================================================
+
+:root {
+  // 主色 = 黄铜金
+  --el-color-primary:            var(--color-accent);
+  --el-color-primary-light-3:    var(--color-accent-hover);
+  --el-color-primary-light-5:    rgba(196 169 98 / 0.5);
+  --el-color-primary-light-7:    rgba(196 169 98 / 0.3);
+  --el-color-primary-light-8:    var(--color-accent-muted);
+  --el-color-primary-light-9:    rgba(196 169 98 / 0.08);
+  --el-color-primary-dark-2:     #a68e4d;
+
+  // 语义色
+  --el-color-success:            var(--color-success);
+  --el-color-warning:            var(--color-warning);
+  --el-color-danger:             var(--color-danger);
+  --el-color-info:               var(--color-info);
+
+  // 背景
+  --el-bg-color:                 var(--color-bg-elevated);
+  --el-bg-color-overlay:         var(--color-bg-overlay);
+  --el-border-color:             var(--color-border-default);
+  --el-border-color-light:       var(--color-border-subtle);
+  --el-border-color-lighter:     var(--color-border-subtle);
+
+  // 文字
+  --el-text-color-primary:       var(--color-text-primary);
+  --el-text-color-regular:       var(--color-text-secondary);
+  --el-text-color-secondary:     var(--color-text-tertiary);
+  --el-text-color-placeholder:   var(--color-text-disabled);
+
+  // 字体
+  --el-font-family:              var(--font-family);
+  --el-font-size-extra-large:    var(--text-2xl);
+  --el-font-size-large:          var(--text-xl);
+  --el-font-size-medium:         var(--text-lg);
+  --el-font-size-base:           var(--text-md);
+  --el-font-size-small:          var(--text-base);
+  --el-font-size-extra-small:    var(--text-sm);
+  --el-font-weight-primary:      var(--weight-medium);
+  --el-font-line-height-primary: var(--leading-relaxed);
+
+  // 圆角
+  --el-border-radius-base:       var(--radius-md);
+  --el-border-radius-small:      var(--radius-sm);
+  --el-border-radius-round:      var(--radius-full);
+
+  // 输入框
+  --el-input-bg-color:           var(--color-surface-01);
+  --el-input-border-color:       var(--color-border-default);
+  --el-input-hover-border-color: var(--color-border-strong);
+  --el-input-focus-border-color: var(--color-accent);
+
+  // 禁用态
+  --el-disabled-bg-color:        var(--color-surface-01);
+  --el-disabled-text-color:      var(--color-text-disabled);
+  --el-disabled-border-color:    var(--color-border-subtle);
+
+  // 遮罩
+  --el-overlay-color:            rgba(0 0 0 / 0.65);
+  --el-overlay-color-light:      rgba(0 0 0 / 0.4);
+
+  // 填充色
+  --el-fill-color:               var(--color-surface-02);
+  --el-fill-color-light:         var(--color-surface-01);
+  --el-fill-color-blank:         transparent;
+}
+
+// === 组件级字体覆盖 (Element Plus 硬编码值 → 设计 token) ===
+
+// 所有交互元素统一字体
+button, input, select, textarea, .el-button, .el-button--small, .el-button--large,
+.el-input__inner, .el-textarea__inner, .el-select .el-input__inner {
+  font-family: var(--el-font-family);
+}
+
+// 按钮
+.el-button--small { font-size: var(--text-base); }
+
+// 标签/徽章
+.el-badge { font-size: var(--text-sm); }
+.el-alert__title { font-size: var(--text-md); }
+.el-alert__description { font-size: var(--text-md); }
+
+// 复选框
+.el-checkbox__label { font-size: var(--text-md); font-weight: var(--weight-normal); }
+
+// 折叠面板
+.el-collapse-item__header { font-size: var(--text-base); }
+.el-collapse-item__content { font-size: var(--text-base); }
+
+// 对话框
+.el-dialog__title { font-size: var(--text-xl); }
+.el-dialog__body { font-size: var(--text-md); }
+
+// 表单
+.el-form-item__label { font-size: var(--text-md); }
+.el-input__inner { font-size: var(--text-md); }
+.el-textarea__inner { font-size: var(--text-md); }
+
+// 选择器/级联/下拉
+.el-select .el-input__inner { font-size: var(--text-md); }
+.el-cascader { font-size: var(--text-md); }
+.el-dropdown-menu__item { font-size: var(--text-md); }
+
+// 表格
+.el-table { font-size: var(--text-md); }
+.el-table__header th { font-size: var(--text-sm); }
+
+// 分页
+.el-pagination { font-size: var(--text-sm); }
+.el-pagination button { font-size: var(--text-base); }
+
+// 标签页
+.el-tabs__item { font-size: var(--text-md); }
+
+// 提示/弹出框
+.el-tooltip__content { font-size: var(--text-sm); }
+.el-popover { font-size: var(--text-md); }
+.el-message { font-size: var(--text-md); }
+
+// 抽屉
+.el-drawer__title { font-size: var(--text-lg); }
+
+// 步骤条
+.el-step__title { font-size: var(--text-md); }
+.el-step__description { font-size: var(--text-sm); }
+
+// 菜单
+.el-menu-item { font-size: var(--text-md); }
+
+// 时间线
+.el-timeline-item__content { font-size: var(--text-md); }
+
+// 描述列表
+.el-descriptions__title { font-size: var(--text-lg); }
+.el-descriptions__label { font-size: var(--text-md); }
+.el-descriptions__content { font-size: var(--text-md); }
+
+// 空状态
+.el-empty__description { font-size: var(--text-md); }

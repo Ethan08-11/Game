@@ -1,0 +1,126 @@
+// ============================================================
+// 设计代币系统 — 瑞士水疗极简美学
+// 单一真相来源，所有样式引用此处变量
+// ============================================================
+
+:root {
+  // === 核心表面色 (暖调近黑底) ===
+  --color-bg-base:          #0d0d14;
+  --color-bg-elevated:      #13131c;
+  --color-bg-overlay:       #181821;
+
+  // === 半透明表面 (深色底上的层级叠加) ===
+  --color-surface-01:       rgba(255 255 255 / 0.03);
+  --color-surface-02:       rgba(255 255 255 / 0.06);
+  --color-surface-03:       rgba(255 255 255 / 0.09);
+  --color-surface-hover:    rgba(255 255 255 / 0.12);
+
+  // === 边框 ===
+  --color-border-subtle:    rgba(255 255 255 / 0.06);
+  --color-border-default:   rgba(255 255 255 / 0.10);
+  --color-border-strong:    rgba(255 255 255 / 0.16);
+
+  // === 文字 ===
+  --color-text-primary:     rgba(255 255 255 / 0.93);
+  --color-text-secondary:   rgba(255 255 255 / 0.60);
+  --color-text-tertiary:    rgba(255 255 255 / 0.38);
+  --color-text-disabled:    rgba(255 255 255 / 0.22);
+
+  // === 点缀色 (唯一的强调色: 黄铜金) ===
+  --color-accent:           #c4a962;
+  --color-accent-hover:     #d4bc7a;
+  --color-accent-muted:     rgba(196 169 98 / 0.15);
+  --color-accent-glow:      rgba(196 169 98 / 0.30);
+
+  // === 语义色 ===
+  --color-success:          #7da38a;
+  --color-success-muted:    rgba(125 163 138 / 0.18);
+  --color-warning:          #c8963e;
+  --color-warning-muted:    rgba(200 150 62 / 0.18);
+  --color-danger:           #c4706b;
+  --color-danger-muted:     rgba(196 112 107 / 0.18);
+  --color-info:             #7b91b8;
+  --color-info-muted:       rgba(123 145 184 / 0.18);
+
+  // === 部门色 (统一到克制调色板) ===
+  --dept-finance:           #c4706b;
+  --dept-hr:                #7b91b8;
+  --dept-purchase:          #c8963e;
+  --dept-sales:             #7da38a;
+  --dept-it:                #9b87c4;
+  --dept-design:            #c4809e;
+  --dept-admin:             #7aad9f;
+  --dept-logistics:         #a08c7a;
+
+  // === 卡牌类型色 ===
+  --card-attack:            var(--color-danger);
+  --card-defend:            var(--color-info);
+  --card-draw:              var(--color-accent);
+  --card-consume:           var(--color-text-tertiary);
+  --card-support:           #16a085;
+
+  // === 间距 (4px 基准, 12级) ===
+  --space-0:   0;
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+  --space-14:  56px;
+  --space-16:  64px;
+
+  // === 排版 (minor second 1.125) ===
+  --font-family:            'Coldiac Rough', 'HuiWen MingChao', system-ui, sans-serif;
+  --font-mono:              'JetBrains Mono', 'Fira Code', monospace;
+  --text-2xs:               10px;
+  --text-xs:                11px;
+  --text-sm:                12px;
+  --text-base:              13px;
+  --text-md:                14px;
+  --text-lg:                16px;
+  --text-xl:                18px;
+  --text-2xl:               20px;
+  --text-3xl:               24px;
+  --text-4xl:               32px;
+  --text-5xl:               40px;
+  --text-6xl:               48px;
+  --leading-none:           1;
+  --leading-tight:          1.15;
+  --leading-normal:         1.5;
+  --leading-relaxed:        1.7;
+  --weight-light:           300;
+  --weight-normal:          400;
+  --weight-medium:          500;
+  --weight-semibold:        600;
+  --weight-bold:            700;
+
+  // === 圆角 ===
+  --radius-sm:              4px;
+  --radius-md:              8px;
+  --radius-lg:              12px;
+  --radius-xl:              16px;
+  --radius-2xl:             20px;
+  --radius-full:            9999px;
+
+  // === 阴影 ===
+  --shadow-sm:              0 1px 2px rgba(0 0 0 / 0.3);
+  --shadow-md:              0 4px 12px rgba(0 0 0 / 0.4);
+  --shadow-lg:              0 8px 32px rgba(0 0 0 / 0.5);
+  --shadow-glow:            0 0 24px var(--color-accent-glow);
+
+  // === 过渡 ===
+  --transition-fast:        0.15s ease;
+  --transition-base:        0.25s ease;
+  --transition-slow:        0.4s ease;
+
+  // === 布局 ===
+  --header-height:          56px;
+  --sidebar-width:          260px;
+  --card-width:             150px;
+  --card-height:            210px;
+  --content-max:            1200px;
+}

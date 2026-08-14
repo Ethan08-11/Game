@@ -1,0 +1,21 @@
+appId: com.owl-card-game.app
+productName: 这单我们护了！！！！
+directories:
+  output: release
+  buildResources: public
+files:
+  - dist
+  - electron
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: public/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: public/icon.png
+  shortcutName: 这单我们护了！！！！
+extraResources:
+  - from: src/assets
+    to: assets

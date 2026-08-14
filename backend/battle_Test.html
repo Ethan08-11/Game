@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>战斗全流程 WebSocket + HTTP 联调测试页</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #6a7488;
+      --primary: #4966e3;
+      --primary-2: #3650c7;
+      --danger: #c03a3a;
+      --success: #1d8f4d;
+      --border: #e1e7f0;
+      --card: #f8fbff;
+      --chip: #eef3ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+      background: linear-gradient(180deg, #f7f9fd 0%, #eef3fb 100%);
+      color: var(--text);
+    }
+
+    .page {
+      min-height: 100vh;
+      padding: 28px 16px 36px;
+    }
+
+    .shell {
+      width: min(1520px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(460px, 500px) minmax(0, 1fr);
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 20px 48px rgba(28, 44, 74, 0.08);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #fbfcff, #f7f9fe);
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: #5c74d8;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: clamp(24px, 3.4vw, 34px); }
+    h2 { margin-bottom: 10px; font-size: 16px; }
+    h3 { margin-bottom: 8px; font-size: 14px; }
+    .desc { margin: 0; color: var(--muted); line-height: 1.7; }
+
+    .panel-body { padding: 18px 20px 20px; }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .three-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      color: #41506d;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid #cfd8e8;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    textarea { min-height: 88px; resize: vertical; }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(73, 102, 227, 0.12);
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 2px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      min-height: 40px;
+      padding: 0 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .05s ease, opacity .15s ease, background .15s ease;
+    }
+
+    button:hover { opacity: .95; }
+    button:active { transform: translateY(1px); }
+    button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+    .primary { background: var(--primary); color: #fff; }
+    .primary:hover { background: var(--primary-2); }
+    .secondary { background: #edf2ff; color: #3650c7; }
+    .danger { background: #fff0f0; color: var(--danger); }
+    .dark { background: #26334e; color: #fff; }
+    .ghost { background: #eef3f8; color: #43506b; }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #f2f5fa;
+      color: #5d6880;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #9aa4b6;
+      flex: none;
+    }
+
+    .status.connected { background: #eaf9ef; color: var(--success); }
+    .status.connected .dot { background: #25a45a; }
+    .status.connecting { background: #fff8e6; color: #9a6b10; }
+    .status.connecting .dot { background: #e0a92a; }
+    .status.error { background: #fff0f0; color: var(--danger); }
+    .status.error .dot { background: var(--danger); }
+
+    .section {
+      margin-top: 18px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--card);
+      overflow: hidden;
+    }
+
+    .section .section-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #fafdff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .section .section-header small { color: var(--muted); }
+    .section .section-body { padding: 14px; }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .chip {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: var(--chip);
+      color: #3850c7;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .mini {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .log-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .log-box {
+      height: 520px;
+      overflow: auto;
+      background: #0f172a;
+      color: #d9e5ff;
+      padding: 14px;
+      font: 12px/1.55 Consolas, "Courier New", monospace;
+      scroll-behavior: auto;
+    }
+
+    .log-item {
+      border-bottom: 1px dashed rgba(255,255,255,0.15);
+      padding: 10px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .log-item strong { color: #8db0ff; }
+    .log-item .time { color: #94a3b8; }
+    .empty {
+      border: 1px dashed #cfd8e8;
+      border-radius: 12px;
+      padding: 16px;
+      color: var(--muted);
+      background: #fff;
+      text-align: center;
+    }
+
+    .guide-box {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+      padding: 14px;
+      line-height: 1.7;
+      color: #33415f;
+      min-height: 120px;
+      white-space: pre-wrap;
+    }
+
+    .guide-box strong { color: var(--primary); }
+
+    .kpi {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .kpi .card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+      padding: 12px 12px 10px;
+    }
+
+    .kpi .label { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .kpi .value { font-size: 18px; font-weight: 900; color: #223047; }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+      margin-top: 12px;
+    }
+
+    @media (max-width: 1140px) {
+      .shell { grid-template-columns: 1fr; }
+      .log-box { height: 420px; }
+    }
+
+    @media (max-width: 680px) {
+      .page { padding: 12px; }
+      .panel-header, .panel-body { padding-left: 14px; padding-right: 14px; }
+      .two-col, .three-col, .kpi { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="shell">
+      <section class="panel">
+        <header class="panel-header">
+          <p class="eyebrow">Battle Flow Tester</p>
+          <h1>战斗全流程 WebSocket + HTTP 联调测试页</h1>
+          <p class="desc">同一个 HTML 文件可以开两个窗口，用不同账号分别测试组队、退出房间、选择部门、准备、开始对局、出牌、结束回合和好友状态变化。</p>
+        </header>
+
+        <div class="panel-body grid">
+          <section>
+            <h2>连接配置</h2>
+            <div class="grid">
+              <label>
+                Access Token
+                <input id="accessToken" placeholder="登录接口返回的 accessToken" />
+              </label>
+              <label>
+                后端 HTTP 基地址
+                <input id="apiBaseUrl" value="http://localhost:8080" placeholder="例如 http://localhost:8080" />
+              </label>
+              <label>
+                WebSocket 地址
+                <input id="webSocketUrl" value="ws://localhost:8080/ws/room" />
+              </label>
+              <div class="btn-row">
+                <button id="connectBtn" class="primary">建立连接</button>
+                <button id="disconnectBtn" class="danger" disabled>断开连接</button>
+                <button id="clearLogBtn" class="ghost">清空日志</button>
+              </div>
+            </div>
+            <div id="wsStatus" class="status">
+              <span class="dot"></span>
+              <span id="wsStatusText">尚未连接</span>
+            </div>
+          </section>
+
+          <section>
+            <h2>当前上下文</h2>
+            <div class="kpi">
+              <div class="card"><div class="label">用户 ID</div><div id="currentUserId" class="value">-</div></div>
+              <div class="card"><div class="label">房间 ID</div><div id="currentRoomId" class="value">-</div></div>
+              <div class="card"><div class="label">对局 ID</div><div id="currentMatchId" class="value">-</div></div>
+              <div class="card"><div class="label">当前版本</div><div id="currentVersion" class="value">-</div></div>
+            </div>
+            <div class="kpi" style="margin-top:10px;">
+              <div class="card"><div class="label">当前阶段</div><div id="currentPhase" class="value">-</div></div>
+              <div class="card"><div class="label">先手玩家</div><div id="currentFirstPlayer" class="value">-</div></div>
+              <div class="card"><div class="label">选择发起人</div><div id="currentFirstPlayerChooser" class="value">-</div></div>
+              <div class="card"><div class="label">重连状态</div><div id="currentReconnectState" class="value">-</div></div>
+            </div>
+            <div class="chips" id="contextChips">
+              <span class="chip">ws.connected</span>
+              <span class="chip">friend.presence.changed</span>
+              <span class="chip">room.created</span>
+              <span class="chip">match.started</span>
+            </div>
+          </section>
+
+          <section>
+            <h2>好友与房间操作</h2>
+            <div class="grid">
+              <div class="two-col">
+                <label>
+                  好友 ID
+                  <input id="friendId" type="number" placeholder="如 9" />
+                </label>
+                <label>
+                  房间 ID
+                  <input id="roomId" type="number" placeholder="如 12" />
+                </label>
+              </div>
+              <div class="two-col">
+                <label>
+                  邀请 ID
+                  <input id="inviteId" type="number" placeholder="如 1" />
+                </label>
+                <label>
+                  cardInstanceId
+                  <input id="cardInstanceId" type="number" placeholder="如 61" />
+                </label>
+              </div>
+              <div class="two-col">
+                <label>
+                  先手用户 ID
+                  <input id="firstPlayerUserId" type="number" placeholder="如 11" />
+                </label>
+                <label>
+                  备注
+                  <input id="remark" placeholder="如 测试用" />
+                </label>
+              </div>
+              <div class="three-col">
+              <div class="three-col">
+                <button class="secondary" id="btnGetFriends">刷新好友列表</button>
+                <button class="secondary" id="btnGetRoom">查询房间详情</button>
+                <button class="secondary" id="btnGetMatch">查询对局状态</button>
+              </div>
+              <div class="three-col">
+                <button class="primary" id="btnInvite">发送邀请</button>
+                <button class="primary" id="btnAcceptInvite">接受邀请</button>
+                <button class="danger" id="btnRejectInvite">拒绝邀请</button>
+              </div>
+              <div class="two-col">
+                <button class="danger" id="btnLeaveRoom">退出/关闭房间</button>
+                <button class="ghost" id="btnSyncNow">同步最新状态</button>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2>对局操作</h2>
+            <div class="grid">
+              <div class="two-col">
+                <label>
+                  部门
+                  <select id="deptType">
+                    <option value="sales">sales</option>
+                    <option value="purchase">purchase</option>
+                  </select>
+                </label>
+                <label>
+                  目标用户 ID
+                  <input id="targetUserId" type="number" placeholder="攻击填空或 null，玩家目标填用户 ID" />
+                </label>
+              </div>
+              <div class="three-col">
+                <label>
+                  Client Action ID
+                  <input id="clientActionId" placeholder="不填则自动生成" />
+                </label>
+                <label>
+                  Expected Version
+                  <input id="expectedVersion" type="number" placeholder="如 1" />
+                </label>
+                <label>
+                  操作类型
+                  <select id="actionMode">
+                    <option value="play-card">play-card</option>
+                    <option value="end-turn">end-turn</option>
+                  </select>
+                </label>
+              </div>
+              <div class="three-col">
+                <button class="primary" id="btnSetDept">选择部门</button>
+                <button class="primary" id="btnReady">准备</button>
+                <button class="secondary" id="btnChooseFirstPlayer">选择先手</button>
+              </div>
+              <div class="three-col">
+                <button class="dark" id="btnPlayCard">出牌</button>
+                <button class="danger" id="btnEndTurn">结束回合</button>
+                <button class="ghost" id="btnAutoSync">自动填写 Version</button>
+              </div>
+              <div class="three-col">
+                <button class="ghost" id="btnAutoCid">生成 Action ID</button>
+                <button class="ghost" id="btnLoadMatchState">加载对局状态</button>
+                <button class="ghost" id="btnLoadDeck">加载整套牌组</button>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2>操作步骤引导</h2>
+            <div id="guideText" class="guide-box">页面已加载。
+1. 先输入 Access Token 并建立 WebSocket 连接。
+2. 两个窗口分别登录不同账号。
+3. 发起邀请、接受邀请、选择部门、点击准备。
+4. 进入对局后，查询对局状态和牌组，再按提示测试先手、出牌与结束回合。</div>
+            <p class="mini">建议开两个窗口：窗口 A 登录用户 3，窗口 B 登录用户 9。两个窗口都建立 WebSocket 后，再测试邀请、接受、退出、准备和对局开始消息。</p>
+            <p class="mini">如果页面跳转失败，只要点击“退出/关闭房间”接口，后端就会同步关闭整个未开始房间，并广播 `room.closed` 和好友状态变化。</p>
+            <p class="mini">如果是已开始对局，普通退出会被拒绝；请使用后续投降/中断对局流程。</p>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel">
+        <header class="panel-header">
+          <p class="eyebrow">Realtime Console</p>
+          <h1>实时消息与响应日志</h1>
+          <p class="desc">这里会同时显示 WebSocket 消息和 HTTP 请求返回，方便对照状态变化。日志默认不会抢走你的滚动位置，只有你点击“跟随最新日志”才会自动滚到底部。</p>
+        </header>
+        <div class="panel-body">
+          <div class="log-toolbar">
+            <span id="logInfo">日志条数：0</span>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:700;">
+              <input id="followLogs" type="checkbox" style="width:auto;" /> 跟随最新日志
+            </label>
+          </div>
+          <div id="logBox" class="log-box"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+    const state = {
+      socket: null,
+      connected: false,
+      connecting: false,
+      heartbeatTimer: null,
+      logCount: 0,
+      lastPresence: null,
+      lastGuide: '',
+      logScrollLocked: true,
+    };
+
+    const accessTokenEl = el('accessToken');
+    const apiBaseUrlEl = el('apiBaseUrl');
+    const webSocketUrlEl = el('webSocketUrl');
+    const connectBtn = el('connectBtn');
+    const disconnectBtn = el('disconnectBtn');
+    const clearLogBtn = el('clearLogBtn');
+    const wsStatus = el('wsStatus');
+    const wsStatusText = el('wsStatusText');
+    const logBox = el('logBox');
+    const logInfo = el('logInfo');
+    const followLogs = el('followLogs');
+
+    function now() {
+      return new Date().toLocaleTimeString();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function appendLog(title, content, color = '#d9e5ff') {
+      state.logCount += 1;
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      item.innerHTML = `<div><strong>${escapeHtml(title)}</strong> <span class="time">[${now()}]</span></div><div style="color:${color}">${escapeHtml(content)}</div>`;
+      logBox.appendChild(item);
+      logInfo.textContent = `日志条数：${state.logCount}`;
+      if (followLogs.checked && !state.logScrollLocked) {
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+    }
+
+    function setStatus(type, text) {
+      wsStatus.className = 'status ' + (type || '');
+      wsStatusText.textContent = text;
+    }
+
+    function setGuide(text) {
+      state.lastGuide = text;
+      const guide = el('guideText');
+      if (guide) guide.textContent = text;
+    }
+
+    function buildPlayGuide(match, deck) {
+      const lines = [];
+      lines.push('当前建议操作：');
+      if (!match) {
+        lines.push('1. 先完成连接并查询对局状态。');
+        return lines.join('\n');
+      }
+      lines.push(`1. 当前对局阶段：${match.phase || '-'}`);
+      if (match.phase === 'SELECT_FIRST_PLAYER') {
+        lines.push('2. 双方已经拿到手牌，房主应先调用“选择先手”。');
+        lines.push('3. 选择完成后，对局会进入 PLAYER_ACTION。');
+      } else if (match.phase === 'RECONNECT_WAIT') {
+        lines.push(`2. 当前正在等待重连，剩余 ${match.reconnectRemainingSeconds ?? '-'} 秒。`);
+      } else if (match.phase === 'PLAYER_ACTION') {
+        lines.push('2. 现在可以出牌或结束回合。');
+      } else if (match.phase === 'FINISHED') {
+        lines.push('2. 当前对局已结束，请查询结算。');
+      }
+      const hand = match.hand || [];
+      if (!hand.length) {
+        lines.push('4. 当前手牌为空，可以考虑结束回合。');
+      } else {
+        lines.push('4. 当前手牌如下，先从第一张开始测试：');
+        hand.forEach((card, index) => {
+          lines.push(`   - ${index + 1}. ${card.cardName || '-'}（instanceId=${card.instanceId}, type=${card.cardType || '-'}, cost=${card.cost ?? '-'}）`);
+        });
+        const firstCard = hand[0];
+        if (firstCard) {
+          lines.push(`5. 你可以先把 cardInstanceId 填成 ${firstCard.instanceId}，再点击“出牌”。`);
+        }
+      }
+      if (deck && Array.isArray(deck.cards)) {
+        lines.push(`6. 当前整套牌共 ${deck.totalCount ?? deck.cards.length} 张，可用来核对手牌/牌库/弃牌堆数量。`);
+      }
+      lines.push('7. 每次出牌或结束回合前，先点击“自动填写 Version”，避免 expectedVersion 不一致。');
+      return lines.join('\n');
+    }
+
+    function refreshButtons() {
+      connectBtn.disabled = state.connected || state.connecting;
+      disconnectBtn.disabled = !state.connected && !state.connecting;
+    }
+
+    function setContext(patch) {
+      if (patch.userId !== undefined) el('currentUserId').textContent = patch.userId ?? '-';
+      if (patch.roomId !== undefined) el('currentRoomId').textContent = patch.roomId ?? '-';
+      if (patch.matchId !== undefined) el('currentMatchId').textContent = patch.matchId ?? '-';
+      if (patch.version !== undefined) el('currentVersion').textContent = patch.version ?? '-';
+      if (patch.phase !== undefined) el('currentPhase').textContent = patch.phase ?? '-';
+      if (patch.firstPlayer !== undefined) el('currentFirstPlayer').textContent = patch.firstPlayer ?? '-';
+      if (patch.firstPlayerChooser !== undefined) el('currentFirstPlayerChooser').textContent = patch.firstPlayerChooser ?? '-';
+      if (patch.reconnectState !== undefined) el('currentReconnectState').textContent = patch.reconnectState ?? '-';
+    }
+
+    function makeHeaders() {
+      const token = accessTokenEl.value.trim();
+      if (!token) throw new Error('请先输入 Access Token');
+      return {
+        'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+    }
+
+    async function requestJson(url, options = {}) {
+      const headers = { ...(options.headers || {}) };
+      if (!headers['Content-Type'] && options.body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+      }
+      const resp = await fetch(url, {
+        ...options,
+        headers,
+      });
+      const text = await resp.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
+      }
+      appendLog(`HTTP ${resp.status} ${url}`, typeof data === 'string' ? data : JSON.stringify(data, null, 2), resp.ok ? '#d9e5ff' : '#ffb3b3');
+      if (!resp.ok) throw new Error(typeof data === 'object' && data && data.message ? data.message : `HTTP ${resp.status}`);
+      return data;
+    }
+
+    function normalizeResult(payload) {
+      return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
+    }
+
+    function wsConnect() {
+      const token = accessTokenEl.value.trim();
+      const base = webSocketUrlEl.value.trim();
+      if (!token) {
+        setStatus('error', '请输入 Access Token');
+        return;
+      }
+      try { new URL(base); } catch {
+        setStatus('error', 'WebSocket 地址格式不正确');
+        return;
+      }
+
+      wsDisconnect(true);
+      state.connecting = true;
+      refreshButtons();
+      setStatus('connecting', '正在连接 WebSocket...');
+      const url = new URL(base);
+      url.searchParams.set('accessToken', token.startsWith('Bearer ') ? token.replace(/^Bearer\s+/i, '') : token);
+      const socket = new WebSocket(url.toString());
+      state.socket = socket;
+
+      socket.onopen = () => {
+        state.connecting = false;
+        state.connected = true;
+        refreshButtons();
+        setStatus('connected', 'WebSocket 已连接');
+        appendLog('ws.connected', `connected => ${url.origin}${url.pathname}`, '#9bd3ff');
+        state.heartbeatTimer = setInterval(() => {
+          if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+            state.socket.send(JSON.stringify({ type: 'ws.heartbeat', timestamp: Date.now() }));
+          }
+        }, 20000);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          appendLog(`WS ${parsed.type || 'message'}`, JSON.stringify(parsed, null, 2), '#b8f3ce');
+          if (parsed && parsed.type === 'friend.presence.changed' && parsed.data) {
+            state.lastPresence = parsed.data;
+          }
+          if (parsed && parsed.data) {
+            if (parsed.data.matchId !== undefined) setContext({ matchId: parsed.data.matchId });
+            if (parsed.data.roomId !== undefined) setContext({ roomId: parsed.data.roomId });
+            if (parsed.data.version !== undefined) setContext({ version: parsed.data.version });
+          }
+        } catch {
+          appendLog('WS message', event.data, '#b8f3ce');
+        }
+      };
+
+      socket.onerror = () => {
+        state.connecting = false;
+        state.connected = false;
+        refreshButtons();
+        setStatus('error', 'WebSocket 连接错误');
+        appendLog('ws.error', 'WebSocket 连接错误', '#ffb3b3');
+      };
+
+      socket.onclose = (event) => {
+        if (state.heartbeatTimer) {
+          clearInterval(state.heartbeatTimer);
+          state.heartbeatTimer = null;
+        }
+        state.connecting = false;
+        state.connected = false;
+        state.socket = null;
+        refreshButtons();
+        setStatus('error', `连接关闭 code=${event.code}`);
+        appendLog('ws.close', `code=${event.code}, reason=${event.reason || ''}`.trim(), '#ffb3b3');
+      };
+    }
+
+    function wsDisconnect(silent = false) {
+      if (state.heartbeatTimer) {
+        clearInterval(state.heartbeatTimer);
+        state.heartbeatTimer = null;
+      }
+      if (state.socket) {
+        try { state.socket.close(); } catch {}
+        state.socket = null;
+      }
+      state.connected = false;
+      state.connecting = false;
+      refreshButtons();
+      if (!silent) setStatus('error', '已断开');
+    }
+
+    async function callApi(method, path, body) {
+      const headers = makeHeaders();
+      const token = headers['Authorization'];
+      const base = apiBaseUrlEl.value.trim().replace(/\/$/, '');
+      const url = path.startsWith('http') ? path : `${base}${path}`;
+      const opts = { method, headers: { ...headers, 'Authorization': token } };
+      if (body !== undefined) opts.body = JSON.stringify(body);
+      const data = await requestJson(url, opts);
+      return normalizeResult(data);
+    }
+
+    function autoCid(prefix) {
+      const token = accessTokenEl.value.trim();
+      const userId = el('currentUserId').textContent || 'u';
+      return `${prefix}-${userId}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    }
+
+    async function syncCurrentState() {
+      const roomId = el('roomId').value.trim();
+      const matchId = el('currentMatchId').textContent.trim();
+      let latestMatch = null;
+      let latestDeck = null;
+      if (roomId) {
+        try {
+          const room = await callApi('GET', `/api/rooms/${roomId}`);
+          if (room) {
+            setContext({ roomId: room.id, matchId: room.matchId });
+          }
+        } catch (e) {
+          appendLog('sync.room.error', e.message, '#ffb3b3');
+        }
+      }
+      if (matchId && matchId !== '-') {
+        try {
+          latestMatch = await callApi('GET', `/api/matches/${matchId}`);
+          if (latestMatch) {
+            const players = Array.isArray(latestMatch.players) ? latestMatch.players : [];
+            const firstPlayer = players.find((p) => p.userId === latestMatch.firstPlayerUserId);
+            const chooser = players.find((p) => p.userId === latestMatch.firstPlayerChosenByUserId);
+            setContext({
+              matchId: latestMatch.id,
+              version: latestMatch.version,
+              phase: latestMatch.phase,
+              firstPlayer: firstPlayer ? `${firstPlayer.userId} / ${firstPlayer.deptType || '-'}` : (latestMatch.firstPlayerUserId ?? '-'),
+              firstPlayerChooser: chooser ? `${chooser.userId} / ${chooser.deptType || '-'}` : (latestMatch.firstPlayerChosenByUserId ?? '-'),
+              reconnectState: latestMatch.waitingReconnect ? `等待重连(${latestMatch.reconnectRemainingSeconds ?? '-'}s)` : '正常',
+            });
+            el('expectedVersion').value = latestMatch.version;
+            appendLog('match.state', JSON.stringify(latestMatch, null, 2), '#9bd3ff');
+            try {
+              latestDeck = await callApi('GET', `/api/matches/${matchId}/deck`);
+              appendLog('match.deck', JSON.stringify(latestDeck, null, 2), '#b8f3ce');
+            } catch (deckError) {
+              appendLog('match.deck.error', deckError.message, '#ffb3b3');
+            }
+            setGuide(buildPlayGuide(latestMatch, latestDeck));
+            const firstCard = latestMatch.hand && latestMatch.hand[0];
+            if (firstCard) {
+              el('cardInstanceId').value = firstCard.instanceId;
+            }
+          }
+        } catch (e) {
+          appendLog('sync.match.error', e.message, '#ffb3b3');
+        }
+      }
+    }
+
+    connectBtn.addEventListener('click', wsConnect);
+    disconnectBtn.addEventListener('click', () => wsDisconnect());
+    clearLogBtn.addEventListener('click', () => { logBox.innerHTML = ''; state.logCount = 0; });
+
+    el('btnGetFriends').addEventListener('click', async () => {
+      try {
+        const data = await callApi('GET', '/api/friends');
+        appendLog('friends', JSON.stringify(data, null, 2));
+      } catch (e) {
+        appendLog('friends.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnGetRoom').addEventListener('click', async () => {
+      const roomId = el('roomId').value.trim();
+      if (!roomId) return appendLog('room.error', '请先填写 roomId', '#ffb3b3');
+      try {
+        const data = await callApi('GET', `/api/rooms/${roomId}`);
+        const room = normalizeResult(data);
+        if (room) setContext({ roomId: room.id, matchId: room.matchId });
+      } catch (e) {
+        appendLog('room.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnGetMatch').addEventListener('click', async () => {
+      const matchId = el('currentMatchId').textContent.trim();
+      if (!matchId || matchId === '-') return appendLog('match.error', '当前没有 matchId', '#ffb3b3');
+      try {
+        const data = await callApi('GET', `/api/matches/${matchId}`);
+        const match = normalizeResult(data);
+        if (match) {
+          const players = Array.isArray(match.players) ? match.players : [];
+          const firstPlayer = players.find((p) => p.userId === match.firstPlayerUserId);
+          const chooser = players.find((p) => p.userId === match.firstPlayerChosenByUserId);
+          setContext({
+            matchId: match.id,
+            version: match.version,
+            phase: match.phase,
+            firstPlayer: firstPlayer ? `${firstPlayer.userId} / ${firstPlayer.deptType || '-'}` : (match.firstPlayerUserId ?? '-'),
+            firstPlayerChooser: chooser ? `${chooser.userId} / ${chooser.deptType || '-'}` : (match.firstPlayerChosenByUserId ?? '-'),
+            reconnectState: match.waitingReconnect ? `等待重连(${match.reconnectRemainingSeconds ?? '-'}s)` : '正常',
+          });
+          el('expectedVersion').value = match.version;
+          appendLog('match.state', JSON.stringify(match, null, 2), '#9bd3ff');
+          try {
+            const deck = await callApi('GET', `/api/matches/${matchId}/deck`);
+            appendLog('match.deck', JSON.stringify(deck, null, 2), '#b8f3ce');
+            setGuide(buildPlayGuide(match, deck));
+            const firstCard = match.hand && match.hand[0];
+            if (firstCard) {
+              el('cardInstanceId').value = firstCard.instanceId;
+            }
+          } catch (deckError) {
+            appendLog('match.deck.error', deckError.message, '#ffb3b3');
+          }
+        }
+      } catch (e) {
+        appendLog('match.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnInvite').addEventListener('click', async () => {
+      const friendId = Number(el('friendId').value);
+      if (!friendId) return appendLog('invite.error', '请先填写 friendId', '#ffb3b3');
+      try {
+        await callApi('POST', '/api/rooms/invites', { friendId });
+      } catch (e) {
+        appendLog('invite.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnAcceptInvite').addEventListener('click', async () => {
+      const inviteId = Number(el('inviteId').value);
+      if (!inviteId) return appendLog('accept.error', '请先填写 inviteId', '#ffb3b3');
+      try {
+        const data = await callApi('POST', `/api/rooms/invites/${inviteId}/accept`);
+        const room = normalizeResult(data);
+        if (room) {
+          setContext({ roomId: room.id, matchId: room.matchId });
+          el('roomId').value = room.id;
+        }
+      } catch (e) {
+        appendLog('accept.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnRejectInvite').addEventListener('click', async () => {
+      const inviteId = Number(el('inviteId').value);
+      if (!inviteId) return appendLog('reject.error', '请先填写 inviteId', '#ffb3b3');
+      try {
+        await callApi('POST', `/api/rooms/invites/${inviteId}/reject`);
+      } catch (e) {
+        appendLog('reject.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnLeaveRoom').addEventListener('click', async () => {
+      const roomId = el('roomId').value.trim();
+      if (!roomId) return appendLog('leave.error', '请先填写 roomId', '#ffb3b3');
+      try {
+        const data = await callApi('POST', `/api/rooms/${roomId}/leave`);
+        const room = normalizeResult(data);
+        if (room) setContext({ roomId: room.id, matchId: room.matchId });
+      } catch (e) {
+        appendLog('leave.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnSyncNow').addEventListener('click', syncCurrentState);
+    followLogs.addEventListener('change', () => {
+      state.logScrollLocked = !followLogs.checked;
+      if (followLogs.checked) {
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+    });
+
+    el('btnSetDept').addEventListener('click', async () => {
+      const roomId = el('roomId').value.trim();
+      if (!roomId) return appendLog('dept.error', '请先填写 roomId', '#ffb3b3');
+      try {
+        const data = await callApi('POST', `/api/rooms/${roomId}/department`, { deptType: el('deptType').value });
+        const room = normalizeResult(data);
+        if (room) setContext({ roomId: room.id, matchId: room.matchId });
+      } catch (e) {
+        appendLog('dept.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnReady').addEventListener('click', async () => {
+      const roomId = el('roomId').value.trim();
+      if (!roomId) return appendLog('ready.error', '请先填写 roomId', '#ffb3b3');
+      try {
+        const data = await callApi('POST', `/api/rooms/${roomId}/ready`);
+        const room = normalizeResult(data);
+        if (room) setContext({ roomId: room.id, matchId: room.matchId });
+      } catch (e) {
+        appendLog('ready.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnChooseFirstPlayer').addEventListener('click', async () => {
+      const matchId = el('currentMatchId').textContent.trim();
+      const firstPlayerUserId = Number(el('firstPlayerUserId').value);
+      if (!matchId || matchId === '-') return appendLog('first.error', '请先确认 matchId', '#ffb3b3');
+      if (!firstPlayerUserId) return appendLog('first.error', '请先填写先手用户 ID', '#ffb3b3');
+      try {
+        const data = await callApi('POST', `/api/matches/${matchId}/choose-first-player`, {
+          firstPlayerUserId,
+        });
+        const result = normalizeResult(data);
+        appendLog('match.first_player.chosen', JSON.stringify(result, null, 2), '#b8f3ce');
+        if (result) {
+          const players = Array.isArray(result.players) ? result.players : [];
+          const firstPlayer = players.find((p) => p.userId === result.firstPlayerUserId);
+          const chooser = players.find((p) => p.userId === result.firstPlayerChosenByUserId);
+          setContext({
+            matchId: result.matchId,
+            version: result.version,
+            phase: result.phase,
+            firstPlayer: firstPlayer ? `${firstPlayer.userId} / ${firstPlayer.deptType || '-'}` : (result.firstPlayerUserId ?? '-'),
+            firstPlayerChooser: chooser ? `${chooser.userId} / ${chooser.deptType || '-'}` : (result.firstPlayerChosenByUserId ?? '-'),
+            reconnectState: result.waitingReconnect ? `等待重连(${result.reconnectRemainingSeconds ?? '-'}s)` : '正常',
+          });
+          el('expectedVersion').value = result.version ?? el('expectedVersion').value;
+          setGuide(`已选择先手用户 ${firstPlayerUserId}。
+1. 等待双方界面切换为 PLAYER_ACTION。
+2. 点击“加载对局状态”查看当前手牌。
+3. 然后按引导继续出牌。`);
+        }
+      } catch (e) {
+        appendLog('first.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnAutoCid').addEventListener('click', () => {
+      el('clientActionId').value = autoCid('action');
+      appendLog('clientActionId', el('clientActionId').value, '#9bd3ff');
+    });
+
+    el('btnLoadMatchState').addEventListener('click', syncCurrentState);
+    el('btnLoadDeck').addEventListener('click', async () => {
+      const matchId = el('currentMatchId').textContent.trim();
+      if (!matchId || matchId === '-') return appendLog('deck.error', '请先确认 matchId', '#ffb3b3');
+      try {
+        const deck = await callApi('GET', `/api/matches/${matchId}/deck`);
+        appendLog('match.deck', JSON.stringify(deck, null, 2), '#b8f3ce');
+      } catch (e) {
+        appendLog('deck.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnAutoSync').addEventListener('click', async () => {
+      try {
+        const matchId = el('currentMatchId').textContent.trim();
+        if (matchId && matchId !== '-') {
+          const match = await callApi('GET', `/api/matches/${matchId}`);
+          const data = normalizeResult(match);
+          if (data) {
+            setContext({ matchId: data.id, version: data.version });
+            el('expectedVersion').value = data.version;
+          }
+        }
+      } catch (e) {
+        appendLog('sync.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnPlayCard').addEventListener('click', async () => {
+      const matchId = el('currentMatchId').textContent.trim();
+      const cardInstanceId = Number(el('cardInstanceId').value);
+      if (!matchId || matchId === '-') return appendLog('play.error', '请先确认 matchId', '#ffb3b3');
+      if (!cardInstanceId) return appendLog('play.error', '请先填写 cardInstanceId', '#ffb3b3');
+      const clientActionId = el('clientActionId').value.trim() || autoCid('play');
+      const expectedVersion = Number(el('expectedVersion').value);
+      const targetUserIdValue = el('targetUserId').value.trim();
+      const payload = {
+        cardInstanceId,
+        targetType: targetUserIdValue ? 'PLAYER' : 'BOSS',
+        targetUserId: targetUserIdValue ? Number(targetUserIdValue) : null,
+        clientActionId,
+        expectedVersion: Number.isFinite(expectedVersion) && expectedVersion > 0 ? expectedVersion : 1,
+      };
+      try {
+        const data = await callApi('POST', `/api/matches/${matchId}/actions/play-card`, payload);
+        const result = normalizeResult(data);
+        if (result) {
+          setContext({ matchId: result.matchId, version: result.version });
+          el('expectedVersion').value = result.version;
+        }
+      } catch (e) {
+        appendLog('play.error', e.message, '#ffb3b3');
+      }
+    });
+
+    el('btnEndTurn').addEventListener('click', async () => {
+      const matchId = el('currentMatchId').textContent.trim();
+      if (!matchId || matchId === '-') return appendLog('end.error', '请先确认 matchId', '#ffb3b3');
+      const clientActionId = el('clientActionId').value.trim() || autoCid('end');
+      const expectedVersion = Number(el('expectedVersion').value);
+      try {
+        const data = await callApi('POST', `/api/matches/${matchId}/actions/end-turn`, {
+          clientActionId,
+          expectedVersion: Number.isFinite(expectedVersion) && expectedVersion > 0 ? expectedVersion : 1,
+        });
+        const result = normalizeResult(data);
+        if (result) {
+          setContext({ matchId: result.matchId, version: result.version });
+          el('expectedVersion').value = result.version;
+        }
+      } catch (e) {
+        appendLog('end.error', e.message, '#ffb3b3');
+      }
+    });
+
+    window.addEventListener('beforeunload', () => wsDisconnect(true));
+
+    appendLog('ready', '页面已加载。建议同时开两个窗口，分别输入不同用户的 Token。', '#9bd3ff');
+    setGuide('页面已加载。\n1. 先输入 Access Token 并建立 WebSocket 连接。\n2. 两个窗口分别登录不同账号。\n3. 发起邀请、接受邀请、选择部门、点击准备。\n4. 进入对局后，查询对局状态和牌组，再按提示测试先手、出牌与结束回合。');
+    setStatus('', '尚未连接');
+    refreshButtons();
+  </script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+@use './tokens.scss' as *;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  font-family: inherit;
+}
+
+html, body, #app {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  font-family: var(--font-family);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+// 选中文字
+::selection {
+  background: var(--color-accent-muted);
+  color: var(--color-text-primary);
+}
+
+// 滚动条
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-03);
+  border-radius: var(--radius-full);
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+// 动画
+@keyframes cardFlipIn {
+  from { transform: rotateY(180deg); opacity: 0; }
+  to   { transform: rotateY(0deg); opacity: 1; }
+}
+
+@keyframes cardShake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-4px); }
+  75%       { transform: translateX(4px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+// 弹窗基础样式
+.owl-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn var(--transition-fast) ease;
+}
+
+.owl-dialog {
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6) var(--space-8);
+  min-width: 320px;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp var(--transition-base) ease;
+}
+
+// 页面过渡
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity var(--transition-base) ease;
+}
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
+}
