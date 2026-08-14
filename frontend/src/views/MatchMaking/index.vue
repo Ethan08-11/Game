@@ -121,18 +121,18 @@ import { extractRoomId, getFriends, getRoomDetail, leaveRoom as leaveRoomApi, ab
 import type { Friend } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { connectRoomSocket, subscribeRoomEvent } from '@/utils/roomSocket'
-import bg1 from '@/assets/hall-bg.png'
-import bg2 from '@/assets/hall-bg2.png'
-import matchBg from '@/assets/match-bg.jpeg'
-import matchFriendListBg from '@/assets/match-friend-list-bg.jpeg'
-import statusOnlineIcon from '@/assets/status-online.png'
-import deptCardBg from '@/assets/dept-card-bg.png'
-import statusOfflineIcon from '@/assets/status-offline.png'
-import statusInGameIcon from '@/assets/status-in-game.jpeg'
-import statusInTeamIcon from '@/assets/status-in-team.jpeg'
-import inviteBrightIcon from '@/assets/invite-bright.jpeg'
-import inviteDimIcon from '@/assets/invite-dim.jpeg'
-import defaultAvatar from '@/assets/default-avatar.jpeg'
+import bg1 from '@/assets/hall-bg.webp'
+import bg2 from '@/assets/hall-bg2.webp'
+import matchBg from '@/assets/match-bg.webp'
+import matchFriendListBg from '@/assets/match-friend-list-bg.webp'
+import statusOnlineIcon from '@/assets/status-online.webp'
+import deptCardBg from '@/assets/dept-card-bg.webp'
+import statusOfflineIcon from '@/assets/status-offline.webp'
+import statusInGameIcon from '@/assets/status-in-game.webp'
+import statusInTeamIcon from '@/assets/status-in-team.webp'
+import inviteBrightIcon from '@/assets/invite-bright.webp'
+import inviteDimIcon from '@/assets/invite-dim.webp'
+import defaultAvatar from '@/assets/default-avatar.webp'
 
 const router = useRouter()
 const route = useRoute()
@@ -619,7 +619,7 @@ async function leaveCurrentRoom() {
   height: 320px;
   flex-shrink: 0;
   padding: 12px var(--space-5) 0 var(--space-3);
-  background: url('@/assets/friend-row-bg.jpeg') center/100% 100% no-repeat;
+  background: url('@/assets/friend-row-bg.webp') center/100% 100% no-repeat;
   position: relative;
   margin-top: -260px;
 }
@@ -973,7 +973,7 @@ async function leaveCurrentRoom() {
   font-weight: var(--weight-bold);
   cursor: pointer;
   transition: all 0.2s ease;
-  background-image: url('@/assets/dept-btn-bg.png');
+  background-image: url('@/assets/dept-btn-bg.webp');
   background-size: 100% 100%;
   background-repeat: no-repeat;
   color: var(--color-bg-base);

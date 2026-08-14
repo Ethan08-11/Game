@@ -290,25 +290,25 @@ import { abandonMatch, chooseFirstPlayer, endMatchTurn, getMatchDeck, getMatchDe
 import type { PlayCardPayload } from '@/api'
 import { subscribeRoomEvent } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
-import bg1 from '@/assets/battle-background2.png'
-import bg2 from '@/assets/battle-background2.png'
-import bg3 from '@/assets/battle-background2.png'
-import bg4 from '@/assets/battle-background2.png'
-import bg5 from '@/assets/battle-background2.png'
-import bg6 from '@/assets/battle-background2.png'
-import choosePlayerBg from '@/assets/battle-playerchoose-bg.jpeg'
-import fundsIcon from '@/assets/battle/funds-icon.png'
-import checkPlayerBtnBg from '@/assets/battle-check-player.png'
-import p1BtnBg from '@/assets/p1.png'
-import p2BtnBg from '@/assets/p2.png'
-import customerImg from '@/assets/battle/customer.png'
-import bullyImg from '@/assets/battle/bully.png'
-import playerImg from '@/assets/battle/player.png'
-import purchaseImg from '@/assets/battle/purchase.png'
-import salesImg from '@/assets/battle/sales.png'
+import bg1 from '@/assets/battle-background2.webp'
+import bg2 from '@/assets/battle-background2.webp'
+import bg3 from '@/assets/battle-background2.webp'
+import bg4 from '@/assets/battle-background2.webp'
+import bg5 from '@/assets/battle-background2.webp'
+import bg6 from '@/assets/battle-background2.webp'
+import choosePlayerBg from '@/assets/battle-playerchoose-bg.webp'
+import fundsIcon from '@/assets/battle/funds-icon.webp'
+import checkPlayerBtnBg from '@/assets/battle-check-player.webp'
+import p1BtnBg from '@/assets/p1.webp'
+import p2BtnBg from '@/assets/p2.webp'
+import customerImg from '@/assets/battle/customer.webp'
+import bullyImg from '@/assets/battle/bully.webp'
+import playerImg from '@/assets/battle/player.webp'
+import purchaseImg from '@/assets/battle/purchase.webp'
+import salesImg from '@/assets/battle/sales.webp'
 import reviveAdVideo from '@/assets/revive-ad.mp4'
-import resultLoseBg from '@/assets/result-lose-bg.jpeg'
-import resultWinBg from '@/assets/result-win-bg.jpeg'
+import resultLoseBg from '@/assets/result-lose-bg.webp'
+import resultWinBg from '@/assets/result-win-bg.webp'
 
 import BackButton from '@/components/BackButton.vue'
 import PlayerInfo from '@/components/PlayerInfo.vue'
@@ -1405,7 +1405,7 @@ onUnmounted(() => {
   right: var(--space-6);
   z-index: 10000;
   width: 260px;
-  background: url('@/assets/action-log-bg.jpeg') center/cover no-repeat;
+  background: url('@/assets/action-log-bg.webp') center/cover no-repeat;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--space-4);
@@ -1667,7 +1667,7 @@ onUnmounted(() => {
 .finish-btn {
   position: absolute;
   background-color: transparent;
-  background-image: url('@/assets/battle-finish.png');
+  background-image: url('@/assets/battle-finish.webp');
   background-position: center;
   background-repeat: no-repeat;
   padding: 0;

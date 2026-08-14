@@ -27,9 +27,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { WarningFilled } from '@element-plus/icons-vue'
-import shieldIcon from '@/assets/boss-shield.png'
-import attackIcon from '@/assets/Boss-attack.png'
-import panelBg from '@/assets/bully-panel-bg.jpeg'
+import shieldIcon from '@/assets/boss-shield.webp'
+import attackIcon from '@/assets/Boss-attack.webp'
+import panelBg from '@/assets/bully-panel-bg.webp'
 import { useGameStore } from '@/store/game'
 
 const game = useGameStore()

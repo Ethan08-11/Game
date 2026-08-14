@@ -36,7 +36,7 @@ import gsap from 'gsap'
 import openingVideo from '@/assets/cg/opening.mp4'
 import storyImg from '@/assets/cg/story.webp'
 import storyImg2 from '@/assets/cg/story2.webp'
-import storyImg3 from '@/assets/cg/story3.jpeg'
+import storyImg3 from '@/assets/cg/story3.webp'
 
 const router = useRouter()
 const common = useCommonStore()

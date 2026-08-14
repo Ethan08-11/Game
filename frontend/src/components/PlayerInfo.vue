@@ -18,8 +18,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import shieldIcon from '@/assets/player-shield.png'
-import infoBg from '@/assets/battle/player-info-bg.jpg'
+import shieldIcon from '@/assets/player-shield.webp'
+import infoBg from '@/assets/battle/player-info-bg.webp'
 
 const props = withDefaults(defineProps<{
   dept: string

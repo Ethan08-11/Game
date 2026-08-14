@@ -22,10 +22,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useUserStore } from '@/store/user'
-import bg1 from '@/assets/hall-bg.png'
-import bg2 from '@/assets/hall-bg2.png'
-import cardBg from '@/assets/achievement-card-bg.png'
-import achieveBg from '@/assets/achievement-bg.png'
+import bg1 from '@/assets/hall-bg.webp'
+import bg2 from '@/assets/hall-bg2.webp'
+import cardBg from '@/assets/achievement-card-bg.webp'
+import achieveBg from '@/assets/achievement-bg.webp'
 
 const bgDay = bg2
 const bgNight = bg1

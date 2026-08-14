@@ -22,11 +22,11 @@ import { ref, watch, onMounted } from 'vue'
 import { getLeaderboard } from '@/api'
 import type { LeaderboardEntry } from '@/api'
 import BackButton from '@/components/BackButton.vue'
-import titleBg from '@/assets/title-bg-leaderboard.png'
-import rowBg from '@/assets/row-bg-leaderboard.png'
-import pageBg from '@/assets/beijing0.png'
-import hallDay from '@/assets/hall-bg2.png'
-import hallNight from '@/assets/hall-bg.png'
+import titleBg from '@/assets/title-bg-leaderboard.webp'
+import rowBg from '@/assets/row-bg-leaderboard.webp'
+import pageBg from '@/assets/beijing0.webp'
+import hallDay from '@/assets/hall-bg2.webp'
+import hallNight from '@/assets/hall-bg.webp'
 
 const tab = ref<'total' | 'weekly'>('total')
 const list = ref<LeaderboardEntry[]>([])

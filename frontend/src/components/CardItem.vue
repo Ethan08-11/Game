@@ -28,7 +28,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Switch, Aim, Download, Delete, MagicStick, Lightning, FirstAidKit, CirclePlus } from '@element-plus/icons-vue'
 import { getImageUrl } from '@/utils/imageUrl'
-import fallbackBg from '@/assets/card-background1.jpg'
+import fallbackBg from '@/assets/card-background1.webp'
 
 const DESC_MAX_PX = 18
 const DESC_MIN_PX = 9

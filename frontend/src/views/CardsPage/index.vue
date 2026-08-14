@@ -46,8 +46,8 @@ import { fetchCardList } from '@/api'
 import type { ApiCard } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { getImageUrl } from '@/utils/imageUrl'
-import bg1 from '@/assets/hall-bg.png'
-import bg2 from '@/assets/hall-bg2.png'
+import bg1 from '@/assets/hall-bg.webp'
+import bg2 from '@/assets/hall-bg2.webp'
 
 interface DeptGroup {
   dept: string
@@ -142,7 +142,7 @@ function typeLabel(type: string): string {
   height: 100%;
   overflow-y: auto;
   isolation: isolate;
-  --cards-bg: url('@/assets/hall-bg2.png');
+  --cards-bg: url('@/assets/hall-bg2.webp');
 }
 .page::before {
   content: '';

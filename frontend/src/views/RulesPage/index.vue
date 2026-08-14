@@ -54,8 +54,8 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import bg1 from '@/assets/hall-bg.png'
-import bg2 from '@/assets/hall-bg2.png'
+import bg1 from '@/assets/hall-bg.webp'
+import bg2 from '@/assets/hall-bg2.webp'
 
 const bgImage = ref('')
 

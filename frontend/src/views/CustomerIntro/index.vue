@@ -64,10 +64,10 @@
 import { onMounted, ref } from 'vue'
 import BackButton from '@/components/BackButton.vue'
 import { getCustomerCatalog, type CustomerApiItem } from '@/api'
-import bg1 from '@/assets/hall-bg.png'
-import bg2 from '@/assets/hall-bg2.png'
-import cardBg from '@/assets/customer-card-bg.jpeg'
-import avatarImg from '@/assets/customer-avatar-intro.png'
+import bg1 from '@/assets/hall-bg.webp'
+import bg2 from '@/assets/hall-bg2.webp'
+import cardBg from '@/assets/customer-card-bg.webp'
+import avatarImg from '@/assets/customer-avatar-intro.webp'
 import { getImageUrl } from '@/utils/imageUrl'
 
 const bgDay = bg2

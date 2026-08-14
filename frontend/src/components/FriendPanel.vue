@@ -18,11 +18,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useUserStore, type Friend } from '@/store/user'
-import defaultAvatar from '@/assets/default-avatar.jpeg'
-import statusOnlineIcon from '@/assets/status-online.png'
-import statusOfflineIcon from '@/assets/status-offline.png'
-import statusInGameIcon from '@/assets/status-in-game.jpeg'
-import statusInTeamIcon from '@/assets/status-in-team.jpeg'
+import defaultAvatar from '@/assets/default-avatar.webp'
+import statusOnlineIcon from '@/assets/status-online.webp'
+import statusOfflineIcon from '@/assets/status-offline.webp'
+import statusInGameIcon from '@/assets/status-in-game.webp'
+import statusInTeamIcon from '@/assets/status-in-team.webp'
 
 const userStore = useUserStore()
 
@@ -84,7 +84,7 @@ function getStatusIcon(f: Friend): string {
   height: 320px;
   flex-shrink: 0;
   padding: 12px var(--space-5) 0 var(--space-3);
-  background: url('@/assets/friend-row-bg.jpeg') center/100% 100% no-repeat;
+  background: url('@/assets/friend-row-bg.webp') center/100% 100% no-repeat;
   position: relative;
   margin-top: -260px;
 

@@ -87,16 +87,16 @@ import { leaveRoom, abandonMatch, getMatchDetail } from '@/api'
 import { disconnectRoomSocket } from '@/utils/roomSocket'
 import FriendPanel from '@/components/FriendPanel.vue'
 import dayjs from 'dayjs'
-import startBtnImg from '@/assets/start-btn-v2.png'
-import questBtnImg from '@/assets/quest-btn-v3.png'
-import customerBtnImg from '@/assets/customer-btn-v3.png'
+import startBtnImg from '@/assets/start-btn-v2.webp'
+import questBtnImg from '@/assets/quest-btn-v3.webp'
+import customerBtnImg from '@/assets/customer-btn-v3.webp'
 
-import bg1 from '@/assets/hall-bg.png'
-import bg2 from '@/assets/hall-bg2.png'
-import moneyBg from '@/assets/points-btn-bg.png'
-import tujianBtnImg from '@/assets/tujian-btn.png'
-import leaderboardBtnImg from '@/assets/leaderboard-btn-icon.png'
-import achievementBtnImg from '@/assets/achievement-btn-icon.png'
+import bg1 from '@/assets/hall-bg.webp'
+import bg2 from '@/assets/hall-bg2.webp'
+import moneyBg from '@/assets/points-btn-bg.webp'
+import tujianBtnImg from '@/assets/tujian-btn.webp'
+import leaderboardBtnImg from '@/assets/leaderboard-btn-icon.webp'
+import achievementBtnImg from '@/assets/achievement-btn-icon.webp'
 
 
 const router = useRouter()
@@ -376,7 +376,7 @@ async function handleLogout() {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: url('@/assets/friend-list-bg.jpeg') 53% 20%/200% no-repeat;
+  background: url('@/assets/friend-list-bg.webp') 53% 20%/200% no-repeat;
   pointer-events: none;
 }
 

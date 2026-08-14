@@ -36,8 +36,8 @@ import { useUserStore } from '@/store/user'
 import { useCommonStore } from '@/store/common'
 
 import { connectRoomSocket } from '@/utils/roomSocket'
-import bgImage from '@/assets/login-bg2.png'
-import parchmentBg from '@/assets/login-parchment-bg.jpeg'
+import bgImage from '@/assets/login-bg2.webp'
+import parchmentBg from '@/assets/login-parchment-bg.webp'
 
 
 const router = useRouter()
