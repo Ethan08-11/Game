@@ -327,10 +327,6 @@ async function enterBattle(matchId: string) {
   await router.push(`/battle/${matchId}`)
 }
 
-function resolveMatchId(detail: any) {
-  return String(detail?.matchId ?? detail?.match?.matchId ?? room.matchId ?? sessionStorage.getItem('activeMatchId') ?? '')
-}
-
 async function handleGameStart(data: any) {
   const matchId = String(data?.matchId ?? data?.data?.matchId ?? room.matchId ?? sessionStorage.getItem('activeMatchId') ?? '')
   if (route.name !== 'MatchMaking') await router.push('/matchmaking')

@@ -141,7 +141,7 @@ export interface MatchReviveRequestResp {
 
 export interface PlayCardPayload {
   cardInstanceId: number | string
-  targetType: 'BOSS' | 'PLAYER'
+  targetType: 'BOSS' | 'PLAYER' | 'SELF'
   targetUserId: number | string | null
   clientActionId: string
   expectedVersion: number
@@ -158,7 +158,7 @@ export interface PlayCardResponse {
   cardName?: string
   effectType?: string
   effectValue?: number
-  targetType?: 'BOSS' | 'PLAYER'
+  targetType?: 'BOSS' | 'PLAYER' | 'SELF'
   targetUserId?: number | string | null
   beforeValue?: number | null
   afterValue?: number | null

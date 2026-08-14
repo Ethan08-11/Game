@@ -281,12 +281,13 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Box, Delete, Coin } from '@element-plus/icons-vue'
+import { Box, Delete } from '@element-plus/icons-vue'
 import { useGameStore } from '@/store/game'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 //import { abandonMatch, endMatchTurn, getMatchDeck, getMatchDetail, playMatchCard, reconnectMatch } from '@/api'
 import { abandonMatch, chooseFirstPlayer, endMatchTurn, getMatchDeck, getMatchDetail, getMatchReviveStatus, playMatchCard, reconnectMatch, requestMatchRevive } from '@/api'
+import type { PlayCardPayload } from '@/api'
 import { subscribeRoomEvent } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
 import bg1 from '@/assets/battle-background2.png'
@@ -296,7 +297,6 @@ import bg4 from '@/assets/battle-background2.png'
 import bg5 from '@/assets/battle-background2.png'
 import bg6 from '@/assets/battle-background2.png'
 import choosePlayerBg from '@/assets/battle-playerchoose-bg.jpeg'
-import finishBtnBg from '@/assets/battle-finish.png'
 import fundsIcon from '@/assets/battle/funds-icon.png'
 import checkPlayerBtnBg from '@/assets/battle-check-player.png'
 import p1BtnBg from '@/assets/p1.png'
@@ -309,7 +309,6 @@ import salesImg from '@/assets/battle/sales.png'
 import reviveAdVideo from '@/assets/revive-ad.mp4'
 import resultLoseBg from '@/assets/result-lose-bg.jpeg'
 import resultWinBg from '@/assets/result-win-bg.jpeg'
-import resultBg from '@/assets/result-bg.jpeg'
 
 import BackButton from '@/components/BackButton.vue'
 import PlayerInfo from '@/components/PlayerInfo.vue'
@@ -659,7 +658,6 @@ const actionOrderText = computed(() => {
   if (isSelectingFirstPlayer.value) return '阶段：选择先手'
   return currentTurnPlayer.value ? `当前行动：${currentTurnPlayer.value.dept || '玩家'}` : '当前行动：等待回合结算'
 })
-const turnStatusText = computed(() => `结束确认：P1 ${turnEnded.value[0] ? '已确认' : '未确认'} / P2 ${turnEnded.value[1] ? '已确认' : '未确认'}`)
 
 const deptLabelMap: Record<string, string> = {
   sales: '销售部',
@@ -872,10 +870,10 @@ async function playCard(card: BattleCard) {
   // 攻击 / 抽牌 / 消耗 / 辅助(Dylan 等 SELF)：无需选择玩家目标
   if (card.type === 'attack' || card.type === 'consume' || card.type === 'draw' || card.type === 'support') {
     try {
-      const payload = {
+      const payload: PlayCardPayload = {
         cardInstanceId: card.instanceId,
         targetType: card.type === 'support' ? 'SELF' : 'BOSS',
-        targetUserId: null as number | string | null,
+        targetUserId: null,
         clientActionId: `${room.currentUserId}-${activeMatchId.value}-${Date.now()}`,
         expectedVersion: activeVersion.value,
       }
@@ -950,7 +948,6 @@ async function endTurn() {
 async function confirmTarget(targetUserId: string) {
   if (!pendingTargetCard.value || !activeMatchId.value) return
   try {
-    const cardName = pendingTargetCard.value.name
     const res = await playMatchCard(activeMatchId.value, {
       cardInstanceId: pendingTargetCard.value.instanceId,
       targetType: 'PLAYER',
