@@ -8,7 +8,13 @@ export interface RoomWsMessage<T = any> {
   onlineTimeoutSeconds?: number
 }
 
-const WS_BASE = import.meta.env.VITE_ROOM_WS_BASE || 'ws://127.0.0.1:8080/ws/room'
+function defaultWsBase() {
+  if (typeof window === 'undefined') return 'ws://127.0.0.1:8080/ws/room'
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${proto}://${window.location.host}/ws/room`
+}
+
+const WS_BASE = import.meta.env.VITE_ROOM_WS_BASE || defaultWsBase()
 const HEARTBEAT_INTERVAL = 20_000
 const RECONNECT_DELAY = 3_000
 

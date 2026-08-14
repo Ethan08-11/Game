@@ -29,9 +29,11 @@ public class CorsConfig {
         config.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:*",
                 "http://127.0.0.1:*",
-                "http://192.168.1.25:*",
-                "http://192.168.2.1:*",
-                "http://192.168.13.1:*"
+                "http://192.168.*:*",
+                "https://*.zeabur.app",
+                "http://*.zeabur.app",
+                "https://handinhandgame.zeabur.app",
+                "*"
         ));
 
         source.registerCorsConfiguration("/**", config);

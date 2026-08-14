@@ -27,20 +27,20 @@ spring:
         username: ${NACOS_USERNAME:}
         password: ${NACOS_PASSWORD:}
 
-  # 数据源
+  # 数据源（Zeabur MySQL 模板会注入 MYSQL_*）
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3308}/${MYSQL_DATABASE:wa_demo}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:wa_demo}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:root}
 
-  # Redis
+  # Redis（Zeabur Redis 模板会注入 REDIS_*）
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
-      database: 1
+      database: ${REDIS_DATABASE:1}
       timeout: 3000ms
       lettuce:
         pool:
@@ -49,12 +49,12 @@ spring:
           min-idle: 0
           max-wait: -1ms
 
-  # RabbitMQ
+  # RabbitMQ（兼容 Zeabur 的 RABBITMQ_DEFAULT_USER/PASS）
   rabbitmq:
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    username: ${RABBITMQ_USERNAME:${RABBITMQ_DEFAULT_USER:guest}}
+    password: ${RABBITMQ_PASSWORD:${RABBITMQ_DEFAULT_PASS:guest}}
     virtual-host: ${RABBITMQ_VHOST:/}
     publisher-confirm-type: correlated
     publisher-returns: true

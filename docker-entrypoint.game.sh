@@ -8,7 +8,7 @@ if [ -z "${NGINX_RESOLVER}" ]; then
 fi
 export NGINX_RESOLVER
 export PORT="${PORT:-8080}"
-export BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-http://127.0.0.1:9}"
+export BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-http://backend.zeabur.internal:8080}"
 
 envsubst '${PORT} ${BACKEND_UPSTREAM} ${NGINX_RESOLVER}' \
   < /etc/nginx/conf.d/configfile.template \

@@ -24,42 +24,9 @@ npm run dev
 
 ## Zeabur 部署
 
-### 前端（服务名建议 `game`）
+完整步骤见 [ZEABUR.md](./ZEABUR.md)。
 
-使用 `Dockerfile.game`。Nginx 会把 `/api`、`/ws`、`/images` 反代到后端。
-
-环境变量（可选）：
-
-- `BACKEND_UPSTREAM`：默认 `http://backend:8080`（需与后端服务名一致）
-
-### 后端（服务名必须为 `backend`，或改 `BACKEND_UPSTREAM`）
-
-使用 `Dockerfile.backend`。同项目内还需添加：
-
-1. **MySQL**（导入 `backend/sql_file` 中的初始化脚本）
-2. **Redis**
-3. **RabbitMQ**
-
-后端常用环境变量：
-
-```text
-MYSQL_HOST=...
-MYSQL_PORT=3306
-MYSQL_DATABASE=wa_demo
-MYSQL_USERNAME=...
-MYSQL_PASSWORD=...
-REDIS_HOST=...
-REDIS_PORT=6379
-REDIS_PASSWORD=...
-RABBITMQ_HOST=...
-RABBITMQ_PORT=5672
-RABBITMQ_USERNAME=...
-RABBITMQ_PASSWORD=...
-NACOS_DISCOVERY_ENABLED=false
-NACOS_CONFIG_ENABLED=false
-```
-
-只部署前端、不部署后端时，登录会返回 **HTTP 405**（请求打到 Nginx 静态站）。
+摘要：同项目部署 MySQL / Redis / RabbitMQ → Git 服务命名为 **`backend`**（`Dockerfile.backend`）→ `game` 设置 `BACKEND_UPSTREAM=http://backend.zeabur.internal:8080`。
 
 
 ## 后端启动
