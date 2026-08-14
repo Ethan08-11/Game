@@ -105,7 +105,7 @@ NACOS_CONFIG_ENABLED=false
 
 应用库名是 **`wa_demo`**（不是默认的 `zeabur`）。
 
-唯一数据源：项目文件 **`backend/sql_file/wa_demo最终版.sql`**（完整结构 + 全量数据）。
+唯一数据源：项目文件 **`backend/sql_file/wa_demo.sql`**（本机当前库导出：用户名全大写，密码 `123`）。
 
 在 mysql 容器命令行核对：
 
@@ -120,7 +120,7 @@ mysql -u"$MYSQL_USERNAME" -p"$PASSWORD" -e "SHOW DATABASES; SELECT COUNT(*) AS t
 因文件含大量 `match_cards` 等历史数据，**整文件一次导入易 Lost connection**，请用仓库脚本分块导入：
 
 ```bat
-copy /Y "项目路径\Game\backend\sql_file\wa_demo最终版.sql" "%TEMP%\wa_demo_final.sql"
+copy /Y "项目路径\Game\backend\sql_file\wa_demo.sql" "%TEMP%\wa_demo.sql"
 set ZEABUR_MYSQL_HOST=公网IP
 set ZEABUR_MYSQL_PORT=端口
 set ZEABUR_MYSQL_PASSWORD=mysql的PASSWORD
@@ -129,7 +129,7 @@ python "项目路径\Game\backend\sql_file\import_wa_demo_full.py"
 
 ### 更稳：在 mysql 容器内导入
 
-1. 把 `wa_demo最终版.sql` 上传到容器 `/tmp/wa_demo.sql`（或从公开 GitHub raw 下载）
+1. 把 `wa_demo.sql` 上传到容器 `/tmp/wa_demo.sql`（或从 GitHub raw 下载）
 2. 执行：
 
 ```bash

@@ -1,5 +1,5 @@
 """
-分块导入 backend/sql_file/wa_demo最终版.sql 到 Zeabur MySQL。
+分块导入 backend/sql_file/wa_demo.sql 到 Zeabur MySQL。
 整文件一次导入易 Lost connection；按小块导入，失败用 INSERT IGNORE 续传。
 """
 from __future__ import annotations
@@ -23,8 +23,9 @@ DATABASE = "wa_demo"
 
 ROOT = Path(__file__).resolve().parent
 SRC_CANDIDATES = [
+    ROOT / "wa_demo.sql",
     ROOT / "wa_demo最终版.sql",
-    Path(os.environ.get("TEMP", tempfile.gettempdir())) / "wa_demo_final.sql",
+    Path(os.environ.get("TEMP", tempfile.gettempdir())) / "wa_demo.sql",
 ]
 # 公网连接脆弱，块要小
 MAX_CHUNK_BYTES = 64_000
@@ -40,7 +41,7 @@ def find_src() -> Path:
     for p in SRC_CANDIDATES:
         if p.exists():
             return p
-    raise FileNotFoundError("找不到 wa_demo最终版.sql")
+    raise FileNotFoundError("找不到 wa_demo.sql")
 
 
 def mysql_base() -> list[str]:
