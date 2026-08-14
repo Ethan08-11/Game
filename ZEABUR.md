@@ -1,99 +1,116 @@
-# Zeabur 全栈部署步骤（前后端）
+# Zeabur 联调：登录 502 / Host not found
 
-仓库：`Ethan08-11/Game`  
-前端服务名：`game`（已有）  
-后端服务名：**必须叫 `backend`**（内网域名 `backend.zeabur.internal`）
-
----
-
-## 一、在同一项目添加中间件（模板）
-
-依次：**添加服务 → 从模板部署**
-
-1. **MySQL**
-2. **Redis**
-3. **RabbitMQ**
-
-等待三个服务都变成「运行中」。
-
-### 初始化 MySQL 数据
-
-1. 打开 MySQL 服务，记下连接信息 / Instruction
-2. 用客户端或 Zeabur 提供的连接命令，导入仓库文件：
+## 日志含义
 
 ```text
-backend/sql_file/wa_demo最终版.sql
+backend.zeabur.internal could not be resolved (3: Host not found)
+POST /api/auth/login → 502
 ```
 
-（若数据库名不是 `wa_demo`，先建库 `wa_demo`，或把 Zeabur `MYSQL_DATABASE` 改成 `wa_demo` 后重建。）
+表示 **game 的 Nginx 找不到名为 `backend.zeabur.internal` 的内网主机**。  
+这通常不是密码问题，而是：**后端服务内网主机名不是这个**，或后端未在同一项目成功建好网络。
+
+> Zeabur 官方说明：**修改服务显示名称，不会改变内网 hostname。**
 
 ---
 
-## 二、部署后端服务
+## 一步到位：用真实内网主机名
 
-1. **添加服务 → Git** → 选择 `Ethan08-11/Game`，分支 `main`
-2. **服务名称改成：`backend`**（重要）
-3. Zeabur 会匹配根目录 `Dockerfile.backend`
-4. 在后端「环境变量」中确认 / 填写（多数可由模板自动注入后引用）：
-
-| 变量 | 说明 |
-|------|------|
-| `MYSQL_HOST` | 引用 MySQL 服务注入值 |
-| `MYSQL_PORT` | 通常 `3306` |
-| `MYSQL_DATABASE` | `wa_demo` |
-| `MYSQL_USERNAME` | MySQL 用户 |
-| `MYSQL_PASSWORD` | MySQL 密码 |
-| `REDIS_HOST` | Redis 主机 |
-| `REDIS_PORT` | `6379` |
-| `REDIS_PASSWORD` | 若有则填 |
-| `RABBITMQ_HOST` | RabbitMQ 主机 |
-| `RABBITMQ_PORT` | `5672` |
-| `RABBITMQ_USERNAME` 或 `RABBITMQ_DEFAULT_USER` | 用户名 |
-| `RABBITMQ_PASSWORD` 或 `RABBITMQ_DEFAULT_PASS` | 密码 |
-| `NACOS_DISCOVERY_ENABLED` | `false` |
-| `NACOS_CONFIG_ENABLED` | `false` |
-
-5. 端口：HTTP `8080`（或使用 Zeabur 注入的 `PORT`，镜像已支持）
-6. 部署成功后，日志里应出现 Spring Boot 启动完成；`/actuator/health` 可用
-
-Zeabur 变量引用示例（在变量值里选「引用其他服务」）：
+1. 打开 **backend** 服务 → **网络 / Networking**
+2. 复制 **内网访问** 里的 Hostname（例如可能是 `backend.zeabur.internal`，也可能是别的名字如 `wa-demo.zeabur.internal`）
+3. 打开 **game** → **环境变量**，设置：
 
 ```text
-MYSQL_HOST = ${MYSQL_HOST}
-MYSQL_PASSWORD = ${MYSQL_PASSWORD}
-...
+BACKEND_UPSTREAM=http://【上一步复制的主机名】:8080
 ```
 
-（以控制台实际可引用名为准。）
-
----
-
-## 三、把前端接到后端
-
-打开已有 **`game`** 服务 → 环境变量：
+示例：
 
 ```text
 BACKEND_UPSTREAM=http://backend.zeabur.internal:8080
 ```
 
-然后 **重新部署** `game`。
-
-前端 Nginx 会把同源的 `/api`、`/ws`、`/images` 反代到后端，因此浏览器仍访问：
-
-`https://handinhandgame.zeabur.app`
-
-无需给后端单独绑公网域名（也可以绑，便于查日志）。
+4. **保存后重新部署 / 重启 game**
 
 ---
 
-## 四、验证
+## 确认 backend 本身是活的
 
-1. 打开站点 → 登录
-2. 不应再出现「后端服务未就绪」
-3. 若仍 502：看 `backend` 是否 Running、MySQL 是否已导入、`BACKEND_UPSTREAM` 是否写对
+在同一项目里应有：
+
+| 服务 | 状态 |
+|------|------|
+| mysql | 运行中 |
+| redis | 运行中 |
+| rabbitmq | 运行中（若没有请从模板添加） |
+| backend | 运行中（不能崩溃重试） |
+
+backend 环境变量（用「引用」绑定同项目服务）：
+
+```text
+MYSQL_HOST=mysql.zeabur.internal   # 以 mysql→网络 页为准
+MYSQL_PORT=3306
+MYSQL_DATABASE=wa_demo
+MYSQL_USERNAME=root
+MYSQL_PASSWORD=（引用 MYSQL_PASSWORD）
+REDIS_HOST=redis.zeabur.internal   # 以 redis→网络 页为准
+REDIS_PORT=6379
+RABBITMQ_HOST=...                  # 以 rabbitmq→网络 页为准
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=...
+RABBITMQ_PASSWORD=...
+NACOS_DISCOVERY_ENABLED=false
+NACOS_CONFIG_ENABLED=false
+```
+
+若 backend 一直崩溃：把 **backend 运行日志最后 40 行**发出来。
 
 ---
 
-## 费用与规格提示
+## 数据库 wa_demo
 
-后端 + 三个中间件会明显增加资源占用。建议后端至少 **1C 1GB+**；首次 Maven 构建较慢属正常。
+应用库名是 **`wa_demo`**（不是默认的 `zeabur`）。
+
+在 mysql 容器命令行：
+
+```bash
+mysql -u"$MYSQL_USERNAME" -p"$PASSWORD" -e "SHOW DATABASES; SELECT COUNT(*) AS tables_cnt FROM information_schema.tables WHERE table_schema='wa_demo';"
+```
+
+- `tables_cnt` 应接近 **26**
+- 若很少或为 0：需要重新完整导入 `backend/sql_file/wa_demo最终版.sql`
+
+公网导入请在**本机 cmd**（不要用 PowerShell 的 `<`）：
+
+```bat
+"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 43.133.220.242 -P 32030 -u root -p你的密码 --default-character-set=utf8mb4 -e "DROP DATABASE IF EXISTS wa_demo; CREATE DATABASE wa_demo DEFAULT CHARACTER SET utf8mb4;"
+
+"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 43.133.220.242 -P 32030 -u root -p你的密码 --default-character-set=utf8mb4 --max_allowed_packet=256M wa_demo < "C:\Users\30543\AppData\Local\Temp\wa_demo_final.sql"
+```
+
+（先把 SQL 复制到无中文路径：`copy` 到 `%TEMP%\wa_demo_final.sql`）
+
+---
+
+## 备选：给 backend 绑公网域名
+
+若内网怎么都解析不了：
+
+1. backend → 网络 → 生成域名（如 `xxx.zeabur.app`）
+2. game 环境变量：
+
+```text
+BACKEND_UPSTREAM=http://xxx.zeabur.app
+```
+
+（仅当 backend 以 HTTP 对外且路径仍是 `/api/...` 时可用；优先还是用内网。）
+
+---
+
+## 检查清单
+
+- [ ] backend「网络」页复制到的内网 Hostname 已写入 game 的 `BACKEND_UPSTREAM`
+- [ ] game 已重启/重部署
+- [ ] rabbitmq 已添加且 backend 已引用
+- [ ] `wa_demo` 表数量约 26
+- [ ] 登录不再出现「后端服务未就绪」
