@@ -3,14 +3,6 @@ function defaultHttpBase() {
   return window.location.origin
 }
 
-function defaultWsBase() {
-  if (typeof window === 'undefined') return 'ws://127.0.0.1:8080/ws/room'
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${window.location.host}/ws/room`
-}
-
-const WS_BASE = import.meta.env.VITE_ROOM_WS_BASE || defaultWsBase()
-
 export const BACKEND_HTTP_BASE = (
   import.meta.env.VITE_BACKEND_HTTP
   || (import.meta.env.VITE_ROOM_WS_BASE
