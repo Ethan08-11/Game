@@ -17,5 +17,10 @@ export function getImageUrl(path: string | null | undefined): string | null {
   const webpPath = /\.(png|jpe?g)$/i.test(normalized)
     ? normalized.replace(/\.(png|jpe?g)$/i, '.webp')
     : normalized
-  return `${BACKEND_HTTP_BASE}${webpPath}`
+  const url = `${BACKEND_HTTP_BASE}${webpPath}`
+  // 顾客立绘曾被压成不透明白底，必须换 URL 才能立刻绕过 30 天缓存
+  if (/\/images\/customer\//i.test(webpPath)) {
+    return `${url}?v=alpha`
+  }
+  return url
 }
