@@ -1,5 +1,5 @@
 {
-  "app_dir": "frontend",
-  "output_dir": "dist",
-  "build_command": "npm run build:web"
+  "dockerfile": {
+    "path": "Dockerfile.game"
+  }
 }

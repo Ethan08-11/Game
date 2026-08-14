@@ -22,13 +22,13 @@ npm run dev
 
 默认请求后端：`http://192.168.1.25:8080`（见 `frontend/vite.config.ts`；本地可自建 `.env`，勿提交）。
 
-## Zeabur 部署（前端静态站）
+## Zeabur 部署（前端）
 
-仓库根已放 `zbpack.json`：构建目录 `frontend/`，产物 `dist/`，使用 `npm run build:web`（不含 Electron）。
+仓库根使用 `Dockerfile.game`（与控制台服务名 `game` 对应）构建 `frontend` 的 Web 产物并用 Nginx 在 `8080` 托管。
 
-若控制台仍从仓库根构建，请到服务 **设置 → Root Directory** 填 `frontend` 后重新部署。
+部署后打开域名应能看到前端页面。若仍 404：打开服务 **设置**，确认未错误指定 Root Directory，或点 **重新部署**。
 
-当前配置只保证前端页面可打开；后端（MySQL / Redis / RabbitMQ / Spring Boot）需另建服务并配置 API 地址。
+当前只部署前端；后端（MySQL / Redis / RabbitMQ / Spring Boot）需另建服务并配置 API 地址。
 
 ## 后端启动
 
