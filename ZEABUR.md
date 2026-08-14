@@ -105,42 +105,36 @@ NACOS_CONFIG_ENABLED=false
 
 应用库名是 **`wa_demo`**（不是默认的 `zeabur`）。
 
-在 mysql 容器命令行：
+唯一数据源：项目文件 **`backend/sql_file/wa_demo最终版.sql`**（完整结构 + 全量数据）。
+
+在 mysql 容器命令行核对：
 
 ```bash
 mysql -u"$MYSQL_USERNAME" -p"$PASSWORD" -e "SHOW DATABASES; SELECT COUNT(*) AS tables_cnt FROM information_schema.tables WHERE table_schema='wa_demo';"
 ```
 
 - `tables_cnt` 应接近 **26**
-- 若很少或为 0：需要导入 SQL
 
-### 推荐：Zeabur 精简版（表结构齐全 + 卡牌/用户等基础数据，去掉对战历史）
+### 本机公网导入（cmd，不要用 PowerShell 的 `<`）
 
-文件：`backend/sql_file/wa_demo_zeabur.sql`（约 85KB，公网可稳定导入）
-
-本机 cmd：
+因文件含大量 `match_cards` 等历史数据，**整文件一次导入易 Lost connection**，请用仓库脚本分块导入：
 
 ```bat
-copy /Y "项目路径\Game\backend\sql_file\wa_demo_zeabur.sql" "%TEMP%\wa_demo_zeabur.sql"
-
-"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 公网IP -P 端口 -u root -p你的密码 --default-character-set=utf8mb4 -e "DROP DATABASE IF EXISTS wa_demo; CREATE DATABASE wa_demo DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
-
-"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 公网IP -P 端口 -u root -p你的密码 --default-character-set=utf8mb4 --max_allowed_packet=512M --binary-mode wa_demo < "%TEMP%\wa_demo_zeabur.sql"
+copy /Y "项目路径\Game\backend\sql_file\wa_demo最终版.sql" "%TEMP%\wa_demo_final.sql"
+python "项目路径\Game\backend\sql_file\import_wa_demo_full.py"
 ```
 
-### 完整最终版（含大量 match_cards 历史，公网易 Lost connection）
+（脚本默认连接信息见 `import_wa_demo_full.py` 顶部，可按 Zeabur 公网 IP/端口/密码修改。）
 
-文件：`backend/sql_file/wa_demo最终版.sql`
+### 更稳：在 mysql 容器内导入
 
-更稳妥在 **mysql 容器内**下载后导入；公网导入常在 `match_cards` 处断线。
+1. 把 `wa_demo最终版.sql` 上传到容器 `/tmp/wa_demo.sql`（或从公开 GitHub raw 下载）
+2. 执行：
 
-```bat
-"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 43.133.220.242 -P 32030 -u root -p你的密码 --default-character-set=utf8mb4 -e "DROP DATABASE IF EXISTS wa_demo; CREATE DATABASE wa_demo DEFAULT CHARACTER SET utf8mb4;"
-
-"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe" -h 43.133.220.242 -P 32030 -u root -p你的密码 --default-character-set=utf8mb4 --max_allowed_packet=256M wa_demo < "C:\Users\30543\AppData\Local\Temp\wa_demo_final.sql"
+```bash
+mysql -u"$MYSQL_USERNAME" -p"$PASSWORD" -e "DROP DATABASE IF EXISTS wa_demo; CREATE DATABASE wa_demo DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+mysql -u"$MYSQL_USERNAME" -p"$PASSWORD" --default-character-set=utf8mb4 --max_allowed_packet=512M wa_demo < /tmp/wa_demo.sql
 ```
-
-（完整版请先把 SQL 复制到无中文路径：`copy` 到 `%TEMP%\wa_demo_final.sql`）
 
 ---
 
