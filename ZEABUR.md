@@ -14,7 +14,39 @@ POST /api/auth/login → 502
 
 ---
 
-## 推荐做法（内网 hostname 解析失败时）
+## 部署 backend（Dockerfile 必填）
+
+Zeabur 对 Git 源**不会自动识别 Java**，必须指定 Dockerfile。
+
+推荐二选一：
+
+### 方式 A（推荐）：仓库根 + 指定 Dockerfile
+
+1. **backend** 服务设置里 **Root Directory 留空**（整个仓库）
+2. **环境变量**增加：
+
+```text
+ZBPACK_DOCKERFILE_PATH=Dockerfile.backend
+```
+
+3. 重新部署 backend
+
+### 方式 B：Root Directory = backend
+
+1. 设置 **Root Directory** = `backend`
+2. 会使用 `backend/Dockerfile`
+3. 重新部署
+
+---
+
+**game** 服务请设置：
+
+```text
+ZBPACK_DOCKERFILE_PATH=Dockerfile.game
+BACKEND_UPSTREAM=https://【backend的公网域名】.zeabur.app
+```
+
+（已删除会强制全仓库用 `Dockerfile.game` 的 `zbpack.json`，否则 backend 永远找不到自己的 Dockerfile。）
 
 你的环境里 `backend.zeabur.internal` 一直 **Host not found**，请改用公网域名反代：
 

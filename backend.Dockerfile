@@ -1,17 +1,18 @@
-# Used when Zeabur Root Directory = backend
+# Same as Dockerfile.backend — Zeabur matches service name "backend"
+# Prefer setting env ZBPACK_DOCKERFILE_PATH=Dockerfile.backend on the backend service.
 FROM maven:3.9-eclipse-temurin-17 AS builder
 WORKDIR /build
 
-COPY pom.xml .
-COPY wa-common/pom.xml wa-common/
-COPY wa-api/pom.xml wa-api/
-COPY wa-demo-service/pom.xml wa-demo-service/
+COPY backend/pom.xml .
+COPY backend/wa-common/pom.xml wa-common/
+COPY backend/wa-api/pom.xml wa-api/
+COPY backend/wa-demo-service/pom.xml wa-demo-service/
 
 RUN mvn dependency:go-offline -B -pl wa-demo-service -am
 
-COPY wa-common/ wa-common/
-COPY wa-api/ wa-api/
-COPY wa-demo-service/ wa-demo-service/
+COPY backend/wa-common/ wa-common/
+COPY backend/wa-api/ wa-api/
+COPY backend/wa-demo-service/ wa-demo-service/
 
 RUN mvn clean package -DskipTests -B -pl wa-demo-service -am \
   && JAR=$(ls wa-demo-service/target/wa-demo-service-*.jar | head -n 1) \
