@@ -10,9 +10,15 @@ RUN npm run build:web
 
 FROM nginx:1.27-alpine
 COPY nginx.game.conf /etc/nginx/conf.d/configfile.template
+COPY docker-entrypoint.game.sh /docker-entrypoint.game.sh
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-ENV PORT=8080 HOST=0.0.0.0 BACKEND_UPSTREAM=http://backend:8080
-EXPOSE 8080
+RUN chmod +x /docker-entrypoint.game.sh
 
-CMD sh -c "envsubst '\$PORT \$BACKEND_UPSTREAM' < /etc/nginx/conf.d/configfile.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+# 默认指到本机不可达端口：无 backend 服务时 Nginx 仍可启动，/api 返回 502
+ENV PORT=8080 \
+    HOST=0.0.0.0 \
+    BACKEND_UPSTREAM=http://127.0.0.1:9
+
+EXPOSE 8080
+CMD ["/docker-entrypoint.game.sh"]
