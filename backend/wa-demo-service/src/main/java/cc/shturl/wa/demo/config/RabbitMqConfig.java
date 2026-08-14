@@ -5,9 +5,11 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,6 +22,22 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class RabbitMqConfig {
+
+    /**
+     * Zeabur 上 Rabbit 账号未配好时，声明队列失败不要拖垮整个应用启动。
+     */
+    @Bean
+    public static BeanPostProcessor rabbitAdminIgnoreDeclarationErrors() {
+        return new BeanPostProcessor() {
+            @Override
+            public Object postProcessBeforeInitialization(Object bean, String beanName) {
+                if (bean instanceof RabbitAdmin admin) {
+                    admin.setIgnoreDeclarationExceptions(true);
+                }
+                return bean;
+            }
+        };
+    }
 
     @Bean
     public DirectExchange exampleExchange() {

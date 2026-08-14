@@ -48,14 +48,13 @@ spring:
           min-idle: 0
           max-wait: -1ms
 
-  # Zeabur：必须在 backend 单独设置 RABBITMQ_USERNAME / RABBITMQ_PASSWORD
-  # 不要用通用名 PASSWORD（会和 MySQL 的 PASSWORD 冲突）
+  # Zeabur：RABBITMQ_USERNAME / RABBITMQ_PASSWORD 必须写成字面量，禁止 ${PASSWORD}（会和 MySQL 冲突）
   rabbitmq:
     host: ${RABBITMQ_HOST:rabbitmq.zeabur.internal}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:${RABBITMQ_DEFAULT_USER:admin}}
-    password: ${RABBITMQ_PASSWORD:${RABBITMQ_DEFAULT_PASS:}}
-    virtual-host: ${RABBITMQ_VHOST:${RABBITMQ_DEFAULT_VHOST:/}}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VHOST:/}
     connection-timeout: 10000
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -64,7 +63,10 @@ spring:
         acknowledge-mode: auto
         prefetch: 1
         missing-queues-fatal: false
-        auto-startup: ${RABBITMQ_LISTENER_AUTO_STARTUP:true}
+        # 认证失败时不拖垮整个 Spring 启动（先让 HTTP 起来）
+        possible-authentication-failure-fatal: false
+        # 密码未配好前默认不自动拉起 listener；配好后设 RABBITMQ_LISTENER_AUTO_STARTUP=true
+        auto-startup: ${RABBITMQ_LISTENER_AUTO_STARTUP:false}
         retry:
           enabled: true
           max-attempts: 3
