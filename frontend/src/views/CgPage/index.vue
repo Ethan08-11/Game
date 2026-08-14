@@ -1,6 +1,17 @@
 <template>
   <div class="cg-page">
-    <video v-if="!videoError && videoSrc" ref="videoRef" class="cg-video" :src="videoSrc" autoplay loop @error="videoError = true" />
+    <video
+      v-if="!videoError"
+      ref="videoRef"
+      class="cg-video"
+      :src="openingVideo"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="auto"
+      @error="onVideoError"
+    />
     <div v-else class="cg-bg">
       <h1>这单我们护了！！！！</h1>
       <p>CG视频待添加</p>
@@ -22,32 +33,43 @@ import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCommonStore } from '@/store/common'
 import gsap from 'gsap'
+import openingVideo from '@/assets/cg/opening.mp4'
+import storyImg from '@/assets/cg/story.webp'
+import storyImg2 from '@/assets/cg/story2.webp'
+import storyImg3 from '@/assets/cg/story3.jpeg'
 
 const router = useRouter()
 const common = useCommonStore()
 
 const videoError = ref(false)
-const videoSrc = ref('')
+const videoRef = ref<HTMLVideoElement | null>(null)
 const showStory = ref(false)
 const storyStep = ref(0)
-const storyImg = ref('')
-const storyImg2 = ref('')
-const storyImg3 = ref('')
 const storyPopup = ref<HTMLElement | null>(null)
 
-onMounted(() => {
+onMounted(async () => {
+  const video = videoRef.value
+  if (!video) return
   try {
-    videoSrc.value = new URL('@/assets/cg/opening.mp4', import.meta.url).href
-    storyImg.value = new URL('@/assets/cg/story.webp', import.meta.url).href
-    storyImg2.value = new URL('@/assets/cg/story2.webp', import.meta.url).href
-    storyImg3.value = new URL('@/assets/cg/story3.jpeg', import.meta.url).href
+    // 浏览器通常要求静音才允许自动播放；先静音播放，用户点击后再开声
+    video.muted = true
+    await video.play()
   } catch {
-    videoError.value = true
+    // 自动播放被拦时保留画面第一帧，等待用户点击按钮
   }
 })
 
+function onVideoError() {
+  videoError.value = true
+}
+
 function enter() {
   common.cgPlaying = false
+  const video = videoRef.value
+  if (video) {
+    video.muted = false
+    video.pause()
+  }
   router.push('/login')
 }
 
@@ -100,6 +122,8 @@ function animateOut(el: HTMLElement, onComplete: () => void) {
 }
 
 function showPopup() {
+  const video = videoRef.value
+  if (video) video.muted = false
   showStory.value = true
   storyStep.value = 1
   nextTick(() => {
@@ -142,6 +166,7 @@ function handleOverlayClick() {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: #000;
 }
 .cg-video {
   width: 100%;
