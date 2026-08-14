@@ -16,7 +16,9 @@ MYSQL = Path(r"C:\Yzr\Mysql5.7\mysql-5.7.37-winx64\bin\mysql.exe")
 HOST = os.environ.get("ZEABUR_MYSQL_HOST", "43.133.220.242")
 PORT = os.environ.get("ZEABUR_MYSQL_PORT", "32030")
 USER = os.environ.get("ZEABUR_MYSQL_USER", "root")
-PASSWORD = os.environ.get("ZEABUR_MYSQL_PASSWORD", "Va54ErBg97tdkNhxviw80Y2L1p6zZA3G")
+PASSWORD = os.environ.get("ZEABUR_MYSQL_PASSWORD", "")
+if not PASSWORD:
+    raise SystemExit("请设置环境变量 ZEABUR_MYSQL_PASSWORD（Zeabur mysql 的 PASSWORD）")
 DATABASE = "wa_demo"
 
 ROOT = Path(__file__).resolve().parent

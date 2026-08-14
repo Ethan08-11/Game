@@ -121,10 +121,11 @@ mysql -u"$MYSQL_USERNAME" -p"$PASSWORD" -e "SHOW DATABASES; SELECT COUNT(*) AS t
 
 ```bat
 copy /Y "项目路径\Game\backend\sql_file\wa_demo最终版.sql" "%TEMP%\wa_demo_final.sql"
+set ZEABUR_MYSQL_HOST=公网IP
+set ZEABUR_MYSQL_PORT=端口
+set ZEABUR_MYSQL_PASSWORD=mysql的PASSWORD
 python "项目路径\Game\backend\sql_file\import_wa_demo_full.py"
 ```
-
-（脚本默认连接信息见 `import_wa_demo_full.py` 顶部，可按 Zeabur 公网 IP/端口/密码修改。）
 
 ### 更稳：在 mysql 容器内导入
 
