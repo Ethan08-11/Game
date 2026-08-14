@@ -1,13 +1,10 @@
 server:
-  port: ${SERVER_PORT:8080}
+  # Zeabur 注入 PORT；本地可用 SERVER_PORT
+  port: ${PORT:${SERVER_PORT:8080}}
 
 spring:
   application:
     name: wa-demo-service
-
-  # Nacos 配置中心（可选；本地无 Nacos 时关闭，避免启动失败）
-  # config:
-  #   import: optional:nacos:${spring.application.name}.yml
 
   cloud:
     nacos:
@@ -27,14 +24,16 @@ spring:
         username: ${NACOS_USERNAME:}
         password: ${NACOS_PASSWORD:}
 
-  # 数据源（Zeabur MySQL 模板会注入 MYSQL_*）
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:wa_demo}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:root}
+    hikari:
+      connection-timeout: 10000
+      initialization-fail-timeout: 30000
+      maximum-pool-size: 10
 
-  # Redis（Zeabur Redis 模板会注入 REDIS_*）
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
@@ -49,19 +48,22 @@ spring:
           min-idle: 0
           max-wait: -1ms
 
-  # RabbitMQ（兼容 Zeabur 的 RABBITMQ_DEFAULT_USER/PASS）
+  # 默认连同项目 rabbitmq 服务；请在 Zeabur 设置 RABBITMQ_* 覆盖
   rabbitmq:
-    host: ${RABBITMQ_HOST:127.0.0.1}
+    host: ${RABBITMQ_HOST:rabbitmq.zeabur.internal}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:${RABBITMQ_DEFAULT_USER:guest}}
     password: ${RABBITMQ_PASSWORD:${RABBITMQ_DEFAULT_PASS:guest}}
     virtual-host: ${RABBITMQ_VHOST:/}
+    connection-timeout: 10000
     publisher-confirm-type: correlated
     publisher-returns: true
     listener:
       simple:
         acknowledge-mode: auto
         prefetch: 1
+        missing-queues-fatal: false
+        auto-startup: ${RABBITMQ_LISTENER_AUTO_STARTUP:true}
         retry:
           enabled: true
           max-attempts: 3
@@ -71,7 +73,6 @@ app:
     access-token-ttl: ${AUTH_ACCESS_TOKEN_TTL:30d}
     refresh-token-ttl: ${AUTH_REFRESH_TOKEN_TTL:365d}
 
-# MyBatis-Plus
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: cc.shturl.wa.demo.entity
@@ -82,7 +83,6 @@ mybatis-plus:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
-# Feign
 feign:
   client:
     config:
@@ -91,13 +91,12 @@ feign:
         read-timeout: 10000
         logger-level: basic
 
-# 日志
 logging:
   level:
-    cc.shturl.wa: debug
-    com.baomidou.mybatisplus: debug
+    cc.shturl.wa: info
+    com.baomidou.mybatisplus: warn
+    org.springframework.amqp: warn
 
-# Actuator 健康检查
 management:
   endpoints:
     web:
@@ -105,4 +104,13 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: when_authorized
+      probes:
+        enabled: true
+      show-details: always
+  health:
+    rabbit:
+      enabled: false
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
