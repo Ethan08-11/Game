@@ -86,6 +86,10 @@ async function request<T>(endpoint: string, options: RequestOptions = {}, skipRe
         await refreshAccessToken()
         return request<T>(endpoint, options, true)
       }
+      if (res.status === 405 || res.status === 502 || res.status === 504) {
+        console.error(`[API] ${method} ${url} → HTTP ${res.status}（后端不可用）`)
+        throw new Error('后端服务未就绪，请确认已在 Zeabur 部署 backend（及 MySQL/Redis/RabbitMQ）')
+      }
       const err = await res.json().catch(() => ({ message: res.statusText }))
       const msg = err.message || `HTTP ${res.status}`
       console.error(`[API] ${method} ${url} → HTTP ${res.status}: ${msg}`)

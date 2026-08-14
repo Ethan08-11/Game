@@ -12,7 +12,7 @@ FROM nginx:1.27-alpine
 COPY nginx.game.conf /etc/nginx/conf.d/configfile.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-ENV PORT=8080 HOST=0.0.0.0
+ENV PORT=8080 HOST=0.0.0.0 BACKEND_UPSTREAM=http://backend:8080
 EXPOSE 8080
 
-CMD sh -c "envsubst '\$PORT' < /etc/nginx/conf.d/configfile.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+CMD sh -c "envsubst '\$PORT \$BACKEND_UPSTREAM' < /etc/nginx/conf.d/configfile.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"

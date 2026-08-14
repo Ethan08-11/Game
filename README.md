@@ -22,13 +22,45 @@ npm run dev
 
 默认请求后端：`http://192.168.1.25:8080`（见 `frontend/vite.config.ts`；本地可自建 `.env`，勿提交）。
 
-## Zeabur 部署（前端）
+## Zeabur 部署
 
-仓库根使用 `Dockerfile.game`（与控制台服务名 `game` 对应）构建 `frontend` 的 Web 产物并用 Nginx 在 `8080` 托管。
+### 前端（服务名建议 `game`）
 
-部署后打开域名应能看到前端页面。若仍 404：打开服务 **设置**，确认未错误指定 Root Directory，或点 **重新部署**。
+使用 `Dockerfile.game`。Nginx 会把 `/api`、`/ws`、`/images` 反代到后端。
 
-当前只部署前端；后端（MySQL / Redis / RabbitMQ / Spring Boot）需另建服务并配置 API 地址。
+环境变量（可选）：
+
+- `BACKEND_UPSTREAM`：默认 `http://backend:8080`（需与后端服务名一致）
+
+### 后端（服务名必须为 `backend`，或改 `BACKEND_UPSTREAM`）
+
+使用 `Dockerfile.backend`。同项目内还需添加：
+
+1. **MySQL**（导入 `backend/sql_file` 中的初始化脚本）
+2. **Redis**
+3. **RabbitMQ**
+
+后端常用环境变量：
+
+```text
+MYSQL_HOST=...
+MYSQL_PORT=3306
+MYSQL_DATABASE=wa_demo
+MYSQL_USERNAME=...
+MYSQL_PASSWORD=...
+REDIS_HOST=...
+REDIS_PORT=6379
+REDIS_PASSWORD=...
+RABBITMQ_HOST=...
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=...
+RABBITMQ_PASSWORD=...
+NACOS_DISCOVERY_ENABLED=false
+NACOS_CONFIG_ENABLED=false
+```
+
+只部署前端、不部署后端时，登录会返回 **HTTP 405**（请求打到 Nginx 静态站）。
+
 
 ## 后端启动
 
