@@ -26,6 +26,16 @@ const CIRCLE_FILL: Record<string, number> = {
   '/images/avatars/scholar.webp': 0.765,
   '/images/avatars/merchant.webp': 0.743,
   '/images/avatars/trader.webp': 0.710,
+  '/images/avatars/glasses-girl.webp': 0.860,
+  '/images/avatars/bangs-blazer.webp': 0.860,
+  '/images/avatars/turtleneck-blazer.webp': 0.835,
+  '/images/avatars/messy-glasses.webp': 0.820,
+  '/images/avatars/curtain-blazer.webp': 0.790,
+  '/images/avatars/double-glasses.webp': 0.780,
+  '/images/avatars/batik-shirt.webp': 0.765,
+  '/images/avatars/magenta-bob.webp': 0.885,
+  '/images/avatars/pearl-glasses.webp': 0.865,
+  '/images/avatars/hand-in-hand-tee.webp': 0.845,
 }
 
 export function avatarCropScale(url?: string | null): number {

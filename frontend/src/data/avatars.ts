@@ -7,6 +7,16 @@ import craftsman from '@/assets/avatars/craftsman.webp'
 import scholar from '@/assets/avatars/scholar.webp'
 import merchant from '@/assets/avatars/merchant.webp'
 import trader from '@/assets/avatars/trader.webp'
+import glassesGirl from '@/assets/avatars/glasses-girl.webp'
+import bangsBlazer from '@/assets/avatars/bangs-blazer.webp'
+import turtleneckBlazer from '@/assets/avatars/turtleneck-blazer.webp'
+import messyGlasses from '@/assets/avatars/messy-glasses.webp'
+import curtainBlazer from '@/assets/avatars/curtain-blazer.webp'
+import doubleGlasses from '@/assets/avatars/double-glasses.webp'
+import batikShirt from '@/assets/avatars/batik-shirt.webp'
+import magentaBob from '@/assets/avatars/magenta-bob.webp'
+import pearlGlasses from '@/assets/avatars/pearl-glasses.webp'
+import handInHandTee from '@/assets/avatars/hand-in-hand-tee.webp'
 import customer1 from '@/assets/avatars/customer-1.webp'
 import customer2 from '@/assets/avatars/customer-2.webp'
 import customer3 from '@/assets/avatars/customer-3.webp'
@@ -29,6 +39,16 @@ export const PRESET_AVATAR_SRC: Record<string, string> = {
   '/images/avatars/scholar.webp': scholar,
   '/images/avatars/merchant.webp': merchant,
   '/images/avatars/trader.webp': trader,
+  '/images/avatars/glasses-girl.webp': glassesGirl,
+  '/images/avatars/bangs-blazer.webp': bangsBlazer,
+  '/images/avatars/turtleneck-blazer.webp': turtleneckBlazer,
+  '/images/avatars/messy-glasses.webp': messyGlasses,
+  '/images/avatars/curtain-blazer.webp': curtainBlazer,
+  '/images/avatars/double-glasses.webp': doubleGlasses,
+  '/images/avatars/batik-shirt.webp': batikShirt,
+  '/images/avatars/magenta-bob.webp': magentaBob,
+  '/images/avatars/pearl-glasses.webp': pearlGlasses,
+  '/images/avatars/hand-in-hand-tee.webp': handInHandTee,
   '/images/customer/p1.webp': customer1,
   '/images/customer/p2.webp': customer2,
   '/images/customer/p3.webp': customer3,
@@ -44,6 +64,16 @@ export const PRESET_AVATARS: AvatarPreset[] = [
   { id: 'scholar', name: '核对专员', url: '/images/avatars/scholar.webp' },
   { id: 'merchant', name: '老练客商', url: '/images/avatars/merchant.webp' },
   { id: 'trader', name: '行商姑娘', url: '/images/avatars/trader.webp' },
+  { id: 'glasses-girl', name: '花链眼镜', url: '/images/avatars/glasses-girl.webp' },
+  { id: 'bangs-blazer', name: '齐刘海西装', url: '/images/avatars/bangs-blazer.webp' },
+  { id: 'turtleneck-blazer', name: '高领眼镜', url: '/images/avatars/turtleneck-blazer.webp' },
+  { id: 'messy-glasses', name: '乱发眼镜', url: '/images/avatars/messy-glasses.webp' },
+  { id: 'curtain-blazer', name: '帘发西装', url: '/images/avatars/curtain-blazer.webp' },
+  { id: 'double-glasses', name: '双镜行者', url: '/images/avatars/double-glasses.webp' },
+  { id: 'batik-shirt', name: '金纹衬衫', url: '/images/avatars/batik-shirt.webp' },
+  { id: 'magenta-bob', name: '粉发心坠', url: '/images/avatars/magenta-bob.webp' },
+  { id: 'pearl-glasses', name: '珍珠眼镜', url: '/images/avatars/pearl-glasses.webp' },
+  { id: 'hand-in-hand-tee', name: '携手白T', url: '/images/avatars/hand-in-hand-tee.webp' },
   { id: 'customer-1', name: '暖心雇主', url: '/images/customer/p1.webp' },
   { id: 'customer-2', name: '眼镜行家', url: '/images/customer/p2.webp' },
   { id: 'customer-3', name: '红巾客官', url: '/images/customer/p3.webp' },
