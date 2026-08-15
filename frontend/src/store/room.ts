@@ -57,8 +57,14 @@ export const useRoomStore = defineStore('room', () => {
     return dept
   }
 
+  function sameUserId(a?: string | number | null, b?: string | number | null) {
+    return a != null && b != null && String(a) === String(b)
+  }
+
   function syncRoomDetail(detail: RoomDetailResp, currentUserIdValue?: string, currentUsername?: string, friendNames?: Map<string, string>) {
     if (Number(detail.status) === 3 || detail.closedAt) {
+      resetMatchMaking()
+      sessionStorage.removeItem('activeMatchId')
       return
     }
     roomId.value = String(detail.roomId ?? detail.id ?? roomId.value)
@@ -72,20 +78,18 @@ export const useRoomStore = defineStore('room', () => {
     }
     const members = [...(detail.members ?? detail.players ?? [])].sort((a, b) => (a.seatNo ?? a.slot ?? 0) - (b.seatNo ?? b.slot ?? 0))
     players.value = members.map(normalizePlayer)
+    const selfId = currentUserIdValue != null ? String(currentUserIdValue) : currentUserId.value
     for (const player of players.value) {
-      if (currentUserIdValue && currentUsername && player.id === currentUserIdValue) {
+      if (selfId && currentUsername && sameUserId(player.id, selfId)) {
         player.username = currentUsername
         continue
       }
       if (friendNames) {
-        const friendName = friendNames.get(player.id)
+        const friendName = friendNames.get(player.id) || friendNames.get(String(player.id))
         if (friendName) {
           player.username = friendName
           continue
         }
-      }
-      if (player.username.startsWith('玩家') && currentUserIdValue && currentUsername && player.id === currentUserIdValue) {
-        player.username = currentUsername
       }
     }
     const seat1 = members.find(m => (m.seatNo ?? m.slot) === 1) ?? members[0]
@@ -96,18 +100,14 @@ export const useRoomStore = defineStore('room', () => {
     player2Ready.value = seat2?.ready === true || seat2?.ready === 1 || seat2?.readyStatus === true || seat2?.readyStatus === 1 || seat2?.ready_status === true || seat2?.ready_status === 1
     const firstPlayerUserId = String(detail.firstPlayerUserId ?? detail.firstUserId ?? '')
     if (firstPlayerUserId) {
-      const selectedIndex = members.findIndex(member => String(member.userId ?? member.id ?? member.memberId ?? '') === firstPlayerUserId)
+      const selectedIndex = members.findIndex(member => sameUserId(member.userId ?? member.id ?? member.memberId, firstPlayerUserId))
       if (selectedIndex === 0 || selectedIndex === 1) firstPlayerIndex.value = selectedIndex
     } else if (detail.firstPlayerIndex === 0 || detail.firstPlayerIndex === 1) {
       firstPlayerIndex.value = detail.firstPlayerIndex
     }
-    if (currentUserIdValue) {
-      currentUserId.value = currentUserIdValue
-      isHost.value = hostUserId.value === currentUserIdValue
-    }
-    if (currentUserIdValue && players.value.length === 2) {
-      const selfIndex = players.value.findIndex((player) => player.id === currentUserIdValue)
-      if (selfIndex === 0 || selfIndex === 1) firstPlayerIndex.value = selfIndex
+    if (selfId) {
+      currentUserId.value = selfId
+      isHost.value = sameUserId(hostUserId.value, selfId)
     }
   }
 
@@ -158,7 +158,7 @@ export const useRoomStore = defineStore('room', () => {
   }
 
   function isSelfPlayer(playerId: string) {
-    return !!currentUserId.value && playerId === currentUserId.value
+    return sameUserId(currentUserId.value, playerId)
   }
 
   function receiveInvite(fromUsername: string, roomId: string) {
@@ -193,6 +193,7 @@ export const useRoomStore = defineStore('room', () => {
     isHost.value = false
     firstPlayerIndex.value = 0
     sessionStorage.removeItem(ACTIVE_ROOM_KEY)
+    sessionStorage.removeItem('activeMatchId')
     leaveRoom()
   }
 

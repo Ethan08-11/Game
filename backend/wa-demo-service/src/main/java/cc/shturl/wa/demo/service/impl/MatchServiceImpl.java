@@ -393,7 +393,7 @@ public class MatchServiceImpl implements MatchService {
         if (card == null || card.getStatus() == null || card.getStatus() != 1) {
             throw new BusinessException("卡牌不存在或已停用");
         }
-        if (!"public".equals(card.getDeptType()) && !actor.getDeptType().equals(card.getDeptType())) {
+        if (!canUseCardInCurrentDept(actor.getDeptType(), card.getDeptType())) {
             throw new BusinessException("当前部门不能使用该卡牌");
         }
         int cost = value(card.getCost());
@@ -425,7 +425,10 @@ public class MatchServiceImpl implements MatchService {
             target = null;
         }
         Bullies bully = requireBully(match.getBullyId());
-        MatchPendingEffects multiplierEffect = findNextCardMultiplier(matchId, currentUserId);
+        boolean appliesNumericEffects = configuredEffects.stream()
+                .anyMatch(effect -> !"MULTIPLY_NEXT_CARD".equals(effect.getEffectType()));
+        MatchPendingEffects multiplierEffect = appliesNumericEffects
+                ? findNextCardMultiplier(matchId, currentUserId) : null;
         int multiplier = multiplierEffect == null ? 1 : Math.max(value(multiplierEffect.getEffectValue()), 1);
         List<CardEffectResp> effectResults = new ArrayList<>();
         int actionBeforeEffect = value(actor.getActionPoints());
@@ -953,11 +956,38 @@ public class MatchServiceImpl implements MatchService {
                 customer.getTriggerChance(), customer.getSelectionWeight(), customer.getStatus());
     }
 
+    private boolean canUseCardInCurrentDept(String actorDept, String cardDept) {
+        String actor = actorDept == null ? "" : actorDept.trim().toLowerCase();
+        String card = cardDept == null ? "" : cardDept.trim().toLowerCase();
+        if (card.isEmpty()) {
+            return false;
+        }
+        // 公共部 / 路人部（neutral）卡任意职业都可打
+        if ("public".equals(card) || "neutral".equals(card) || "passerby".equals(card)) {
+            return true;
+        }
+        return card.equals(actor);
+    }
+
     private MatchPendingEffects findNextCardMultiplier(Long matchId, Long userId) {
         return matchPendingEffectsMapper.selectOne(Wrappers.<MatchPendingEffects>lambdaQuery()
                 .eq(MatchPendingEffects::getMatchId, matchId).eq(MatchPendingEffects::getSourceUserId, userId)
                 .eq(MatchPendingEffects::getEffectType, "MULTIPLY_NEXT_CARD")
                 .eq(MatchPendingEffects::getStatus, "PENDING").orderByAsc(MatchPendingEffects::getId).last("LIMIT 1"));
+    }
+
+    private void replacePendingNextCardMultipliers(Long matchId, Long userId) {
+        List<MatchPendingEffects> existing = matchPendingEffectsMapper.selectList(
+                Wrappers.<MatchPendingEffects>lambdaQuery()
+                        .eq(MatchPendingEffects::getMatchId, matchId)
+                        .eq(MatchPendingEffects::getSourceUserId, userId)
+                        .eq(MatchPendingEffects::getEffectType, "MULTIPLY_NEXT_CARD")
+                        .eq(MatchPendingEffects::getStatus, "PENDING"));
+        for (MatchPendingEffects pending : existing) {
+            pending.setRemainingTriggers(0);
+            pending.setStatus("RESOLVED");
+            matchPendingEffectsMapper.updateById(pending);
+        }
     }
 
     private void applyImmediateEffect(Matches match, Bullies bully, MatchPlayers actor, MatchPlayers target, CardEffects effect,
@@ -1029,7 +1059,16 @@ public class MatchServiceImpl implements MatchService {
             if ("IMMEDIATE".equals(effect.getTriggerTiming())) {
                 continue;
             }
-            int triggerRound = match.getCurrentRound() + Math.max(value(effect.getTriggerDelay()), 1);
+            int triggerRound;
+            if ("NEXT_CARD".equals(effect.getTriggerTiming())) {
+                // 下一张牌翻倍应跨回合保留，不能按“下回合开始”结算掉
+                triggerRound = match.getCurrentRound();
+            } else {
+                triggerRound = match.getCurrentRound() + Math.max(value(effect.getTriggerDelay()), 1);
+            }
+            if ("MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
+                replacePendingNextCardMultipliers(match.getId(), actor.getUserId());
+            }
             MatchPendingEffects pending = new MatchPendingEffects();
             pending.setMatchId(match.getId());
             pending.setMatchPlayerId(actor.getId());
@@ -1242,6 +1281,9 @@ public class MatchServiceImpl implements MatchService {
                         .eq(MatchPendingEffects::getTriggerRound, roundNo).eq(MatchPendingEffects::getStatus, "PENDING"));
         int defense = resolveBossDefense(match.getBullyId());
         for (MatchPendingEffects pending : pendingEffects) {
+            if ("MULTIPLY_NEXT_CARD".equals(pending.getEffectType())) {
+                continue;
+            }
             if ("DAMAGE_BOSS".equals(pending.getEffectType())) {
                 int finalDamage = Math.max(0, value(pending.getEffectValue()) - defense);
                 match.setBossCurrentHp(Math.max(0, value(match.getBossCurrentHp()) - finalDamage));
@@ -1411,7 +1453,11 @@ public class MatchServiceImpl implements MatchService {
             applyProfileSettlement(player.getUserId(), winnerType, grantRewards);
         }
         if (room != null) {
+            Map<String, Object> closed = Map.of(
+                    "type", "room.closed",
+                    "data", Map.of("roomId", room.getId(), "reason", "match_finished"));
             for (RoomMembers member : roomMembers) {
+                notificationService.notifyUser(member.getUserId(), closed);
                 userPresenceService.broadcastPresence(member.getUserId());
             }
         }

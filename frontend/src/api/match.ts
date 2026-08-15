@@ -163,6 +163,7 @@ export interface PlayCardResponse {
   beforeValue?: number | null
   afterValue?: number | null
   remainingActionPoints?: number
+  appliedMultiplier?: number
   effects?: Array<Record<string, any>>
   version?: number
   matchEnded?: boolean

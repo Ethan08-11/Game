@@ -27,6 +27,7 @@ import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomEventPublisher;
 import cc.shturl.wa.demo.service.RoomNotificationService;
+import cc.shturl.wa.demo.service.RoomPresenceCleanupService;
 import cc.shturl.wa.demo.service.RoomService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -36,8 +37,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -58,6 +62,7 @@ public class RoomServiceImpl implements RoomService {
     private final cc.shturl.wa.demo.service.TaskService taskService;
     private final RedisDistributedLock distributedLock;
     private final TransactionTemplate transactionTemplate;
+    private final RoomPresenceCleanupService roomPresenceCleanupService;
 
     @Override
     @Transactional
@@ -66,6 +71,8 @@ public class RoomServiceImpl implements RoomService {
         User fromUser = requireUser(currentUserId);
         User toUser = requireUser(friendId);
         requireFriend(currentUserId, friendId);
+        roomPresenceCleanupService.releaseIdleRooms(currentUserId);
+        roomPresenceCleanupService.releaseIdleRooms(friendId);
         requireInvitableUser(currentUserId, "你当前不在线，请刷新页面后重试");
         requireInvitableUser(friendId, "对方不在线，无法邀请");
         RoomInvites invite = new RoomInvites();
@@ -84,10 +91,7 @@ public class RoomServiceImpl implements RoomService {
                 System.currentTimeMillis());
         roomEventPublisher.publishInviteCreated(event);
         // 同步直推 WS，避免仅依赖 MQ 消费导致邀请方成功但对方收不到弹窗
-        java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
-        payload.put("type", "room.invite.created");
-        payload.put("data", event);
-        notificationService.notifyUser(friendId, payload);
+        notificationService.notifyUser(friendId, toWsPayload("room.invite.created", event));
         return invite;
     }
 
@@ -158,13 +162,20 @@ public class RoomServiceImpl implements RoomService {
         if (room == null) {
             return;
         }
-        roomEventPublisher.publishInviteAccepted(new RoomInviteAcceptedEvent(
+        RoomInviteAcceptedEvent acceptedEvent = new RoomInviteAcceptedEvent(
                 UUID.randomUUID().toString().replace("-", ""),
                 invite.getFromUserId(), invite.getToUserId(), invite.getId(), room.getId(), room.getRoomCode(),
-                System.currentTimeMillis()));
-        roomEventPublisher.publishRoomCreated(new RoomCreatedEvent(
+                System.currentTimeMillis());
+        RoomCreatedEvent createdEvent = new RoomCreatedEvent(
                 UUID.randomUUID().toString().replace("-", ""), room.getId(), room.getRoomCode(),
-                room.getHostUserId(), invite.getToUserId(), System.currentTimeMillis()));
+                room.getHostUserId(), invite.getToUserId(), System.currentTimeMillis());
+        roomEventPublisher.publishInviteAccepted(acceptedEvent);
+        roomEventPublisher.publishRoomCreated(createdEvent);
+        // 直推双方 WS：线上 RabbitMQ listener 默认关闭时，邀请人否则收不到进房事件
+        notificationService.notifyUsers(invite.getFromUserId(), invite.getToUserId(),
+                toWsPayload("room.invite.accepted", acceptedEvent));
+        notificationService.notifyUsers(room.getHostUserId(), invite.getToUserId(),
+                toWsPayload("room.created", createdEvent));
         userPresenceService.broadcastPresence(invite.getFromUserId());
         userPresenceService.broadcastPresence(invite.getToUserId());
     }
@@ -254,12 +265,48 @@ public class RoomServiceImpl implements RoomService {
                 .eq(RoomMembers::getRoomId, roomId)
                 .isNull(RoomMembers::getLeftAt)
                 .orderByAsc(RoomMembers::getSeatNo, RoomMembers::getId));
+        Map<Long, User> usersById = members.stream()
+                .map(RoomMembers::getUserId)
+                .filter(userId -> userId != null)
+                .distinct()
+                .map(userMapper::selectById)
+                .filter(user -> user != null)
+                .collect(Collectors.toMap(User::getId, user -> user, (left, right) -> left));
         List<RoomMemberResp> memberResps = members.stream()
-                .map(member -> new RoomMemberResp(member.getId(), member.getRoomId(), member.getUserId(),
-                        member.getSeatNo(), member.getDeptType(), member.getReadyStatus(), member.getOnlineStatus()))
+                .map(member -> {
+                    User user = usersById.get(member.getUserId());
+                    String username = user != null && user.getUsername() != null
+                            ? user.getUsername()
+                            : "玩家" + member.getUserId();
+                    return new RoomMemberResp(member.getId(), member.getRoomId(), member.getUserId(),
+                            member.getSeatNo(), member.getDeptType(), member.getReadyStatus(), member.getOnlineStatus(),
+                            username, username);
+                })
                 .toList();
         return new RoomDetailResp(room.getId(), room.getRoomCode(), room.getHostUserId(), room.getStatus(),
                 room.getPlayerCount(), room.getMaxPlayers(), room.getMatchId(), room.getClosedAt(), memberResps);
+    }
+
+    @Override
+    public RoomDetailResp getCurrentRoom(Long currentUserId) {
+        roomPresenceCleanupService.releaseStaleRooms(currentUserId);
+        List<RoomMembers> memberships = roomMembersMapper.selectList(Wrappers.<RoomMembers>lambdaQuery()
+                .eq(RoomMembers::getUserId, currentUserId)
+                .isNull(RoomMembers::getLeftAt)
+                .orderByDesc(RoomMembers::getId));
+        for (RoomMembers membership : memberships) {
+            GameRooms room = gameRoomsMapper.selectById(membership.getRoomId());
+            if (room == null || room.getClosedAt() != null || room.getStatus() == null || room.getStatus() >= 3) {
+                continue;
+            }
+            return getRoomDetail(currentUserId, room.getId());
+        }
+        return null;
+    }
+
+    @Override
+    public void releaseIdleRoom(Long currentUserId) {
+        roomPresenceCleanupService.releaseIdleRooms(currentUserId);
     }
 
     @Override
@@ -521,5 +568,12 @@ public class RoomServiceImpl implements RoomService {
         member.setOnlineStatus(1);
         member.setJoinedAt(LocalDateTime.now());
         roomMembersMapper.insert(member);
+    }
+
+    private Map<String, Object> toWsPayload(String type, Object event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("type", type);
+        payload.put("data", event);
+        return payload;
     }
 }

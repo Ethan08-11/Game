@@ -37,7 +37,7 @@
   <div class="match-page" :class="{ dimmed: showDeptModal }">
     <BackButton to="" text="返回大厅" @click="leaveCurrentRoom" />
 
-    <div class="left-panel" :style="{ '--friend-list-bg': `url(${matchBg})`, '--red-offset': '-40px' }">
+    <div class="left-panel" :style="{ '--friend-list-bg': `url(${matchBg})` }">
       <h3>好友列表</h3>
       <div class="friend-list">
         <div v-for="f in displayFriends" :key="f.id" class="friend-row">
@@ -58,13 +58,14 @@
       <div v-if="displayFriends.length === 0" class="empty-tip">暂无好友</div>
     </div>
 
-    <div class="right-panel" :style="{ '--team-bg': `url(${matchFriendListBg})`, '--red-offset': '40px' }">
+    <div class="right-panel" :style="{ '--team-bg': `url(${matchFriendListBg})` }">
       <h3>队伍房间</h3>
       <div class="room-slots">
         <div v-for="i in 2" :key="i" class="slot" :class="{ filled: room.players[i-1], empty: !room.players[i-1] }">
           <template v-if="room.players[i-1]">
             <div class="avatar">{{ room.players[i-1].username.charAt(0).toUpperCase() }}</div>
             <span class="nickname">{{ room.players[i-1].username }}</span>
+            <span v-if="isHostSlot(i - 1)" class="host-badge">房主</span>
             <span
               v-if="getSlotDept(i - 1)"
               class="dept-badge"
@@ -84,10 +85,12 @@
             <div class="avatar empty-slot">
               <el-icon :size="18"><QuestionFilled /></el-icon>
             </div>
-            <span class="nickname">等待加入...</span>
+            <span class="nickname">{{ pendingInvite && i === 2 ? '等待对方接受...' : '等待加入...' }}</span>
           </template>
         </div>
       </div>
+
+      <p v-if="pendingInvite && room.players.length < 2" class="invite-wait-hint">邀请已发送，双方进入房间后即可选部门</p>
 
       <button
         class="ready-btn"
@@ -117,10 +120,11 @@ import { ElMessage } from 'element-plus'
 import { QuestionFilled, Check } from '@element-plus/icons-vue'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
-import { extractRoomId, getFriends, getRoomDetail, leaveRoom as leaveRoomApi, abandonMatch, sendRoomInvite, setRoomDepartment, setRoomReady } from '@/api'
+import { extractRoomId, getRoomDetail, getCurrentRoom, leaveRoom as leaveRoomApi, abandonMatch, sendRoomInvite, setRoomDepartment, setRoomReady } from '@/api'
 import type { Friend } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { connectRoomSocket, subscribeRoomEvent } from '@/utils/roomSocket'
+import { clearMatchCache, isClosedRoom } from '@/utils/matchCache'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
 import matchBg from '@/assets/match-bg.webp'
@@ -147,13 +151,20 @@ interface DisplayFriend extends Friend {
   invited: boolean
 }
 
-const simFriends = ref<DisplayFriend[]>([])
+const invitedIds = ref<Record<string, boolean>>({})
 const showDeptModal = ref(false)
 const pendingDept = ref('')
+const pendingInvite = ref(false)
 const enteringBattle = ref(false)
 const unsubscribeFns: Array<() => void> = []
+let roomPollTimer: ReturnType<typeof setInterval> | null = null
 
-const displayFriends = computed(() => simFriends.value)
+const displayFriends = computed<DisplayFriend[]>(() =>
+  user.friends.map(f => ({
+    ...f,
+    invited: !!invitedIds.value[String(f.id)],
+  })),
+)
 const selfIndex = computed(() => room.players.findIndex(p => room.isSelfPlayer(p.id)))
 const mySeatIndex = computed<0 | 1>(() => (selfIndex.value === 1 ? 1 : 0))
 const isSelfReady = computed(() => (mySeatIndex.value === 0 ? room.player1Ready : room.player2Ready))
@@ -175,6 +186,11 @@ function getStatusIcon(f: Friend): string {
 
 function isSelfSlot(index: number): boolean {
   return selfIndex.value === index
+}
+
+function isHostSlot(index: number): boolean {
+  const player = room.players[index]
+  return !!player && String(room.hostUserId) === String(player.id)
 }
 
 function getSlotDept(index: number): string {
@@ -236,15 +252,48 @@ function getRoomIdFromEvent(data: any) {
 function patchPlayerNames() {
   for (const player of room.players) {
     if (!player.username.startsWith('玩家')) continue
-    if (player.id === user.userId) {
+    if (String(player.id) === String(user.userId)) {
       player.username = user.username
     } else {
-      const friend = simFriends.value.find(f => f.id === player.id)
+      const friend = user.friends.find(f => String(f.id) === String(player.id))
       if (friend) {
         player.username = friend.displayName || friend.username
       }
     }
   }
+}
+
+function friendNameMap() {
+  return new Map(user.friends.map(f => [String(f.id), f.displayName || f.username]))
+}
+
+function stopRoomPoll() {
+  if (roomPollTimer) {
+    clearInterval(roomPollTimer)
+    roomPollTimer = null
+  }
+}
+
+async function syncCurrentRoom() {
+  const detail = await getCurrentRoom().catch(() => null)
+  if (!detail) return false
+  const id = extractRoomId(detail) || String(detail.roomId ?? detail.id ?? '')
+  if (!id) return false
+  room.syncRoomDetail(detail, String(user.userId), user.username, friendNameMap())
+  patchPlayerNames()
+  if (room.players.length >= 2) {
+    pendingInvite.value = false
+    stopRoomPoll()
+  }
+  return room.players.length > 0
+}
+
+function startRoomPoll() {
+  if (roomPollTimer) return
+  void syncCurrentRoom()
+  roomPollTimer = setInterval(() => {
+    void syncCurrentRoom()
+  }, 1500)
 }
 
 async function syncRoom(roomId: string) {
@@ -253,19 +302,22 @@ async function syncRoom(roomId: string) {
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
       const detail = await getRoomDetail(roomId)
-      // 房间已关闭或对局已结束：清本地状态，避免卡在无法退出
-      const status = Number(detail.status)
-      if (status === 3 || detail.closedAt) {
+      if (isClosedRoom(detail)) {
+        pendingInvite.value = false
+        stopRoomPoll()
         room.resetMatchMaking()
-        sessionStorage.removeItem('activeMatchId')
-        sessionStorage.removeItem('activeRoomId')
+        clearMatchCache()
         return
       }
       room.roomId = roomId
       sessionStorage.setItem('activeRoomId', roomId)
-      const friendNames = new Map(simFriends.value.map(f => [f.id, f.displayName || f.username]))
-      room.syncRoomDetail(detail, user.userId, user.username, friendNames)
+      const friendNames = friendNameMap()
+      room.syncRoomDetail(detail, String(user.userId), user.username, friendNames)
       patchPlayerNames()
+      if (room.players.length >= 2) {
+        pendingInvite.value = false
+        stopRoomPoll()
+      }
       if (detail.roomId || detail.id) {
         room.roomId = String(detail.roomId ?? detail.id ?? roomId)
         room.roomCode = String(detail.roomCode ?? detail.code ?? room.roomCode)
@@ -284,15 +336,12 @@ async function syncRoom(roomId: string) {
   if (lastError) throw lastError
 }
 
-async function clearClosedRoomAndLeave(message?: string) {
+async function clearClosedRoomAndLeave(_message?: string) {
   ElMessage.closeAll()
+  pendingInvite.value = false
+  stopRoomPoll()
   room.resetMatchMaking()
-  sessionStorage.removeItem('activeMatchId')
-  sessionStorage.removeItem('activeRoomId')
-  if (message) ElMessage.warning(message)
-  if (route.name === 'MatchMaking') {
-    await router.push('/game-hall')
-  }
+  clearMatchCache()
 }
 
 async function handleRoomCreated(data: any) {
@@ -314,9 +363,18 @@ async function handleRoomUpdated(data: any) {
   if (route.name !== 'MatchMaking') await router.push('/matchmaking')
 }
 
-watch(() => route.query.openDept, (value) => {
-  if (value === '1' && room.roomId) openDeptModal()
-}, { immediate: true })
+watch(
+  () => [route.query.openDept, room.roomId] as const,
+  ([value, roomId]) => {
+    if (value === '1' && roomId) {
+      openDeptModal()
+      if (route.query.openDept) {
+        router.replace({ path: '/matchmaking' }).catch(() => {})
+      }
+    }
+  },
+  { immediate: true },
+)
 
 async function enterBattle(matchId: string) {
   console.log('[enterBattle] pushing to battle', matchId)
@@ -342,12 +400,8 @@ onMounted(async () => {
   const hour = new Date().getHours()
   bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
   try {
-    const list = await getFriends()
-    if (list.length > 0) {
-      simFriends.value = list.map(f => ({ ...f, invited: false }))
-    }
+    await user.loadFriends()
   } catch (error: any) {
-    simFriends.value = []
     ElMessage.error(error?.message || '在线好友加载失败')
   }
   if (user.userId) {
@@ -356,21 +410,26 @@ onMounted(async () => {
   if (user.token) {
     connectRoomSocket(user.token)
   }
-  // 未真正进房时保持空槽，避免误显示“已在房间”
-  const persistedRoomId = sessionStorage.getItem('activeRoomId') || room.roomId
-  if (persistedRoomId) {
-    await syncRoom(persistedRoomId).catch(() => {})
+  const restored = await syncCurrentRoom().catch(() => false)
+  if (!restored) {
+    const persistedRoomId = sessionStorage.getItem('activeRoomId') || room.roomId
+    if (persistedRoomId) {
+      await syncRoom(persistedRoomId).catch(() => {})
+    }
   }
   unsubscribeFns.push(
+    subscribeRoomEvent('ws.connected', () => {
+      void user.loadFriends()
+    }),
     subscribeRoomEvent('friend.presence.changed', (data: any) => {
       const userId = String(data?.userId ?? data?.data?.userId ?? '')
       const presenceStatus = data?.presenceStatus ?? data?.data?.presenceStatus
       const invitable = Boolean(data?.invitable ?? data?.data?.invitable)
-      const f = simFriends.value.find(x => x.id === userId)
-      if (f && presenceStatus) {
-        f.presenceStatus = presenceStatus as any
-        f.invitable = invitable
-        f.online = presenceStatus !== 'OFFLINE'
+      if (userId && presenceStatus) {
+        user.updateFriendPresence(userId, presenceStatus, invitable)
+      }
+      if (presenceStatus === 'IN_ROOM' || presenceStatus === 'IN_MATCH') {
+        void syncCurrentRoom()
       }
     }),
     subscribeRoomEvent('room.invite.accepted', async (data: any) => {
@@ -390,13 +449,14 @@ onMounted(async () => {
     subscribeRoomEvent('room.game.started', handleGameStart),
     subscribeRoomEvent('game.started', handleGameStart),
     subscribeRoomEvent('room.invite.rejected', () => {
-      simFriends.value.forEach((friend) => { friend.invited = false })
+      invitedIds.value = {}
       ElMessage.warning('对方已拒绝，可以继续邀请其他在线好友')
     }),
   )
 })
 
 onUnmounted(() => {
+  stopRoomPoll()
   unsubscribeFns.splice(0).forEach((unsubscribe) => unsubscribe())
 })
 
@@ -421,7 +481,7 @@ async function confirmDept() {
   }
   try {
     const detail = await setRoomDepartment(room.roomId, getBackendDeptType(pendingDept.value))
-    room.syncRoomDetail(detail, user.userId, user.username, new Map(simFriends.value.map(f => [f.id, f.displayName || f.username])))
+    room.syncRoomDetail(detail, String(user.userId), user.username, friendNameMap())
     patchPlayerNames()
     showDeptModal.value = false
     await syncRoom(String(detail.roomId ?? detail.id ?? room.roomId))
@@ -444,14 +504,17 @@ async function inviteFriend(f: DisplayFriend) {
     return
   }
 
-  f.invited = true
+  invitedIds.value = { ...invitedIds.value, [String(f.id)]: true }
   try {
     const invite = await sendRoomInvite(f.id)
     room.sendInvite(String(invite.inviteId ?? invite.id ?? ''))
+    pendingInvite.value = true
     if (invite.roomId) await syncRoom(String(invite.roomId))
+    startRoomPoll()
     ElMessage.success('组队邀请已发送')
   } catch (error: any) {
-    f.invited = false
+    invitedIds.value = { ...invitedIds.value, [String(f.id)]: false }
+    pendingInvite.value = false
     ElMessage.error(error?.message || '组队邀请发送失败')
   }
 }
@@ -462,7 +525,7 @@ async function toggleReady() {
     const nextReady = !isSelfReady.value
     const detail = await setRoomReady(room.roomId, nextReady)
     console.log('[toggleReady] ready detail =', detail)
-    room.syncRoomDetail(detail, user.userId, user.username, new Map(simFriends.value.map(f => [f.id, f.displayName || f.username])))
+    room.syncRoomDetail(detail, String(user.userId), user.username, friendNameMap())
     patchPlayerNames()
     const matchId = String(detail?.matchId ?? room.matchId ?? '')
     console.log('[toggleReady] matchId =', matchId)
@@ -484,6 +547,8 @@ async function toggleReady() {
 }
 
 async function leaveCurrentRoom() {
+  stopRoomPoll()
+  pendingInvite.value = false
   if (!room.roomId) {
     room.resetMatchMaking()
     await router.push('/game-hall')
@@ -537,9 +602,13 @@ async function leaveCurrentRoom() {
   position: relative;
   z-index: 1;
   display: flex;
-  gap: var(--space-5);
-  padding: 20vh 3% 20vh 3%;
+  justify-content: center;
+  align-items: stretch;
+  gap: clamp(16px, 4vw, 48px);
+  padding: 12vh 4vw 10vh;
   height: 100%;
+  width: 100%;
+  box-sizing: border-box;
   max-width: none;
   margin: 0 auto;
   color: #4a3520;
@@ -556,6 +625,7 @@ async function leaveCurrentRoom() {
 /* ========== 面板布局 ========== */
 .left-panel, .right-panel {
   flex: 1 1 0;
+  max-width: 520px;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-xl);
   padding: var(--space-5);
@@ -572,12 +642,12 @@ async function leaveCurrentRoom() {
 }
 .left-panel::before {
   content: '';
-  position: fixed;
-  left: calc(28vw + var(--red-offset, 0px));
-  top: 50vh;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
-  height: 100vh;
-  aspect-ratio: 1;
+  width: 140%;
+  height: 130%;
   background: var(--friend-list-bg) center/contain no-repeat;
   z-index: -1;
   pointer-events: none;
@@ -585,16 +655,16 @@ async function leaveCurrentRoom() {
 .right-panel {
   position: relative;
   isolation: isolate;
-  padding-left: calc(var(--space-3) + 76px);
+  padding-left: calc(var(--space-3) + 24px);
 }
 .right-panel::before {
   content: '';
-  position: fixed;
-  left: calc(72vw + var(--red-offset, 0px));
-  top: 50vh;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
-  height: 100vh;
-  aspect-ratio: 1;
+  width: 140%;
+  height: 130%;
   background: var(--team-bg) center/contain no-repeat;
   z-index: -1;
   pointer-events: none;
@@ -730,6 +800,21 @@ async function leaveCurrentRoom() {
 }
 .nickname { flex: 1; font-size: var(--text-md); min-width: 80px; color: #4a3520; }
 .slot.empty .nickname { color: #8b7a65; }
+.host-badge {
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: #5a8a6a;
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.invite-wait-hint {
+  margin: var(--space-3) 0 0;
+  text-align: center;
+  color: #8b6914;
+  font-size: var(--text-sm);
+}
 
 .dept-badge {
   padding: 2px var(--space-3);

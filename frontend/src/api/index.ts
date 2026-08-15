@@ -44,5 +44,5 @@ export { getSkins, purchaseSkin, getQuests, claimQuestReward, fetchTasks } from 
 export type { Skin, Quest, ApiTask } from './social'
 
 // room
-export { sendRoomInvite, acceptRoomInvite, rejectRoomInvite, getPendingRoomInvites, getRoomDetail, setRoomDepartment, setRoomReady, setRoomFirstPlayer, leaveRoom, extractRoomId } from './room'
+export { sendRoomInvite, acceptRoomInvite, rejectRoomInvite, getPendingRoomInvites, getRoomDetail, getCurrentRoom, releaseIdleRoom, setRoomDepartment, setRoomReady, setRoomFirstPlayer, leaveRoom, extractRoomId } from './room'
 export type { RoomInviteResp, RoomPlayerResp, RoomDetailResp } from './room'

@@ -46,9 +46,9 @@ export const useUserStore = defineStore('user', () => {
         return
       }
       // Merge: keep WebSocket-set IN_MATCH/IN_ROOM when REST API has no explicit presence
-      const oldMap = new Map(friends.value.map(f => [f.id, f]))
+      const oldMap = new Map(friends.value.map(f => [String(f.id), f]))
       friends.value = fresh.map(f => {
-        const old = oldMap.get(f.id)
+        const old = oldMap.get(String(f.id))
         // API didn't provide presence → defaulted to IDLE. Keep WebSocket-set status.
         if (old && !f.presenceFromApi && old.presenceStatus !== 'IDLE' && old.presenceStatus !== 'OFFLINE') {
           f.presenceStatus = old.presenceStatus
@@ -74,7 +74,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   function updateFriendOnline(id: string, online: boolean) {
-    const f = friends.value.find(x => x.id === id)
+    const f = friends.value.find(x => String(x.id) === String(id))
     if (f) {
       f.online = online
       f.presenceStatus = online ? 'IDLE' : 'OFFLINE'
@@ -83,7 +83,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   function updateFriendPresence(id: string, presenceStatus: Friend['presenceStatus'], invitable: boolean) {
-    const f = friends.value.find(x => x.id === id)
+    const f = friends.value.find(x => String(x.id) === String(id))
     if (f) {
       f.presenceStatus = presenceStatus
       f.invitable = invitable

@@ -67,7 +67,7 @@ export async function getPendingRoomInvites(): Promise<RoomInvitePendingResp[]> 
   return apiCall('/rooms/invites/pending')
 }
 
-export async function acceptRoomInvite(inviteId: string): Promise<RoomInviteResp> {
+export async function acceptRoomInvite(inviteId: string): Promise<RoomDetailResp> {
   return apiCall(`/rooms/invites/${inviteId}/accept`, { method: 'POST' })
 }
 
@@ -77,6 +77,14 @@ export async function rejectRoomInvite(inviteId: string): Promise<void> {
 
 export async function getRoomDetail(roomId: string): Promise<RoomDetailResp> {
   return apiCall(`/rooms/${roomId}`, { method: 'GET' })
+}
+
+export async function getCurrentRoom(): Promise<RoomDetailResp | null> {
+  return apiCall('/rooms/current', { method: 'GET' })
+}
+
+export async function releaseIdleRoom(): Promise<void> {
+  await apiCall('/rooms/release-idle', { method: 'POST' })
 }
 
 export async function setRoomDepartment(roomId: string, deptType: string): Promise<RoomDetailResp> {

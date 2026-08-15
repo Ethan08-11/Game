@@ -662,6 +662,9 @@ const actionOrderText = computed(() => {
 const deptLabelMap: Record<string, string> = {
   sales: '销售部',
   purchase: '采购部',
+  public: '公共部',
+  neutral: '路人部',
+  passerby: '路人部',
 }
 
 function normalizeDept(dept?: string | null) {
@@ -890,6 +893,12 @@ async function playCard(card: BattleCard) {
         if (scheduledAp > 0) parts.push(`下回合调用机会 +${scheduledAp}`)
         ElMessage.success(parts.join('，'))
       }
+      if ((res.effects ?? []).some((e: any) => e.effectType === 'MULTIPLY_NEXT_CARD')) {
+        ElMessage.success('下一张牌的数值效果将翻倍')
+      }
+      if ((res.appliedMultiplier ?? 1) > 1) {
+        ElMessage.success(`数值效果已翻倍（×${res.appliedMultiplier}）`)
+      }
       if (res.matchEnded) {
         loadSettlement()
         return
@@ -958,6 +967,9 @@ async function confirmTarget(targetUserId: string) {
     showTargetDialog.value = false
     pendingTargetUserId.value = targetUserId
     pendingTargetCard.value = null
+    if ((res.appliedMultiplier ?? 1) > 1) {
+      ElMessage.success(`数值效果已翻倍（×${res.appliedMultiplier}）`)
+    }
     if (res.matchEnded) {
       loadSettlement()
       return

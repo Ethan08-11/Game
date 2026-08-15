@@ -83,8 +83,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useRoomStore } from '@/store/room'
-import { leaveRoom, abandonMatch, getMatchDetail } from '@/api'
-import { disconnectRoomSocket } from '@/utils/roomSocket'
+import { leaveRoom, abandonMatch, getMatchDetail, getCurrentRoom, releaseIdleRoom } from '@/api'
+import { clearMatchCache } from '@/utils/matchCache'
 import FriendPanel from '@/components/FriendPanel.vue'
 import dayjs from 'dayjs'
 import startBtnImg from '@/assets/start-btn-v2.webp'
@@ -138,6 +138,8 @@ async function doAbandonMatch() {
   }
   sessionStorage.removeItem('activeMatchId')
   reconnectMatchId.value = ''
+  room.resetMatchMaking()
+  clearMatchCache()
   ElMessage.warning('对局已结束')
   user.loadFriends().catch(() => {})
 }
@@ -156,7 +158,6 @@ async function checkActiveMatch() {
   const savedMatchId = sessionStorage.getItem('activeMatchId')
   if (!savedMatchId) return
 
-  // Verify the match still exists (best-effort, don't block on failure)
   let matchEnded = false
   try {
     const detail = await getMatchDetail(savedMatchId)
@@ -164,12 +165,13 @@ async function checkActiveMatch() {
       matchEnded = true
     }
   } catch {
-    // API call failed, but match might still be active — show dialog anyway
+    matchEnded = true
   }
 
   if (matchEnded) {
     sessionStorage.removeItem('activeMatchId')
-    ElMessage.info('上一次对局已结束')
+    room.resetMatchMaking()
+    clearMatchCache()
     return
   }
 
@@ -189,27 +191,36 @@ async function checkActiveMatch() {
   }, 30_000)
 }
 
-function startGame() {
+async function startGame() {
+  ElMessage.closeAll()
+  await releaseIdleRoom().catch(() => {})
+  room.resetMatchMaking()
+  clearMatchCache()
+  await user.loadFriends().catch(() => {})
   router.push('/customer-current')
 }
 
-function clearLocalCache() {
-  disconnectRoomSocket()
-  sessionStorage.removeItem('activeMatchId')
-  localStorage.removeItem('token')
-  localStorage.removeItem('refreshToken')
-  localStorage.removeItem('userId')
-  localStorage.removeItem('loginUsername')
-  sessionStorage.clear()
-  ElMessage.success('本地缓存已清除')
+async function clearLocalCache() {
+  ElMessage.closeAll()
+  await releaseIdleRoom().catch(() => {})
+  room.resetMatchMaking()
+  clearMatchCache()
+  await user.loadFriends().catch(() => {})
+  ElMessage.success('对局缓存已清除，可以重新组队')
 }
 
-onMounted(() => {
+onMounted(async () => {
   const hour = new Date().getHours()
   bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
+  ElMessage.closeAll()
   user.loadMe()
   user.loadFriends()
   user.loadPoints()
+  const current = await getCurrentRoom().catch(() => null)
+  if (!current) {
+    room.resetMatchMaking()
+    clearMatchCache()
+  }
   checkActiveMatch()
 })
 
@@ -223,6 +234,7 @@ async function handleLogout() {
     room.resetMatchMaking()
   }
   sessionStorage.removeItem('activeMatchId')
+  clearMatchCache()
   user.logout()
   router.push('/login')
 }

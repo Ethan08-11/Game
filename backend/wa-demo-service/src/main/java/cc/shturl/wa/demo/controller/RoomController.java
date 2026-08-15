@@ -48,6 +48,17 @@ public class RoomController {
         return Result.ok(roomService.rejectInvite(authTokenSupport.requireUserIdFromAccessToken(authorization), id));
     }
 
+    @GetMapping("/current")
+    public Result<RoomDetailResp> getCurrentRoom(@RequestHeader("Authorization") String authorization) {
+        return Result.ok(roomService.getCurrentRoom(authTokenSupport.requireUserIdFromAccessToken(authorization)));
+    }
+
+    @PostMapping("/release-idle")
+    public Result<Void> releaseIdleRoom(@RequestHeader("Authorization") String authorization) {
+        roomService.releaseIdleRoom(authTokenSupport.requireUserIdFromAccessToken(authorization));
+        return Result.ok();
+    }
+
     @GetMapping("/{roomId}")
     public Result<RoomDetailResp> getRoomDetail(@RequestHeader("Authorization") String authorization,
                                                 @PathVariable("roomId") Long roomId) {

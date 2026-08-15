@@ -15,6 +15,8 @@ public interface RoomService {
     RoomInvites timeoutInvite(Long inviteId);
     List<RoomInvitePendingResp> listPendingInvites(Long currentUserId);
     RoomDetailResp getRoomDetail(Long currentUserId, Long roomId);
+    RoomDetailResp getCurrentRoom(Long currentUserId);
+    void releaseIdleRoom(Long currentUserId);
     RoomDetailResp setDepartment(Long currentUserId, Long roomId, RoomDeptReq request);
     RoomDetailResp setReady(Long currentUserId, Long roomId);
     RoomDetailResp leaveRoom(Long currentUserId, Long roomId);

@@ -13,10 +13,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { acceptRoomInvite, extractRoomId, getPendingRoomInvites, getRoomDetail, leaveRoom as leaveRoomApi, rejectRoomInvite } from '@/api'
+import { acceptRoomInvite, extractRoomId, getPendingRoomInvites, getRoomDetail, getCurrentRoom, leaveRoom as leaveRoomApi, rejectRoomInvite } from '@/api'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 import { connectRoomSocket, disconnectRoomSocket, subscribeRoomEvent } from '@/utils/roomSocket'
+import { ACTIVE_MATCH_KEY, clearMatchCache, isClosedRoom } from '@/utils/matchCache'
 import MagicTrail from '@/components/MagicTrail.vue'
 
 const route = useRoute()
@@ -72,9 +73,8 @@ async function syncRoom(roomId: string, options: { retries?: number; clearOnMiss
       const detail = await getRoomDetail(roomId)
       console.log('[syncRoom] detail =', detail)
       const status = Number(detail.status)
-      if (status === 3 || detail.closedAt) {
-        sessionStorage.removeItem(ACTIVE_MATCH_KEY)
-        sessionStorage.removeItem('activeRoomId')
+      if (isClosedRoom(detail)) {
+        clearMatchCache()
         room.resetMatchMaking()
         return
       }
@@ -82,7 +82,7 @@ async function syncRoom(roomId: string, options: { retries?: number; clearOnMiss
       room.roomId = roomId
       sessionStorage.setItem('activeRoomId', roomId)
       const friendNames = new Map(user.friends.map(f => [f.id, f.displayName || f.username]))
-      room.syncRoomDetail(detail, user.userId, user.username, friendNames)
+      room.syncRoomDetail(detail, String(user.userId), user.username, friendNames)
       const matchId = String(detail.matchId ?? '')
       if (matchId && status === 2) {
         room.setMatchId(matchId)
@@ -105,12 +105,8 @@ async function syncRoom(roomId: string, options: { retries?: number; clearOnMiss
       }
       if (missing) {
         if (clearOnMissing) {
-          sessionStorage.removeItem(ACTIVE_MATCH_KEY)
-          sessionStorage.removeItem('activeRoomId')
+          clearMatchCache()
           room.resetMatchMaking()
-          if (String(route.name || '') !== 'GameHall') {
-            await router.push('/game-hall')
-          }
         }
         return
       }
@@ -138,6 +134,10 @@ async function handleInviteCreated(data: any) {
       type: 'info',
     })
     const result = await acceptRoomInvite(inviteId)
+    const friendNames = new Map(user.friends.map(f => [String(f.id), f.displayName || f.username]))
+    if (result && (result.members?.length || result.players?.length || result.id || result.roomId)) {
+      room.syncRoomDetail(result, String(user.userId), user.username, friendNames)
+    }
     const roomId = extractRoomId(result)
     if (roomId) await syncRoom(roomId, { retries: 5, clearOnMissing: false })
     if (!room.matchId && !sessionStorage.getItem(ACTIVE_MATCH_KEY)) {
@@ -199,9 +199,18 @@ async function handleWsConnected() {
   room.isConnected = true
   refreshFriends()
   startPendingInvitePoll()
+  if (String(route.name || '') === 'BattlePage') return
+  const current = await getCurrentRoom().catch(() => null)
+  const status = Number(current?.status)
+  if (current && status !== 3 && !current.closedAt && (current.members?.length || current.players?.length)) {
+    room.syncRoomDetail(current, String(user.userId), user.username, new Map(user.friends.map(f => [String(f.id), f.displayName || f.username])))
+    return
+  }
   const persistedRoomId = sessionStorage.getItem('activeRoomId') || room.roomId
   if (persistedRoomId) {
-    await syncRoom(persistedRoomId, { retries: 5, clearOnMissing: false }).catch(() => {})
+    await syncRoom(persistedRoomId, { retries: 2, clearOnMissing: true }).catch(() => {
+      room.resetMatchMaking()
+    })
   }
 }
 
@@ -215,7 +224,7 @@ async function refreshFriends() {
 
 function startFriendsFallbackRefresh() {
   if (friendsRefreshTimer || !user.isLoggedIn) return
-  friendsRefreshTimer = setInterval(refreshFriends, 30_000)
+  friendsRefreshTimer = setInterval(refreshFriends, 8_000)
 }
 
 function stopFriendsFallbackRefresh() {
@@ -238,19 +247,22 @@ async function handleRoomAcceptedOrCreated(data: any) {
   }
 }
 
-async function handleRoomClosed(_data: any) {
-  // 房间关闭后一律清组队态；不要用残留 matchId 把人拉回已结束对局
-  sessionStorage.removeItem(ACTIVE_MATCH_KEY)
-  sessionStorage.removeItem('activeRoomId')
-  room.resetMatchMaking()
-  await refreshFriends()
-  if (String(route.name || '') === 'MatchMaking') {
-    ElMessage.warning('房间已关闭，请重新组队')
-    await router.push('/game-hall')
+async function handleRoomClosed(data: any) {
+  const closedId = String(data?.roomId ?? data?.data?.roomId ?? '')
+  const currentId = String(room.roomId || sessionStorage.getItem('activeRoomId') || '')
+  if (closedId && currentId && closedId !== currentId) {
+    await refreshFriends()
+    return
   }
+  ElMessage.closeAll()
+  const inBattle = String(route.name || '') === 'BattlePage'
+  sessionStorage.removeItem('activeRoomId')
+  if (!inBattle) {
+    clearMatchCache()
+    room.resetMatchMaking()
+  }
+  await refreshFriends()
 }
-
-const ACTIVE_MATCH_KEY = 'activeMatchId'
 
 async function handleMatchStarted(data: any) {
   const matchId = getEventMatchId(data) || room.matchId || sessionStorage.getItem(ACTIVE_MATCH_KEY) || ''
@@ -267,15 +279,13 @@ async function handleMatchStarted(data: any) {
 
 async function handleMatchEnded() {
   const currentRoomId = room.roomId || sessionStorage.getItem('activeRoomId') || ''
-  sessionStorage.removeItem(ACTIVE_MATCH_KEY)
-  sessionStorage.removeItem('activeRoomId')
+  clearMatchCache()
   room.resetMatchMaking()
   if (currentRoomId) {
     await leaveRoomApi(currentRoomId).catch(() => {})
   }
   room.resetMatchMaking()
   await refreshFriends()
-  // BattlePage shows its own result overlay; no navigation needed
 }
 
 
@@ -308,21 +318,12 @@ function handleAuthExpired() {
   disconnectRoomSocket()
   stopFriendsFallbackRefresh()
   sessionStorage.removeItem('activeMatchId')
+  clearMatchCache()
   ElMessage.warning('登录已过期，请重新登录')
   router.push('/login')
 }
 
 function handleBeforeUnload() {
-  const token = localStorage.getItem('token')
-  if (!token) return
-
-  // Don't leave room if user is in an active match — allow reconnection
-  const isInMatch = !!sessionStorage.getItem('activeMatchId') || !!room.matchId
-  if (!isInMatch && room.roomId) {
-    const baseUrl = import.meta.env.VITE_API_BASE || '/api'
-    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-    fetch(`${baseUrl}/rooms/${room.roomId}/leave`, { method: 'POST', headers, keepalive: true }).catch(() => {})
-  }
   disconnectRoomSocket()
 }
 

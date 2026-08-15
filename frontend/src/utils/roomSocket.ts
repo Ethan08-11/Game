@@ -10,11 +10,20 @@ export interface RoomWsMessage<T = any> {
 
 function defaultWsBase() {
   if (typeof window === 'undefined') return 'ws://127.0.0.1:8080/ws/room'
+  // Vite 开发服本身不处理房间 WS。连 location.host(:5173) 时若代理未生效，
+  // 后端收不到连接，好友会全部显示离线、邀请按钮灰掉。
+  if (import.meta.env.DEV) {
+    const host = window.location.hostname || '127.0.0.1'
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    return `${proto}://${host}:8080/ws/room`
+  }
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   return `${proto}://${window.location.host}/ws/room`
 }
 
-const WS_BASE = import.meta.env.VITE_ROOM_WS_BASE || defaultWsBase()
+function getWsBase() {
+  return String(import.meta.env.VITE_ROOM_WS_BASE || defaultWsBase())
+}
 const HEARTBEAT_INTERVAL = 20_000
 const RECONNECT_DELAY = 3_000
 
@@ -24,6 +33,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let manuallyClosed = false
 let connectedToken = ''
+let connectedUrl = ''
 let lastHeartbeatAckAt = 0
 
 async function getFreshTokenForReconnect() {
@@ -44,7 +54,7 @@ function emit(message: RoomWsMessage) {
 }
 
 function buildUrl(accessToken: string) {
-  const url = new URL(WS_BASE)
+  const url = new URL(getWsBase())
   url.searchParams.set('accessToken', accessToken)
   return url.toString()
 }
@@ -79,20 +89,26 @@ function scheduleReconnect() {
 
 export function connectRoomSocket(accessToken: string) {
   if (!accessToken) return
-  if ((socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) && connectedToken === accessToken) return
-  if (socket && connectedToken !== accessToken) {
+  const nextUrl = buildUrl(accessToken)
+  const sameEndpoint = connectedToken === accessToken && connectedUrl === nextUrl
+  if (sameEndpoint && (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING)) return
+  if (socket) {
     stopHeartbeat()
     socket.onclose = null
     socket.close()
     socket = null
   }
   connectedToken = accessToken
+  connectedUrl = nextUrl
 
   manuallyClosed = false
-  socket = new WebSocket(buildUrl(accessToken))
+  socket = new WebSocket(nextUrl)
 
   socket.onopen = () => {
     startHeartbeat()
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'ws.heartbeat', timestamp: Date.now() }))
+    }
   }
 
   socket.onmessage = (event) => {
@@ -114,6 +130,7 @@ export function connectRoomSocket(accessToken: string) {
   }
 
   socket.onerror = () => {
+    console.warn('[roomSocket] 连接失败', connectedUrl)
     socket?.close()
   }
 }
