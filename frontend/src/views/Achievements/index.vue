@@ -51,7 +51,7 @@ onMounted(() => {
   padding: var(--space-10);
   color: var(--color-text-primary);
   text-align: center;
-  min-height: 100vh;
+  min-height: 100%;
   isolation: isolate;
 }
 .page::before {

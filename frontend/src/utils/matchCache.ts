@@ -22,6 +22,9 @@ export function writeCachedMatchId(matchId: string) {
 export function clearMatchCache() {
   sessionStorage.removeItem(ACTIVE_ROOM_KEY)
   sessionStorage.removeItem(ACTIVE_MATCH_KEY)
+  // 旧版曾把对局缓存写进 localStorage，残留会导致重连弹窗/组队状态错乱
+  localStorage.removeItem(ACTIVE_ROOM_KEY)
+  localStorage.removeItem(ACTIVE_MATCH_KEY)
 }
 
 export function isClosedRoom(detail: { status?: string | number | null; closedAt?: string | null } | null | undefined) {

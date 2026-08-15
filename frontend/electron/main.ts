@@ -37,16 +37,28 @@ function createWindow(titleSuffix = '') {
   return win
 }
 
-app.whenReady().then(() => {
-  createWindow()
-})
-
-app.on('window-all-closed', () => {
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
   app.quit()
-})
+} else {
+  app.on('second-instance', () => {
+    const win = windows[0]
+    if (!win) return
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  })
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
-  }
-})
+  app.whenReady().then(() => {
+    if (windows.length === 0) createWindow()
+  })
+
+  app.on('window-all-closed', () => {
+    app.quit()
+  })
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+}

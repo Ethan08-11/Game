@@ -3,6 +3,7 @@
  */
 
 import { apiCall } from './client'
+import { formatPlayerName } from '@/utils/playerName'
 
 export type PresenceStatus = 'OFFLINE' | 'IDLE' | 'IN_ROOM' | 'IN_MATCH'
 
@@ -90,8 +91,8 @@ function transformFriend(bf: BackendFriend): Friend {
     : presenceStatus === 'IDLE'
   return {
     id: String(bf.friendId),
-    username: bf.username,
-    displayName: bf.displayName,
+    username: formatPlayerName(bf.username),
+    displayName: formatPlayerName(bf.displayName || bf.username),
     remarkName: bf.remarkName,
     avatarUrl: bf.avatarUrl,
     online: presenceStatus !== 'OFFLINE',
@@ -240,8 +241,8 @@ export interface LeaderboardEntry {
 function transformLeaderboardEntry(be: BackendLeaderboardEntry): LeaderboardEntry {
   return {
     userId: be.userId,
-    username: be.username,
-    displayName: be.displayName,
+    username: formatPlayerName(be.username),
+    displayName: formatPlayerName(be.displayName || be.username),
     avatarUrl: be.avatarUrl,
     money: be.money,
     level: be.level ?? 1,

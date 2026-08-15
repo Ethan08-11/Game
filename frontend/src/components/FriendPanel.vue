@@ -7,7 +7,7 @@
         </div>
         <div v-for="f in friends" :key="f.id" class="friend-row">
           <img :src="f.avatarUrl || defaultAvatar" class="friend-avatar" />
-          <span class="name">{{ f.displayName || f.username }}</span>
+          <span class="name">{{ formatPlayerName(f.displayName || f.username) }}</span>
           <img :src="getStatusIcon(f)" class="status-icon" />
         </div>
       </div>
@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useUserStore, type Friend } from '@/store/user'
+import { formatPlayerName } from '@/utils/playerName'
 import defaultAvatar from '@/assets/default-avatar.webp'
 import statusOnlineIcon from '@/assets/status-online.webp'
 import statusOfflineIcon from '@/assets/status-offline.webp'

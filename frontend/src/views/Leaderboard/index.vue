@@ -48,7 +48,7 @@ watch(tab, loadLeaderboard)
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
   padding: calc(var(--space-10) + 36px) var(--space-10) 0;
   color: var(--color-text-primary); text-align: center;

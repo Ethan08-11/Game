@@ -166,7 +166,6 @@ function handleOverlayClick() {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #000;
 }
 .cg-video {
   width: 100%;

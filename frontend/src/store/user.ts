@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as api from '@/api'
 import { disconnectRoomSocket } from '@/utils/roomSocket'
+import { formatPlayerName } from '@/utils/playerName'
 
 export interface Friend {
   id: string
@@ -25,7 +26,7 @@ export interface Achievement {
 export const useUserStore = defineStore('user', () => {
   const token = ref<string>(localStorage.getItem('token') || '')
   const userId = ref<string>(localStorage.getItem('userId') || '')
-  const username = ref<string>(localStorage.getItem('loginUsername') || '')
+  const username = ref<string>(formatPlayerName(localStorage.getItem('loginUsername') || ''))
   const avatar = ref<string>('')
   const friends = ref<Friend[]>([])
   const points = ref<number>(0)
@@ -161,7 +162,7 @@ export const useUserStore = defineStore('user', () => {
   async function updateProfile(payload: api.UpdateUserProfilePayload) {
     profile.value = await api.updateMyProfile(payload)
     if (profile.value.displayName || profile.value.username) {
-      username.value = profile.value.displayName || profile.value.username || username.value
+      username.value = formatPlayerName(profile.value.displayName || profile.value.username || username.value)
       localStorage.setItem('loginUsername', username.value)
     }
     if (profile.value.avatarUrl !== undefined) avatar.value = profile.value.avatarUrl || ''
@@ -203,7 +204,7 @@ export const useUserStore = defineStore('user', () => {
     const fallback: api.AuthResult = {
       token: `offline-token-${now}`,
       refreshToken: `offline-refresh-${now}`,
-      user: { id: now % 100000, username: user, displayName: user, avatarUrl: null },
+      user: { id: now % 100000, username: user, displayName: formatPlayerName(user), avatarUrl: null },
     }
     applyAuth(fallback)
   }
@@ -227,20 +228,20 @@ export const useUserStore = defineStore('user', () => {
 
   function applyAuth(result: api.AuthResult) {
     userId.value = String(result.user.id)
-    username.value = result.user.displayName || result.user.username
+    username.value = formatPlayerName(result.user.displayName || result.user.username)
     avatar.value = result.user.avatarUrl || ''
     token.value = result.token
     localStorage.setItem('userId', userId.value)
     localStorage.setItem('token', result.token)
     localStorage.setItem('refreshToken', result.refreshToken)
-    localStorage.setItem('loginUsername', result.user.displayName || result.user.username)
+    localStorage.setItem('loginUsername', username.value)
   }
 
   async function loadMe() {
     try {
       const me = await api.getMe()
       userId.value = String(me.id)
-      username.value = me.displayName || me.username
+      username.value = formatPlayerName(me.displayName || me.username)
       avatar.value = me.avatarUrl || ''
       localStorage.setItem('userId', userId.value)
       money.value = me.money ?? 0

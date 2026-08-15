@@ -25,6 +25,7 @@ public record MatchStateResp(
         Boolean waitingReconnect,
         Integer reconnectRemainingSeconds,
         List<MatchPlayerStateResp> players,
-        List<MatchCardResp> hand
+        List<MatchCardResp> hand,
+        Integer winnerType
 ) {
 }

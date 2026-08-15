@@ -199,7 +199,7 @@ public class MatchServiceImpl implements MatchService {
                 match.getBossBaseAttack(), match.getBossCurrentAttack(), round == null ? 0 : round.getCustomerTriggered(),
                 round == null ? null : round.getCustomerEffectType(), round == null ? 0 : round.getCustomerEffectValue(),
                 round == null ? null : round.getFirstPlayerUserId(), round == null ? null : round.getChosenByUserId(),
-                waitingReconnect, reconnectRemainingSeconds, playerStates, hand);
+                waitingReconnect, reconnectRemainingSeconds, playerStates, hand, match.getWinnerType());
     }
 
     @Override
@@ -1124,26 +1124,34 @@ public class MatchServiceImpl implements MatchService {
         boolean attackResolved = false;
         boolean matchEnded = false;
         if (allEnded) {
-            match.setPhase("BOSS_ACTION");
-            if (round != null) {
-                round.setPhase("BOSS_ACTION");
-                matchRoundsMapper.updateById(round);
-            }
-            targets = resolveBossAttack(match, round, players);
-            attackResolved = true;
-            boolean anyDead = targets.stream().anyMatch(BossAttackTargetResp::dead);
-            boolean allDead = players.stream().allMatch(player -> value(player.getCurrentHp()) <= 0);
-            matchEnded = allDead;
-            if (allDead) {
-                finishMatch(match, 2);
-            } else if (anyDead) {
-                match.setPhase("REVIVE_WAIT");
-                match.setVersion(match.getVersion() + 1);
-                matchesMapper.updateById(match);
-                notifyPlayers(match.getId(), "match.revive.required", Map.of(
-                        "matchId", match.getId(), "phase", "REVIVE_WAIT", "timeoutSeconds", REVIVE_TIMEOUT_MILLIS / 1000));
+            if (value(match.getBossCurrentHp()) <= 0) {
+                finishMatch(match, 1);
+                matchEnded = true;
             } else {
-                finishRoundAndStartNext(match, round, players);
+                match.setPhase("BOSS_ACTION");
+                if (round != null) {
+                    round.setPhase("BOSS_ACTION");
+                    matchRoundsMapper.updateById(round);
+                }
+                targets = resolveBossAttack(match, round, players);
+                attackResolved = true;
+                boolean anyDead = targets.stream().anyMatch(BossAttackTargetResp::dead);
+                boolean allDead = players.stream().allMatch(player -> value(player.getCurrentHp()) <= 0);
+                matchEnded = allDead;
+                if (allDead) {
+                    finishMatch(match, 2);
+                } else if (anyDead) {
+                    match.setPhase("REVIVE_WAIT");
+                    match.setVersion(match.getVersion() + 1);
+                    matchesMapper.updateById(match);
+                    notifyPlayers(match.getId(), "match.revive.required", Map.of(
+                            "matchId", match.getId(), "phase", "REVIVE_WAIT", "timeoutSeconds", REVIVE_TIMEOUT_MILLIS / 1000));
+                } else {
+                    finishRoundAndStartNext(match, round, players);
+                    if (value(match.getStatus()) == 2) {
+                        matchEnded = value(match.getWinnerType()) != 0;
+                    }
+                }
             }
         }
         match.setVersion(match.getVersion() + 1);

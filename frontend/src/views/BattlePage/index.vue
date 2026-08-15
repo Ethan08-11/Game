@@ -194,7 +194,7 @@
               <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
               <p>P1 最终血量：{{ resultPlayer1Hp }}/{{ resultPlayer1MaxHp }} <span v-if="resultPlayer1Dead" class="dead-tag">（阵亡）</span></p>
               <p>P2 最终血量：{{ resultPlayer2Hp }}/{{ resultPlayer2MaxHp }} <span v-if="resultPlayer2Dead" class="dead-tag">（阵亡）</span></p>
-              <p v-if="game.isVictory" class="points-reward">获得酬劳：+{{ game.pointsEarned }} 积分</p>
+              <p v-if="game.isVictory" class="points-reward">获得酬劳：+{{ resultRewardMoney }} 金币</p>
             </div>
             <div class="btn-group" :style="{ position: 'relative', top: hallBtnTop + 'px', left: hallBtnLeft + 'px' }">
               <el-button type="primary" size="large" @click="$router.push('/game-hall')">返回大厅</el-button>
@@ -286,10 +286,11 @@ import { useGameStore } from '@/store/game'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 //import { abandonMatch, endMatchTurn, getMatchDeck, getMatchDetail, playMatchCard, reconnectMatch } from '@/api'
-import { abandonMatch, chooseFirstPlayer, endMatchTurn, getMatchDeck, getMatchDetail, getMatchReviveStatus, playMatchCard, reconnectMatch, requestMatchRevive } from '@/api'
+import { abandonMatch, chooseFirstPlayer, endMatchTurn, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive } from '@/api'
 import type { PlayCardPayload } from '@/api'
 import { subscribeRoomEvent } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
+import { formatPlayerName } from '@/utils/playerName'
 import bg1 from '@/assets/battle-background2.webp'
 import bg2 from '@/assets/battle-background2.webp'
 import bg3 from '@/assets/battle-background2.webp'
@@ -406,6 +407,8 @@ const disconnectCountdown = ref(30)
 const showReviveDialog = ref(false)
 const resultRounds = ref(0)
 const settlementLoading = ref(false)
+const resultRewardMoney = ref(0)
+let pendingWinnerType: number | undefined
 const resultPlayers = ref<Array<{ userId?: number | string; currentHp?: number; maxHp?: number; playerStatus?: string; deptType?: string }>>([])
 const resultPlayer1Hp = computed(() => resultPlayers.value[0]?.currentHp ?? 0)
 const resultPlayer1MaxHp = computed(() => resultPlayers.value[0]?.maxHp ?? 0)
@@ -683,20 +686,22 @@ function resolvePlayerName(userId: string | number | undefined | null): string {
   if (!id || id === 'undefined' || id === 'null') return ''
 
   if (id === String(user.userId || '')) {
-    return user.username
+    return formatPlayerName(
+      user.username
       || user.profile?.displayName
       || localStorage.getItem('loginUsername')
-      || ''
+      || '',
+    )
   }
 
   const friend = user.friends.find((item) => String(item.id) === id)
   if (friend) {
-    return friend.displayName || friend.username || friend.remarkName || ''
+    return formatPlayerName(friend.displayName || friend.username || friend.remarkName || '')
   }
 
   const roomPlayer = room.players.find((item) => String(item.id) === id)
   if (roomPlayer?.username && !/^玩家\d+$/.test(roomPlayer.username)) {
-    return roomPlayer.username
+    return formatPlayerName(roomPlayer.username)
   }
 
   return ''
@@ -824,7 +829,8 @@ async function refreshBattleState() {
   syncToStore(detail)
 
   // 对局已结束 → 不向 room store 同步 match 数据，避免覆盖 App.vue 已执行的房间清理
-  if ((detail.phase === 'FINISHED' || detail.matchEnded) && !justRevived.value) {
+  // REVIVE_WAIT 阶段不要当成终局，否则会盖掉复活弹窗
+  if ((detail.phase === 'FINISHED' || detail.matchEnded) && detail.phase !== 'REVIVE_WAIT' && !justRevived.value) {
     applyGameOver(detail)
     stopActionPhasePoll()
     return
@@ -1081,22 +1087,54 @@ async function handleLeave() {
   }
 }
 
+function resolveIsVictory(detail: any): boolean {
+  const winnerType = detail?.winnerType ?? pendingWinnerType
+  if (detail?.victory === true || Number(winnerType) === 1) return true
+  if (detail?.victory === false || Number(winnerType) === 2) return false
+  const bossHp = Number(detail?.bossCurrentHp ?? detail?.bossRemainingHp)
+  const list = detail?.players ?? []
+  if (!Number.isFinite(bossHp) || list.length === 0) return false
+  const allAlive = list.every((p: any) => Number(p.currentHp ?? p.remainingHp) > 0)
+  return bossHp <= 0 && allAlive
+}
+
+function normalizeResultPlayers(players: any[] = []) {
+  return players.slice(0, 2).map((p) => {
+    const currentHp = Number(p.currentHp ?? p.remainingHp ?? 0)
+    return {
+      ...p,
+      currentHp,
+      maxHp: Number(p.maxHp ?? 0),
+      playerStatus: currentHp <= 0 ? 'DEAD' : (p.playerStatus || 'ACTIVE'),
+    }
+  })
+}
+
+function pickRewardMoney(detail: any): number {
+  const list = detail?.players ?? []
+  const mine = list.find((p: any) => String(p.userId) === String(user.userId)) || list[0]
+  const awarded = Number(detail?.moneyAwarded ?? mine?.moneyAwarded)
+  if (Number.isFinite(awarded) && awarded > 0) return awarded
+  return resolveIsVictory(detail) ? 50 : 0
+}
+
 function applyGameOver(detail: any) {
   if (justRevived.value) return
   game.isGameOver = true
-  game.isVictory = detail.winnerType == 1
-  resultRounds.value = detail.currentRound ?? detail.roundNo ?? 0
+  game.isVictory = resolveIsVictory(detail)
+  resultRounds.value = detail.currentRound ?? detail.roundNo ?? detail.totalRounds ?? 0
   game.maxBullyHP = detail.bossMaxHp ?? game.maxBullyHP
-  game.bullyHP = detail.bossCurrentHp ?? game.bullyHP
-  resultPlayers.value = (detail.players ?? []).slice(0, 2)
-  // 清除房间缓存数据，防止下一局游戏残留
+  game.bullyHP = detail.bossCurrentHp ?? detail.bossRemainingHp ?? game.bullyHP
+  resultPlayers.value = normalizeResultPlayers(detail.players)
+  const reward = pickRewardMoney(detail)
+  if (reward > 0 || game.isVictory) {
+    resultRewardMoney.value = reward
+    game.pointsEarned = reward
+  }
+  pendingWinnerType = undefined
   sessionStorage.removeItem('activeMatchId')
   room.resetMatchMaking()
-  if (game.pointsEarned === 0) {
-    game.submitResult(resultRounds.value).then(pts => {
-      if (pts > 0) user.addPoints(pts).then(() => { game.pointsEarned = 0 })
-    })
-  }
+  void user.loadMe().catch(() => {})
 }
 
 async function loadSettlement() {
@@ -1105,10 +1143,23 @@ async function loadSettlement() {
   try {
     const matchId = activeMatchId.value
     if (!matchId) return
-    const detail = await getMatchDetail(matchId)
-    applyGameOver(detail)
-  } catch {
-    // fetch failed, values from store are already set
+    try {
+      const settlement = await getMatchSettlement(matchId)
+      const mine = (settlement.players ?? []).find((p: any) => String(p.userId) === String(user.userId))
+      applyGameOver({
+        winnerType: settlement.winnerType,
+        victory: settlement.victory,
+        currentRound: settlement.totalRounds,
+        bossCurrentHp: settlement.bossRemainingHp,
+        bossMaxHp: settlement.bossMaxHp,
+        players: settlement.players,
+        moneyAwarded: mine?.moneyAwarded,
+        expAwarded: mine?.expAwarded,
+      })
+    } catch {
+      const detail = await getMatchDetail(matchId)
+      applyGameOver(detail)
+    }
   } finally {
     settlementLoading.value = false
   }
@@ -1238,6 +1289,16 @@ function makeMatchHandler(eventType: string) {
   return async (data: any) => {
     const eventMatchId = String(data?.matchId ?? data?.data?.matchId ?? '')
     if (eventMatchId && eventMatchId !== activeMatchId.value) return
+    if (eventType === 'match.ended') {
+      const d = data?.data ?? data
+      applyGameOver({
+        winnerType: d?.winnerType,
+        currentRound: d?.currentRound ?? resultRounds.value,
+        bossCurrentHp: d?.bossCurrentHp ?? game.bullyHP,
+        bossMaxHp: d?.bossMaxHp ?? game.maxBullyHP,
+        players: d?.players ?? players.value,
+      })
+    }
     logMatchEvent(eventType, data)
     await refreshBattleState()
   }
@@ -1334,6 +1395,8 @@ onMounted(async () => {
     subscribeRoomEvent('match.ended', async (data: any) => {
       // match.ended 不做 matchId 过滤，确保放弃/掉线等通知不会因 ID 不匹配被静默丢弃
       logMatchEvent('match.ended', data)
+      const d = data?.data ?? data
+      if (d?.winnerType != null) pendingWinnerType = Number(d.winnerType)
       await refreshBattleState()
     }),
   )
@@ -1357,20 +1420,23 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   isolation: isolate;
 }
 .battle-page::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--battle-bg) center/cover no-repeat;
+  background-image: var(--battle-bg);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
   filter: blur(0.5px) brightness(0.82) saturate(1.12) contrast(1.04);
   transform: scale(1.01);
   z-index: 0;
+  pointer-events: none;
 }
-.battle-main { position: relative; flex: 1; display: flex; overflow: visible; }
+.battle-main { position: relative; flex: 1; min-height: 0; display: flex; overflow: visible; }
 .battle-footer { position: relative; z-index: 1; }
 .battle-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
 .stage-bg { text-align: center; color: #fff; width: 100%; }
@@ -1412,10 +1478,10 @@ onUnmounted(() => {
 .entity-outline-bully { overflow: visible; }
 .vs-divider { font-size: var(--text-3xl); font-weight: var(--weight-bold); }
 .action-log-panel {
-  position: fixed;
+  position: absolute;
   top: var(--space-4);
   right: var(--space-6);
-  z-index: 10000;
+  z-index: 5;
   width: 260px;
   background: url('@/assets/action-log-bg.webp') center/cover no-repeat;
   border: 1px solid var(--color-border-subtle);
@@ -1424,6 +1490,7 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 }
 .action-log-title {
   font-size: var(--text-sm);
@@ -1663,7 +1730,7 @@ onUnmounted(() => {
   font-size: 0;
   color: transparent;
   overflow: hidden;
-  z-index: 999;
+  z-index: 2;
   transition: transform 0.2s ease;
   border: none;
   outline: none;
@@ -1709,7 +1776,9 @@ onUnmounted(() => {
   min-height: 280px;
   padding-top: 0;
   margin-top: 0;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 3;
 }
 .hand-cards :deep(.card-item) {
   transform: scale(0.88);

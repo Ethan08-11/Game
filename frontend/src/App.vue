@@ -18,6 +18,7 @@ import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 import { connectRoomSocket, disconnectRoomSocket, subscribeRoomEvent } from '@/utils/roomSocket'
 import { ACTIVE_MATCH_KEY, clearMatchCache, isClosedRoom } from '@/utils/matchCache'
+import { formatPlayerName } from '@/utils/playerName'
 import MagicTrail from '@/components/MagicTrail.vue'
 
 const route = useRoute()
@@ -51,11 +52,13 @@ function getInviteId(data: any) {
 }
 
 function getInviterName(data: any) {
-  return data?.fromUsername
+  return formatPlayerName(
+    data?.fromUsername
     ?? data?.inviterUsername
     ?? data?.data?.fromUsername
     ?? data?.data?.inviterUsername
-    ?? '好友'
+    ?? '好友',
+  )
 }
 
 async function sleep(ms: number) {
@@ -125,6 +128,7 @@ async function handleInviteCreated(data: any) {
   const inviterName = getInviterName(data)
 
   try {
+    ElMessage.closeAll()
     await ElMessageBox.confirm(`${inviterName} 邀请你组队，是否接受？`, '组队邀请', {
       confirmButtonText: '接受',
       cancelButtonText: '拒绝',
@@ -331,6 +335,9 @@ onMounted(() => {
   window.addEventListener('beforeunload', handleBeforeUnload)
   window.addEventListener('auth:token-refreshed', handleTokenRefreshed)
   window.addEventListener('auth:expired', handleAuthExpired)
+  // 清掉旧版写在 localStorage 里的对局缓存，不影响当前 sessionStorage
+  localStorage.removeItem('activeMatchId')
+  localStorage.removeItem('activeRoomId')
   unsubscribeFns.push(
     subscribeRoomEvent('room.invite.created', handleInviteCreated),
     subscribeRoomEvent('room.invite.accepted', handleRoomAcceptedOrCreated),

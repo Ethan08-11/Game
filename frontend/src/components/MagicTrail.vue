@@ -141,7 +141,7 @@ onBeforeUnmount(() => {
 .magic-trail-canvas {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 20;
   pointer-events: none;
 }
 </style>

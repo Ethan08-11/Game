@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { RoomDetailResp, RoomPlayerResp } from '@/api'
+import { formatPlayerName } from '@/utils/playerName'
 
 export interface Player {
   id: string
@@ -45,7 +46,7 @@ export const useRoomStore = defineStore('room', () => {
     const id = String(member.userId ?? member.id ?? member.memberId ?? '')
     return {
       id,
-      username: member.displayName ?? member.username ?? member.nickname ?? (id ? `玩家${id}` : '玩家'),
+      username: formatPlayerName(member.displayName ?? member.username ?? member.nickname ?? (id ? `玩家${id}` : '玩家')),
     }
   }
 
@@ -81,13 +82,13 @@ export const useRoomStore = defineStore('room', () => {
     const selfId = currentUserIdValue != null ? String(currentUserIdValue) : currentUserId.value
     for (const player of players.value) {
       if (selfId && currentUsername && sameUserId(player.id, selfId)) {
-        player.username = currentUsername
+        player.username = formatPlayerName(currentUsername)
         continue
       }
       if (friendNames) {
         const friendName = friendNames.get(player.id) || friendNames.get(String(player.id))
         if (friendName) {
-          player.username = friendName
+          player.username = formatPlayerName(friendName)
           continue
         }
       }

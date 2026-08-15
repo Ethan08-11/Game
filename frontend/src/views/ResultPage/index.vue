@@ -13,7 +13,7 @@
       <p>对局回合：{{ rounds }}</p>
       <p>对局结果：{{ isVictory ? '胜利' : '失败' }}</p>
       <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
-      <p v-if="isVictory" class="points-reward">获得酬劳：+{{ game.pointsEarned }} 积分</p>
+      <p v-if="isVictory" class="points-reward">获得酬劳：+{{ rewardMoney }} 金币</p>
     </div>
     <div v-if="!isVictory" class="revive-section">
       <el-button class="revive-btn" type="primary" :loading="reviving" @click="handleRevive">
@@ -53,6 +53,13 @@ const isVictory = computed(() => {
   }
   return game.isVictory
 })
+const rewardMoney = computed(() => {
+  const list = settlement.value?.players ?? []
+  const mine = list.find((p: any) => String(p.userId) === String(user.userId)) || list[0]
+  const awarded = Number(mine?.moneyAwarded ?? game.pointsEarned)
+  if (Number.isFinite(awarded) && awarded > 0) return awarded
+  return isVictory.value ? 50 : 0
+})
 
 onMounted(async () => {
   const matchId = String(route.params.matchId || room.matchId || '')
@@ -62,14 +69,11 @@ onMounted(async () => {
     game.isVictory = settlement.value.victory ?? settlement.value.winnerType === 1
     game.maxBullyHP = settlement.value.bossMaxHp ?? game.maxBullyHP
     game.bullyHP = settlement.value.bossRemainingHp ?? game.bullyHP
+    game.pointsEarned = rewardMoney.value
+  } else if (game.isVictory && game.pointsEarned <= 0) {
+    game.pointsEarned = 50
   }
-  if (game.pointsEarned === 0) {
-    const pts = await game.submitResult(rounds.value)
-    if (pts > 0) {
-      await user.addPoints(pts)
-      game.pointsEarned = 0
-    }
-  }
+  void user.loadMe().catch(() => {})
 })
 
 async function handleRevive() {

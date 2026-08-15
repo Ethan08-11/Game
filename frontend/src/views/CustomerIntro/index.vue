@@ -173,7 +173,7 @@ onMounted(async () => {
 
 <style scoped>
 .customer-page {
-  height: 100vh;
+  height: 100%;
   padding: var(--space-10);
   color: var(--color-text-primary);
   position: relative;
@@ -195,7 +195,7 @@ onMounted(async () => {
 }
 .customer-card {
   width: min(1100px, 95vw);
-  min-height: calc(100vh - 120px);
+  min-height: calc(100% - 120px);
   margin: 0 auto 0;
   padding: var(--space-8);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -223,7 +223,7 @@ h1 {
 }
 .customer-scroll {
   margin-top: var(--space-2);
-  max-height: calc(100vh - 70px);
+  max-height: calc(100% - 70px);
   overflow-y: auto;
   padding: 130px var(--space-2) var(--space-2);
 
@@ -244,8 +244,9 @@ h1 {
   overflow: visible;
   min-height: 260px;
 }
-.customer-item:nth-child(3n+2) { z-index: 0; }
-.customer-item:nth-child(3n+3) { z-index: -1; }
+.customer-item:nth-child(3n+1) { z-index: 3; }
+.customer-item:nth-child(3n+2) { z-index: 2; }
+.customer-item:nth-child(3n+3) { z-index: 1; }
 .customer-item::before {
   content: '';
   position: absolute;

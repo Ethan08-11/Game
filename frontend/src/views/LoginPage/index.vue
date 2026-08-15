@@ -74,6 +74,7 @@ async function handleLogin() {
     ElMessage.warning('请输入完整登录信息')
     return
   }
+  ElMessage.closeAll()
   common.showLoading()
   try {
     await user.login(loginForm.username, loginForm.password)

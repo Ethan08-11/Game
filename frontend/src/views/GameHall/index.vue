@@ -52,7 +52,7 @@
     </div>
 
     <footer class="hall-footer">
-      <el-button @click="$router.push('/rules')">规则说明</el-button>
+      <AnnouncementBar />
     </footer>
 
     <!-- 重连弹窗 -->
@@ -86,6 +86,7 @@ import { useRoomStore } from '@/store/room'
 import { leaveRoom, abandonMatch, getMatchDetail, getCurrentRoom, releaseIdleRoom } from '@/api'
 import { clearMatchCache } from '@/utils/matchCache'
 import FriendPanel from '@/components/FriendPanel.vue'
+import AnnouncementBar from '@/components/AnnouncementBar.vue'
 import dayjs from 'dayjs'
 import startBtnImg from '@/assets/start-btn-v2.webp'
 import questBtnImg from '@/assets/quest-btn-v3.webp'
@@ -205,6 +206,10 @@ async function clearLocalCache() {
   await releaseIdleRoom().catch(() => {})
   room.resetMatchMaking()
   clearMatchCache()
+  sessionStorage.removeItem('activeMatchId')
+  sessionStorage.removeItem('activeRoomId')
+  localStorage.removeItem('activeMatchId')
+  localStorage.removeItem('activeRoomId')
   await user.loadFriends().catch(() => {})
   ElMessage.success('对局缓存已清除，可以重新组队')
 }
@@ -501,15 +506,12 @@ async function handleLogout() {
   z-index: 3;
 }
 .hall-footer {
-  display: flex;
-  gap: var(--space-4);
-  justify-content: center;
-  padding: var(--space-3);
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 -1px 8px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 6;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 @media (max-width: 767px) {

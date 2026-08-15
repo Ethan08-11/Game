@@ -8,7 +8,7 @@
       </div>
       <span class="stamina">{{ stamina }}/{{ maxStamina }} 血值</span>
       <div class="stamina-row">
-        <span class="nickname">{{ username }}<span v-if="isSelf">（我）</span></span>
+        <span class="nickname">{{ displayName }}<span v-if="isSelf">（我）</span></span>
         <el-progress :percentage="staminaPercentage" :color="staminaColor" :show-text="false" class="stamina-bar" />
         <span class="dept-label">{{ deptDisplay }}</span>
       </div>
@@ -20,6 +20,7 @@
 import { computed } from 'vue'
 import shieldIcon from '@/assets/player-shield.webp'
 import infoBg from '@/assets/battle/player-info-bg.webp'
+import { formatPlayerName } from '@/utils/playerName'
 
 const props = withDefaults(defineProps<{
   dept: string
@@ -41,6 +42,7 @@ const staminaPercentage = computed(() => {
 })
 
 const staminaColor = computed(() => '#8B0000')
+const displayName = computed(() => formatPlayerName(props.username))
 
 const deptLabelMap: Record<string, string> = {
   sales: '销售部',
@@ -59,7 +61,6 @@ const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || pr
 .player-info {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   background-color: var(--color-surface-02);
@@ -67,10 +68,6 @@ const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || pr
   color: #3E2723;
   transition: box-shadow var(--transition-base);
   position: relative;
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
-  transform: translateX(-28px);
 }
 .info-bg-img {
   position: absolute;

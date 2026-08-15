@@ -125,6 +125,7 @@ import type { Friend } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { connectRoomSocket, subscribeRoomEvent } from '@/utils/roomSocket'
 import { clearMatchCache, isClosedRoom } from '@/utils/matchCache'
+import { formatPlayerName } from '@/utils/playerName'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
 import matchBg from '@/assets/match-bg.webp'
@@ -253,11 +254,11 @@ function patchPlayerNames() {
   for (const player of room.players) {
     if (!player.username.startsWith('玩家')) continue
     if (String(player.id) === String(user.userId)) {
-      player.username = user.username
+      player.username = formatPlayerName(user.username)
     } else {
       const friend = user.friends.find(f => String(f.id) === String(player.id))
       if (friend) {
-        player.username = friend.displayName || friend.username
+        player.username = formatPlayerName(friend.displayName || friend.username)
       }
     }
   }
