@@ -9,10 +9,8 @@
     <div class="list" :key="tab">
       <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${idx * 0.08}s` }">
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
-        <span class="name">
-          <PlayerAvatar class="row-avatar" :src="item.avatarUrl" :alt="item.displayName || item.username" />
-          {{ item.displayName || item.username }}
-        </span>
+        <PlayerAvatar class="row-avatar" :src="item.avatarUrl" :alt="item.displayName || item.username" />
+        <span class="name">{{ item.displayName || item.username }}</span>
         <span class="pts">{{ item.money }} 资金</span>
       </div>
       <div v-if="list.length === 0" class="empty">暂无排行数据</div>
@@ -112,10 +110,15 @@ watch(tab, loadLeaderboard)
   border-color: var(--color-accent);
   color: var(--color-bg-base);
 }
-.list { max-width: 700px; margin: 0 auto; flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 120px; }
+.list { max-width: 760px; margin: 0 auto; flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 120px; width: 100%; }
 .row {
-  display: flex; align-items: center;
-  padding: var(--space-3) var(--space-5); margin-bottom: var(--space-2);
+  display: grid;
+  grid-template-columns: 48px 56px minmax(0, 1fr) 108px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 8px 96px 8px 20px;
+  margin-bottom: var(--space-2);
+  min-height: 64px;
   background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
@@ -124,11 +127,10 @@ watch(tab, loadLeaderboard)
 }
 .row:hover { filter: brightness(1.1); }
 .rank {
-  font-size: 16px;
+  font-size: 18px;
   color: #4a3520;
-  width: 48px;
-  text-align: left;
-  flex-shrink: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .rank.top {
   font-size: 24px;
@@ -136,26 +138,26 @@ watch(tab, loadLeaderboard)
   color: #4a3520;
 }
 .name {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: left;
-  margin-left: 96px;
   font-size: 18px;
   color: #4a3520;
 }
 .row-avatar {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  justify-self: center;
 }
 .pts {
   color: #4a3520;
   font-weight: var(--weight-medium);
   font-size: 16px;
-  flex-shrink: 0;
-  margin-right: 128px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .empty { color: var(--color-text-tertiary); padding: var(--space-4); }
 

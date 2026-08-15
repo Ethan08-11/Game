@@ -1,8 +1,8 @@
 <template>
   <div class="login-page" :style="{ '--login-bg': `url(${bgImage})` }">
     <div class="parchment-layer" :style="{ '--parchment': `url(${parchmentBg})` }"></div>
+    <h1 class="logo">这单我们护了！！！！</h1>
     <div class="login-card" @keydown.enter="onEnterKey">
-      <h1 class="logo">这单我们护了！！！！</h1>
       <el-tabs v-model="activeTab">
         <el-tab-pane label="登录" name="login">
           <el-form @submit.prevent="onPanelLogin">
@@ -139,15 +139,21 @@ async function handleRegister() {
   width: 100%;
   max-width: 400px;
   padding: var(--space-10);
-  padding-top: 72px;
+  padding-top: 8px;
 }
 .logo {
+  position: absolute;
+  left: 70px;
+  top: 228px;
+  width: 520px;
+  z-index: 2;
+  margin: 0;
   text-align: center;
   color: #4a3520;
-  margin-bottom: calc(var(--space-6) + 12px);
-  margin-top: 64px;
   font-size: var(--text-4xl);
   font-weight: var(--weight-semibold);
+  text-shadow: 0 1px 0 rgba(255, 248, 230, 0.85);
+  pointer-events: none;
 }
 
 .login-card :deep(.el-tabs__item) {
