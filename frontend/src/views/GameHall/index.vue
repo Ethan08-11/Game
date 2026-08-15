@@ -14,8 +14,13 @@
         </span>
       </div>
       <div class="header-right">
-        <span class="user-avatar">{{ user.avatar || user.username.charAt(0) }}</span>
-        <span class="user-name">{{ user.username }}</span>
+        <button class="user-profile-btn" type="button" title="点击更换头像" @click="avatarDialogVisible = true">
+          <span class="user-avatar-wrap">
+            <PlayerAvatar class="user-avatar" :src="user.avatar" :alt="user.username" />
+            <span class="avatar-edit-dot">换</span>
+          </span>
+          <span class="user-name">{{ user.username }}</span>
+        </button>
         <el-button @click="clearLocalCache">清除本地缓存</el-button>
         <el-button type="danger" text @click="handleLogout">退出</el-button>
       </div>
@@ -74,6 +79,8 @@
       </div>
     </Teleport>
 
+    <AvatarPickerDialog v-model="avatarDialogVisible" />
+
   </div>
 </template>
 
@@ -87,6 +94,8 @@ import { leaveRoom, abandonMatch, getMatchDetail, getCurrentRoom, releaseIdleRoo
 import { clearMatchCache } from '@/utils/matchCache'
 import FriendPanel from '@/components/FriendPanel.vue'
 import AnnouncementBar from '@/components/AnnouncementBar.vue'
+import AvatarPickerDialog from '@/components/AvatarPickerDialog.vue'
+import PlayerAvatar from '@/components/PlayerAvatar.vue'
 import dayjs from 'dayjs'
 import startBtnImg from '@/assets/start-btn-v2.webp'
 import questBtnImg from '@/assets/quest-btn-v3.webp'
@@ -120,6 +129,7 @@ const modeText = computed(() => {
   return '本周模式：休赛期'
 })
 
+const avatarDialogVisible = ref(false)
 const reconnectDialogVisible = ref(false)
 const reconnectCountdown = ref(30)
 const reconnectMatchId = ref('')
@@ -360,15 +370,42 @@ async function handleLogout() {
   margin-left: 16px;
 }
 .header-right { display: flex; align-items: center; gap: var(--space-3); }
-.user-avatar {
-  width: 32px; height: 32px;
-  border-radius: var(--radius-full);
-  background: var(--color-accent);
-  color: var(--color-bg-base);
-  display: flex; align-items: center; justify-content: center;
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
+.user-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+}
+.user-avatar-wrap {
+  position: relative;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
+}
+.user-avatar {
+  width: 32px;
+  height: 32px;
+}
+.avatar-edit-dot {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #8b6914;
+  color: #fff8e6;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 700;
+}
+.user-profile-btn:hover .user-avatar {
+  filter: brightness(1.08);
 }
 .user-name { color: var(--color-text-primary); }
 

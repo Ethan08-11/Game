@@ -6,7 +6,7 @@
           暂无好友
         </div>
         <div v-for="f in friends" :key="f.id" class="friend-row">
-          <img :src="f.avatarUrl || defaultAvatar" class="friend-avatar" />
+          <PlayerAvatar class="friend-avatar" :src="f.avatarUrl" :alt="f.displayName || f.username" />
           <span class="name">{{ formatPlayerName(f.displayName || f.username) }}</span>
           <img :src="getStatusIcon(f)" class="status-icon" />
         </div>
@@ -19,7 +19,7 @@
 import { computed } from 'vue'
 import { useUserStore, type Friend } from '@/store/user'
 import { formatPlayerName } from '@/utils/playerName'
-import defaultAvatar from '@/assets/default-avatar.webp'
+import PlayerAvatar from '@/components/PlayerAvatar.vue'
 import statusOnlineIcon from '@/assets/status-online.webp'
 import statusOfflineIcon from '@/assets/status-offline.webp'
 import statusInGameIcon from '@/assets/status-in-game.webp'

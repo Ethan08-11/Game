@@ -38,6 +38,11 @@ export default defineConfig(({ mode }) => {
         '/images': {
           target: 'http://127.0.0.1:8080',
           changeOrigin: true,
+          bypass(req) {
+            const url = req.url || ''
+            if (url.startsWith('/images/avatars/')) return url
+            return null
+          },
         },
         '/ws': {
           target: 'http://127.0.0.1:8080',

@@ -41,7 +41,7 @@
       <h3>好友列表</h3>
       <div class="friend-list">
         <div v-for="f in displayFriends" :key="f.id" class="friend-row">
-          <img :src="f.avatarUrl || defaultAvatar" class="friend-avatar" />
+          <PlayerAvatar class="friend-avatar" :src="f.avatarUrl" :alt="f.displayName || f.username" />
           <span class="fname">{{ f.displayName || f.username }}</span>
           <div class="friend-actions">
             <img :src="getStatusIcon(f)" class="status-icon" />
@@ -63,7 +63,7 @@
       <div class="room-slots">
         <div v-for="i in 2" :key="i" class="slot" :class="{ filled: room.players[i-1], empty: !room.players[i-1] }">
           <template v-if="room.players[i-1]">
-            <div class="avatar">{{ room.players[i-1].username.charAt(0).toUpperCase() }}</div>
+            <PlayerAvatar class="avatar" :src="slotAvatar(room.players[i-1])" :alt="room.players[i-1].username" />
             <span class="nickname">{{ room.players[i-1].username }}</span>
             <span v-if="isHostSlot(i - 1)" class="host-badge">房主</span>
             <span
@@ -137,7 +137,7 @@ import statusInGameIcon from '@/assets/status-in-game.webp'
 import statusInTeamIcon from '@/assets/status-in-team.webp'
 import inviteBrightIcon from '@/assets/invite-bright.webp'
 import inviteDimIcon from '@/assets/invite-dim.webp'
-import defaultAvatar from '@/assets/default-avatar.webp'
+import PlayerAvatar from '@/components/PlayerAvatar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -169,6 +169,13 @@ const displayFriends = computed<DisplayFriend[]>(() =>
 const selfIndex = computed(() => room.players.findIndex(p => room.isSelfPlayer(p.id)))
 const mySeatIndex = computed<0 | 1>(() => (selfIndex.value === 1 ? 1 : 0))
 const isSelfReady = computed(() => (mySeatIndex.value === 0 ? room.player1Ready : room.player2Ready))
+
+function slotAvatar(player: { id: string; avatarUrl?: string | null }): string | null {
+  if (player.avatarUrl) return player.avatarUrl
+  if (room.isSelfPlayer(player.id)) return user.avatar || null
+  const friend = user.friends.find(f => String(f.id) === String(player.id))
+  return friend?.avatarUrl || null
+}
 
 
 
@@ -793,6 +800,16 @@ async function leaveCurrentRoom() {
 .slot.empty {
   background: rgba(0, 0, 0, 0.08);
   border: 1px dashed #8b7a65;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .empty-slot {

@@ -1,7 +1,7 @@
 <template>
   <div class="login-page" :style="{ '--login-bg': `url(${bgImage})` }">
-    <div class="parchment-layer" :style="{ '--parchment': `url(${parchmentBg})`, transform: `translate(${shiftX}px, ${shiftY}px)` }"></div>
-    <div class="login-card" :style="{ transform: `translate(${shiftX}px, ${shiftY}px)` }" @keydown.enter="onEnterKey">
+    <div class="parchment-layer" :style="{ '--parchment': `url(${parchmentBg})` }"></div>
+    <div class="login-card" @keydown.enter="onEnterKey">
       <h1 class="logo">这单我们护了！！！！</h1>
       <el-tabs v-model="activeTab">
         <el-tab-pane label="登录" name="login">
@@ -19,11 +19,6 @@
           </el-form>
         </el-tab-pane>
       </el-tabs>
-    </div>
-
-    <div class="action-buttons">
-      <button class="action-btn reset-btn" @click="resetPanel">重置</button>
-      <button class="action-btn login-btn" @click="handleLogin">登 录</button>
     </div>
   </div>
 </template>
@@ -44,8 +39,6 @@ const router = useRouter()
 const user = useUserStore()
 const common = useCommonStore()
 const activeTab = ref('login')
-const shiftX = ref(0)
-const shiftY = ref(0)
 
 const loginForm = reactive({ username: '', password: '' })
 const regForm = reactive({ username: '', password: '' })
@@ -60,13 +53,6 @@ function onEnterKey() {
 
 function onPanelLogin() {
   void handleLogin()
-}
-
-function resetPanel() {
-  shiftX.value = 0
-  shiftY.value = 0
-  loginForm.username = ''
-  loginForm.password = ''
 }
 
 async function handleLogin() {
@@ -146,7 +132,6 @@ async function handleRegister() {
   background: var(--parchment) no-repeat center bottom / 100% auto;
   z-index: 0;
   pointer-events: none;
-  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .login-card {
   position: relative;
@@ -154,13 +139,13 @@ async function handleRegister() {
   width: 100%;
   max-width: 400px;
   padding: var(--space-10);
-  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding-top: 72px;
 }
 .logo {
   text-align: center;
   color: #4a3520;
   margin-bottom: calc(var(--space-6) + 12px);
-  margin-top: -16px;
+  margin-top: 64px;
   font-size: var(--text-4xl);
   font-weight: var(--weight-semibold);
 }
@@ -203,40 +188,6 @@ async function handleRegister() {
 .login-card :deep(.el-button--success:hover) {
   background-color: #5c3d2e;
   border-color: #5c3d2e;
-}
-
-.action-buttons {
-  position: absolute;
-  bottom: 24px;
-  left: 40px;
-  z-index: 2;
-  display: flex;
-  gap: var(--space-4);
-}
-.action-btn {
-  padding: var(--space-2) var(--space-6);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-md);
-  background: rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: #2a2218;
-  font-size: var(--text-md);
-  font-weight: var(--weight-bold);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.action-btn:hover {
-  background: rgba(0, 0, 0, 0.6);
-  border-color: var(--color-accent);
-}
-.login-btn {
-  background: rgba(74, 53, 32, 0.1);
-  border-color: rgba(74, 53, 32, 0.3);
-  color: #2a2218;
-}
-.login-btn:hover {
-  background: rgba(74, 53, 32, 0.9);
 }
 
 @media (max-width: 767px) {

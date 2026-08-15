@@ -9,7 +9,10 @@
     <div class="list" :key="tab">
       <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${idx * 0.08}s` }">
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
-        <span class="name">{{ item.displayName || item.username }}</span>
+        <span class="name">
+          <PlayerAvatar class="row-avatar" :src="item.avatarUrl" :alt="item.displayName || item.username" />
+          {{ item.displayName || item.username }}
+        </span>
         <span class="pts">{{ item.money }} 资金</span>
       </div>
       <div v-if="list.length === 0" class="empty">暂无排行数据</div>
@@ -22,6 +25,7 @@ import { ref, watch, onMounted } from 'vue'
 import { getLeaderboard } from '@/api'
 import type { LeaderboardEntry } from '@/api'
 import BackButton from '@/components/BackButton.vue'
+import PlayerAvatar from '@/components/PlayerAvatar.vue'
 import titleBg from '@/assets/title-bg-leaderboard.webp'
 import rowBg from '@/assets/row-bg-leaderboard.webp'
 import pageBg from '@/assets/beijing0.webp'
@@ -133,10 +137,18 @@ watch(tab, loadLeaderboard)
 }
 .name {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-align: left;
-  margin-left: 128px;
+  margin-left: 96px;
   font-size: 18px;
   color: #4a3520;
+}
+.row-avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
 }
 .pts {
   color: #4a3520;

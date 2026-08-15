@@ -280,7 +280,7 @@ public class RoomServiceImpl implements RoomService {
                             : "玩家" + member.getUserId();
                     return new RoomMemberResp(member.getId(), member.getRoomId(), member.getUserId(),
                             member.getSeatNo(), member.getDeptType(), member.getReadyStatus(), member.getOnlineStatus(),
-                            username, username);
+                            username, username, user != null ? user.getAvatarUrl() : null);
                 })
                 .toList();
         return new RoomDetailResp(room.getId(), room.getRoomCode(), room.getHostUserId(), room.getStatus(),

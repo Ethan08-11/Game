@@ -74,7 +74,7 @@ public class UserServiceImpl implements UserService {
         if (request.signature() != null) profile.setSignature(request.signature());
         if (request.gender() != null) profile.setGender(request.gender());
         profileMapper.updateById(profile);
-        if (request.avatarUrl() != null) user.setAvatarUrl(request.avatarUrl());
+        if (request.avatarUrl() != null) applyAvatarUrl(user, request.avatarUrl());
         if (request.email() != null) {
             checkEmailUnique(request.email(), currentUserId);
             user.setEmail(request.email());
@@ -85,6 +85,21 @@ public class UserServiceImpl implements UserService {
         }
         userMapper.updateById(user);
         return toProfileResp(user, profile);
+    }
+
+    private void applyAvatarUrl(User user, String avatarUrl) {
+        String trimmed = avatarUrl == null ? "" : avatarUrl.trim();
+        if (trimmed.isEmpty()) {
+            user.setAvatarUrl(null);
+            return;
+        }
+        boolean allowed = (trimmed.startsWith("/images/") && !trimmed.contains("..") && !trimmed.contains("://"))
+                || trimmed.startsWith("https://")
+                || trimmed.startsWith("http://");
+        if (!allowed) {
+            throw new BusinessException("头像地址不合法");
+        }
+        user.setAvatarUrl(trimmed);
     }
 
     private void checkEmailUnique(String email, Long currentUserId) {

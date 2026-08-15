@@ -7,6 +7,7 @@ export interface RoomPlayerResp {
   username?: string
   displayName?: string
   nickname?: string
+  avatarUrl?: string | null
   seatNo?: number
   slot?: number
   dept?: string

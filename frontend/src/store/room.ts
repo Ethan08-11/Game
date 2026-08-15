@@ -6,6 +6,7 @@ import { formatPlayerName } from '@/utils/playerName'
 export interface Player {
   id: string
   username: string
+  avatarUrl?: string | null
 }
 
 export const useRoomStore = defineStore('room', () => {
@@ -47,6 +48,7 @@ export const useRoomStore = defineStore('room', () => {
     return {
       id,
       username: formatPlayerName(member.displayName ?? member.username ?? member.nickname ?? (id ? `玩家${id}` : '玩家')),
+      avatarUrl: member.avatarUrl ?? null,
     }
   }
 
