@@ -64,6 +64,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
@@ -84,6 +85,8 @@ public class MatchServiceImpl implements MatchService {
     private static final long DEFEAT_MONEY = 10L;
     private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
     private static final long REVIVE_TIMEOUT_MILLIS = 30_000L;
+    private static final Set<String> KEEP_PHASE_ON_DISCONNECT = Set.of(
+            "SELECT_FIRST_PLAYER", "BOSS_ACTION", "REVIVE_WAIT", "FINISHED");
 
     private final GameRoomsMapper gameRoomsMapper;
     private final RoomMembersMapper roomMembersMapper;
@@ -164,9 +167,13 @@ public class MatchServiceImpl implements MatchService {
     }
 
     @Override
+    @Transactional
     public MatchStateResp getMatchState(Long currentUserId, Long matchId) {
         Matches match = requireMatch(matchId);
-        List<MatchPlayers> players = requirePlayerAndList(currentUserId, matchId);
+        requirePlayer(currentUserId, matchId);
+        resumeStuckRoundIfNeeded(match);
+        match = requireMatch(matchId);
+        List<MatchPlayers> players = listPlayers(matchId);
         MatchRounds round = matchRoundsMapper.selectOne(Wrappers.<MatchRounds>lambdaQuery()
                 .eq(MatchRounds::getMatchId, matchId)
                 .eq(MatchRounds::getRoundNo, match.getCurrentRound()));
@@ -796,8 +803,10 @@ public class MatchServiceImpl implements MatchService {
         if (player != null && !"DEAD".equals(player.getPlayerStatus()) && !"LEFT".equals(player.getPlayerStatus())) {
             player.setPlayerStatus("RECONNECTING");
             matchPlayersMapper.updateById(player);
-            match.setPhase("RECONNECT_WAIT");
-            matchesMapper.updateById(match);
+            if (!KEEP_PHASE_ON_DISCONNECT.contains(match.getPhase())) {
+                match.setPhase("RECONNECT_WAIT");
+                matchesMapper.updateById(match);
+            }
             notifyPlayers(match.getId(), "match.reconnecting", Map.of(
                     "matchId", match.getId(),
                     "userId", userId,
@@ -808,7 +817,7 @@ public class MatchServiceImpl implements MatchService {
 
     @Override
     @Transactional
-    public void reconnect(Long currentUserId, Long matchId) {
+    public MatchStateResp reconnect(Long currentUserId, Long matchId) {
         Matches match = requireMatch(matchId);
         if (value(match.getStatus()) == 2) {
             throw new BusinessException("对局已经结束，无法重连");
@@ -821,11 +830,12 @@ public class MatchServiceImpl implements MatchService {
         matchPlayersMapper.updateById(player);
         boolean allRecovered = listPlayers(matchId).stream().noneMatch(item -> "RECONNECTING".equals(item.getPlayerStatus()));
         if (allRecovered && "RECONNECT_WAIT".equals(match.getPhase())) {
-            match.setPhase("PLAYER_ACTION");
+            match.setPhase(PLAYER_ACTION);
             matchesMapper.updateById(match);
         }
         notifyPlayers(matchId, "match.recovered", Map.of("matchId", matchId, "userId", currentUserId, "phase", match.getPhase()));
         userPresenceService.broadcastPresence(currentUserId);
+        return getMatchState(currentUserId, matchId);
     }
 
     @Override
@@ -1119,40 +1129,15 @@ public class MatchServiceImpl implements MatchService {
         MatchRounds round = currentRound(match);
         insertEndTurnAction(matchId, round, actor, request.clientActionId(), discarded);
         List<MatchPlayers> players = listPlayers(matchId);
-        boolean allEnded = players.stream().allMatch(player -> value(player.getEndedTurn()) == 1);
+        boolean allEnded = allLivingPlayersEnded(players);
         List<BossAttackTargetResp> targets = List.of();
         boolean attackResolved = false;
         boolean matchEnded = false;
         if (allEnded) {
-            if (value(match.getBossCurrentHp()) <= 0) {
-                finishMatch(match, 1);
-                matchEnded = true;
-            } else {
-                match.setPhase("BOSS_ACTION");
-                if (round != null) {
-                    round.setPhase("BOSS_ACTION");
-                    matchRoundsMapper.updateById(round);
-                }
-                targets = resolveBossAttack(match, round, players);
-                attackResolved = true;
-                boolean anyDead = targets.stream().anyMatch(BossAttackTargetResp::dead);
-                boolean allDead = players.stream().allMatch(player -> value(player.getCurrentHp()) <= 0);
-                matchEnded = allDead;
-                if (allDead) {
-                    finishMatch(match, 2);
-                } else if (anyDead) {
-                    match.setPhase("REVIVE_WAIT");
-                    match.setVersion(match.getVersion() + 1);
-                    matchesMapper.updateById(match);
-                    notifyPlayers(match.getId(), "match.revive.required", Map.of(
-                            "matchId", match.getId(), "phase", "REVIVE_WAIT", "timeoutSeconds", REVIVE_TIMEOUT_MILLIS / 1000));
-                } else {
-                    finishRoundAndStartNext(match, round, players);
-                    if (value(match.getStatus()) == 2) {
-                        matchEnded = value(match.getWinnerType()) != 0;
-                    }
-                }
-            }
+            RoundSettleResult settled = settleEndedRound(match, round, players);
+            targets = settled.targets();
+            attackResolved = settled.attackResolved();
+            matchEnded = settled.matchEnded();
         }
         match.setVersion(match.getVersion() + 1);
         matchesMapper.updateById(match);
@@ -1172,7 +1157,7 @@ public class MatchServiceImpl implements MatchService {
             for (MatchPlayers player : players) {
                 userPresenceService.broadcastPresence(player.getUserId());
             }
-        } else if (allEnded) {
+        } else if (allEnded && PLAYER_ACTION.equals(match.getPhase())) {
             notifyPlayers(matchId, "round.started", response);
         }
         return response;
@@ -1280,6 +1265,10 @@ public class MatchServiceImpl implements MatchService {
         nextRound.setSatisfactionDelta(0);
         nextRound.setFundsPerPlayer(3);
         nextRound.setStartedAt(LocalDateTime.now());
+        if (currentRound != null) {
+            nextRound.setFirstPlayerUserId(currentRound.getFirstPlayerUserId());
+            nextRound.setChosenByUserId(currentRound.getChosenByUserId());
+        }
         matchRoundsMapper.insert(nextRound);
     }
 
@@ -1541,6 +1530,139 @@ public class MatchServiceImpl implements MatchService {
         return bully;
     }
 
+    private record RoundSettleResult(boolean attackResolved, boolean matchEnded, List<BossAttackTargetResp> targets) {
+    }
+
+    private boolean isLivingPlayer(MatchPlayers player) {
+        return value(player.getCurrentHp()) > 0
+                && !"DEAD".equals(player.getPlayerStatus())
+                && !"LEFT".equals(player.getPlayerStatus());
+    }
+
+    private boolean allLivingPlayersEnded(List<MatchPlayers> players) {
+        List<MatchPlayers> living = players.stream().filter(this::isLivingPlayer).toList();
+        return !living.isEmpty() && living.stream().allMatch(player -> value(player.getEndedTurn()) == 1);
+    }
+
+    private boolean hasBossAttackThisRound(Matches match) {
+        MatchRounds round = currentRound(match);
+        if (round == null) {
+            return false;
+        }
+        Long count = matchActionsMapper.selectCount(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, match.getId())
+                .eq(MatchActions::getRoundId, round.getId())
+                .eq(MatchActions::getActionType, "boss_attack"));
+        return count != null && count > 0;
+    }
+
+    private void resumeStuckRoundIfNeeded(Matches match) {
+        if (value(match.getStatus()) != 1) {
+            return;
+        }
+        if ("SELECT_FIRST_PLAYER".equals(match.getPhase()) || "FINISHED".equals(match.getPhase()) || "REVIVE_WAIT".equals(match.getPhase())) {
+            return;
+        }
+        List<MatchPlayers> players = listPlayers(match.getId());
+        if (!allLivingPlayersEnded(players)) {
+            return;
+        }
+        String phase = match.getPhase();
+        if (!PLAYER_ACTION.equals(phase) && !"RECONNECT_WAIT".equals(phase) && !"BOSS_ACTION".equals(phase)) {
+            return;
+        }
+        MatchRounds round = currentRound(match);
+        if (hasBossAttackThisRound(match)) {
+            completeRoundAfterBossAttack(match, round, players);
+            return;
+        }
+        int claimed = matchesMapper.update(null, Wrappers.<Matches>lambdaUpdate()
+                .eq(Matches::getId, match.getId())
+                .eq(Matches::getVersion, match.getVersion())
+                .in(Matches::getPhase, List.of(PLAYER_ACTION, "RECONNECT_WAIT", "BOSS_ACTION"))
+                .set(Matches::getPhase, "BOSS_ACTION")
+                .set(Matches::getVersion, nextVersion(match.getVersion())));
+        if (claimed == 0) {
+            return;
+        }
+        match.setPhase("BOSS_ACTION");
+        match.setVersion(nextVersion(match.getVersion()));
+        RoundSettleResult settled = settleEndedRound(match, round, players);
+        if (settled.matchEnded()) {
+            notifyPlayers(match.getId(), "match.ended", Map.of(
+                    "matchId", match.getId(),
+                    "winnerType", match.getWinnerType(),
+                    "reason", "round_settled"));
+        } else if (PLAYER_ACTION.equals(match.getPhase())) {
+            notifyPlayers(match.getId(), "round.started", Map.of(
+                    "matchId", match.getId(),
+                    "currentRound", match.getCurrentRound(),
+                    "phase", match.getPhase(),
+                    "version", match.getVersion()));
+        }
+    }
+
+    private void completeRoundAfterBossAttack(Matches match, MatchRounds round, List<MatchPlayers> players) {
+        boolean allDead = players.stream().allMatch(player -> value(player.getCurrentHp()) <= 0);
+        boolean anyDead = players.stream().anyMatch(player -> value(player.getCurrentHp()) <= 0);
+        if (allDead) {
+            finishMatch(match, 2);
+            notifyPlayers(match.getId(), "match.ended", Map.of(
+                    "matchId", match.getId(), "winnerType", 2, "reason", "round_settled"));
+            return;
+        }
+        if (anyDead) {
+            match.setPhase("REVIVE_WAIT");
+            match.setVersion(nextVersion(match.getVersion()));
+            matchesMapper.updateById(match);
+            notifyPlayers(match.getId(), "match.revive.required", Map.of(
+                    "matchId", match.getId(), "phase", "REVIVE_WAIT", "timeoutSeconds", REVIVE_TIMEOUT_MILLIS / 1000));
+            return;
+        }
+        finishRoundAndStartNext(match, round, players);
+        match.setVersion(nextVersion(match.getVersion()));
+        matchesMapper.updateById(match);
+        notifyPlayers(match.getId(), "round.started", Map.of(
+                "matchId", match.getId(),
+                "currentRound", match.getCurrentRound(),
+                "phase", match.getPhase(),
+                "version", match.getVersion()));
+    }
+
+    private RoundSettleResult settleEndedRound(Matches match, MatchRounds round, List<MatchPlayers> players) {
+        if (hasBossAttackThisRound(match)) {
+            completeRoundAfterBossAttack(match, round, players);
+            boolean matchEnded = value(match.getStatus()) == 2;
+            return new RoundSettleResult(true, matchEnded, List.of());
+        }
+        if (value(match.getBossCurrentHp()) <= 0) {
+            finishMatch(match, 1);
+            return new RoundSettleResult(false, true, List.of());
+        }
+        match.setPhase("BOSS_ACTION");
+        if (round != null) {
+            round.setPhase("BOSS_ACTION");
+            matchRoundsMapper.updateById(round);
+        }
+        List<BossAttackTargetResp> targets = resolveBossAttack(match, round, players);
+        boolean anyDead = targets.stream().anyMatch(BossAttackTargetResp::dead);
+        boolean allDead = players.stream().allMatch(player -> value(player.getCurrentHp()) <= 0);
+        if (allDead) {
+            finishMatch(match, 2);
+            return new RoundSettleResult(true, true, targets);
+        }
+        if (anyDead) {
+            match.setPhase("REVIVE_WAIT");
+            matchesMapper.updateById(match);
+            notifyPlayers(match.getId(), "match.revive.required", Map.of(
+                    "matchId", match.getId(), "phase", "REVIVE_WAIT", "timeoutSeconds", REVIVE_TIMEOUT_MILLIS / 1000));
+            return new RoundSettleResult(true, false, targets);
+        }
+        finishRoundAndStartNext(match, round, players);
+        boolean matchEnded = value(match.getStatus()) == 2 && value(match.getWinnerType()) != 0;
+        return new RoundSettleResult(true, matchEnded, targets);
+    }
+
     private MatchRounds currentRound(Matches match) {
         return matchRoundsMapper.selectOne(Wrappers.<MatchRounds>lambdaQuery()
                 .eq(MatchRounds::getMatchId, match.getId()).eq(MatchRounds::getRoundNo, match.getCurrentRound()));
@@ -1577,5 +1699,9 @@ public class MatchServiceImpl implements MatchService {
 
     private int value(Integer number) {
         return number == null ? 0 : number;
+    }
+
+    private long nextVersion(Long version) {
+        return version == null ? 1L : version + 1L;
     }
 }

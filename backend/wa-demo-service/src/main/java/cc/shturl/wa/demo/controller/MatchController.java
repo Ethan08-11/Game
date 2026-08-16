@@ -59,11 +59,10 @@ public class MatchController {
     }
 
     @PostMapping("/{matchId}/reconnect")
-    public Result<Void> reconnect(@RequestHeader("Authorization") String authorization,
-                                  @PathVariable("matchId") Long matchId) {
+    public Result<MatchStateResp> reconnect(@RequestHeader("Authorization") String authorization,
+                                            @PathVariable("matchId") Long matchId) {
         Long userId = authTokenSupport.requireUserIdFromAccessToken(authorization);
-        matchService.reconnect(userId, matchId);
-        return Result.ok();
+        return Result.ok(matchService.reconnect(userId, matchId));
     }
 
     @PostMapping("/{matchId}/abandon")

@@ -12,7 +12,7 @@ public interface MatchService {
     MatchDeckResp getMatchDeck(Long currentUserId, Long matchId);
     MatchSettlementResp getMatchSettlement(Long currentUserId, Long matchId);
     MatchFirstPlayerResp chooseFirstPlayer(Long currentUserId, Long matchId, ChooseFirstPlayerReq request);
-    void reconnect(Long currentUserId, Long matchId);
+    MatchStateResp reconnect(Long currentUserId, Long matchId);
     void abandon(Long currentUserId, Long matchId);
     void markPlayerDisconnected(Long userId);
     MatchActionResp playCard(Long currentUserId, Long matchId, PlayCardReq request);

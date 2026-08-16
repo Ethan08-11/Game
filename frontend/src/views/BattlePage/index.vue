@@ -592,18 +592,18 @@ const currentTurnPlayer = computed(() => {
   }
 
   // 兜底：先手未设置时从后手玩家反推，或根据 endedTurn 推断
-  if (!firstPlayer) {
-    const secondId = normalizeId(matchDetail.value?.secondPlayerUserId ?? secondPlayerUserId.value)
-    if (secondId) {
-      firstPlayer = players.value.find((player) => normalizeId(player.userId) && normalizeId(player.userId) !== secondId)
-    }
     if (!firstPlayer) {
-      // 最后兜底：谁还没结束回合就是谁在行动，否则默认 P1
-      if (!turnEnded.value[0] && turnEnded.value[1]) return players.value[0] || null
-      if (turnEnded.value[0] && !turnEnded.value[1]) return players.value[1] || null
-      return players.value[0] || null
+      const secondId = normalizeId(matchDetail.value?.secondPlayerUserId ?? secondPlayerUserId.value)
+      if (secondId) {
+        firstPlayer = players.value.find((player) => normalizeId(player.userId) && normalizeId(player.userId) !== secondId)
+      }
+      if (!firstPlayer) {
+        if (!turnEnded.value[0] && turnEnded.value[1]) return players.value[0] || null
+        if (turnEnded.value[0] && !turnEnded.value[1]) return players.value[1] || null
+        if (turnEnded.value[0] && turnEnded.value[1]) return null
+        return players.value[0] || null
+      }
     }
-  }
 
   // 先手玩家未结束回合 → 先手玩家的回合
   const firstEnded = Boolean(matchDetail.value?.players?.[firstPlayer.seatNo]?.endedTurn ?? turnEnded.value[firstPlayer.seatNo])
@@ -650,6 +650,7 @@ const isCurrentUserActiveTurnPlayer = computed(() => {
 })
 const canActWithActivePlayer = computed(() => {
   if (game.isGameOver || isSelectingFirstPlayer.value || isCurrentUserEnded.value) return false
+  if (activePhase.value && activePhase.value !== 'PLAYER_ACTION') return false
   return isCurrentUserActiveTurnPlayer.value
 })
 const customerStatusText = computed(() => {
@@ -752,12 +753,26 @@ function mapCard(card: any): BattleCard {
   }
 }
 
+function applyBossHp(detail: any) {
+  const current = detail?.bossCurrentHp ?? detail?.boss_current_hp ?? detail?.bossRemainingHp
+  const max = detail?.bossMaxHp ?? detail?.boss_max_hp
+  if (current != null && current !== '') {
+    const hp = Number(current)
+    if (Number.isFinite(hp)) game.bullyHP = hp
+  }
+  if (max != null && max !== '') {
+    const hp = Number(max)
+    if (Number.isFinite(hp) && hp > 0) game.maxBullyHP = hp
+  }
+}
+
 function syncToStore(detail: any) {
+  if (!detail || typeof detail !== 'object') return
   matchDetail.value = detail
   activeMatchId.value = String(detail.matchId ?? activeMatchId.value)
   turnNumber.value = detail.currentRound ?? detail.roundNo ?? turnNumber.value
   activeVersion.value = detail.version ?? activeVersion.value
-  if (detail.phase === 'SELECT_FIRST_PLAYER' || detail.phase === 'PLAYER_ACTION' || detail.phase === 'REVIVE_WAIT' || detail.phase === 'FINISHED') {
+  if (detail.phase) {
     activePhase.value = detail.phase
   }
   // 复活后服务器返回非结束状态，重置客户端 game-over 标记
@@ -766,15 +781,17 @@ function syncToStore(detail: any) {
     game.isVictory = false
   }
   firstPlayerUserId.value = detail.firstPlayerUserId != null ? String(detail.firstPlayerUserId) : firstPlayerUserId.value
-  secondPlayerUserId.value = detail.secondPlayerUserId != null ? String(detail.secondPlayerUserId) : secondPlayerUserId.value
+  const derivedSecond = (detail.players || []).find((item: any) => String(item.userId ?? '') !== String(detail.firstPlayerUserId ?? firstPlayerUserId.value ?? ''))
+  secondPlayerUserId.value = detail.secondPlayerUserId != null
+    ? String(detail.secondPlayerUserId)
+    : (derivedSecond?.userId != null ? String(derivedSecond.userId) : secondPlayerUserId.value)
   customerTriggered.value = detail.customerTriggered ?? customerTriggered.value
   customerEffectType.value = detail.customerEffectType ?? customerEffectType.value
   customerEffectValue.value = detail.customerEffectValue ?? customerEffectValue.value
   bullyDefense.value = detail.bossShield ?? detail.bossDefense ?? detail.bullyShield ?? detail.bullyDefense ?? bullyDefense.value
   bullyActionText.value = detail.bossActionText ?? detail.bullyActionText ?? detail.lastBossActionText ?? bullyActionText.value
-  game.maxBullyHP = detail.bossMaxHp ?? game.maxBullyHP
+  applyBossHp(detail)
   console.log(`[调试] syncToStore 服务端返回 bossCurrentHp: ${detail.bossCurrentHp}, bossMaxHp: ${detail.bossMaxHp}, 当前本地 bullyHP: ${game.bullyHP}`)
-  game.bullyHP = detail.bossCurrentHp ?? game.bullyHP
   game.bullyName = detail.bossName ?? game.bullyName
   game.bullyMinDamage = detail.bossCurrentAttack ?? detail.bossBaseAttack ?? game.bullyMinDamage
   game.bullyMaxDamage = detail.bossCurrentAttack ?? detail.bossBaseAttack ?? game.bullyMaxDamage
@@ -848,8 +865,8 @@ async function refreshBattleState() {
   const activeSeat = mySeat === -1 ? 0 : mySeat as 0 | 1
   activePlayer.value = activeSeat
 
-  // PLAYER_ACTION 阶段启动轮询兜底，防止 WebSocket 丢包导致回合卡死
-  if (detail.phase === 'PLAYER_ACTION' && !game.isGameOver) {
+  // PLAYER_ACTION / 结算中启动轮询兜底，防止 WebSocket 丢包或双方结束回合后卡住
+  if (!game.isGameOver && (detail.phase === 'PLAYER_ACTION' || detail.phase === 'BOSS_ACTION' || detail.phase === 'RECONNECT_WAIT')) {
     startActionPhasePoll()
   } else {
     stopActionPhasePoll()
@@ -1123,8 +1140,7 @@ function applyGameOver(detail: any) {
   game.isGameOver = true
   game.isVictory = resolveIsVictory(detail)
   resultRounds.value = detail.currentRound ?? detail.roundNo ?? detail.totalRounds ?? 0
-  game.maxBullyHP = detail.bossMaxHp ?? game.maxBullyHP
-  game.bullyHP = detail.bossCurrentHp ?? detail.bossRemainingHp ?? game.bullyHP
+  applyBossHp(detail)
   resultPlayers.value = normalizeResultPlayers(detail.players)
   const reward = pickRewardMoney(detail)
   if (reward > 0 || game.isVictory) {
@@ -1190,7 +1206,7 @@ function stopActionPhasePoll() {
 function startActionPhasePoll() {
   stopActionPhasePoll()
   actionPhasePollTimer = setInterval(() => {
-    if (game.isGameOver || activePhase.value !== 'PLAYER_ACTION') {
+    if (game.isGameOver) {
       stopActionPhasePoll()
       return
     }
@@ -1362,8 +1378,10 @@ onMounted(async () => {
   }
   try {
     const detail = await reconnectMatch(activeMatchId.value)
-    syncToStore(detail)
-    syncRoomPlayers(detail)
+    if (detail && typeof detail === 'object' && (detail.matchId || detail.phase || detail.bossCurrentHp != null)) {
+      syncToStore(detail)
+      syncRoomPlayers(detail)
+    }
   } catch {
     // 对局无需重连或后端拒绝重连时，继续以权威查询恢复页面。
   }

@@ -30,6 +30,7 @@ import cowboyHat from '@/assets/avatars/cowboy-hat.webp'
 import stripeGlassesGuy from '@/assets/avatars/stripe-glasses-guy.webp'
 import blondeCake from '@/assets/avatars/blonde-cake.webp'
 import flowerOffshoulder from '@/assets/avatars/flower-offshoulder.webp'
+import chefRat from '@/assets/avatars/chef-rat.webp'
 import customer1 from '@/assets/avatars/customer-1.webp'
 import customer2 from '@/assets/avatars/customer-2.webp'
 import customer3 from '@/assets/avatars/customer-3.webp'
@@ -75,6 +76,7 @@ export const PRESET_AVATAR_SRC: Record<string, string> = {
   '/images/avatars/stripe-glasses-guy.webp': stripeGlassesGuy,
   '/images/avatars/blonde-cake.webp': blondeCake,
   '/images/avatars/flower-offshoulder.webp': flowerOffshoulder,
+  '/images/avatars/chef-rat.webp': chefRat,
   '/images/customer/p1.webp': customer1,
   '/images/customer/p2.webp': customer2,
   '/images/customer/p3.webp': customer3,
@@ -111,8 +113,9 @@ export const PRESET_AVATARS: AvatarPreset[] = [
   { id: 'mesh-white-tee', name: '纱网白T', url: '/images/avatars/mesh-white-tee.webp' },
   { id: 'cowboy-hat', name: '牛仔草帽', url: '/images/avatars/cowboy-hat.webp' },
   { id: 'stripe-glasses-guy', name: '条纹方镜', url: '/images/avatars/stripe-glasses-guy.webp' },
-  { id: 'blonde-cake', name: '金发蛋糕', url: '/images/avatars/blonde-cake.webp' },
+  { id: 'blonde-cake', name: '金发条纹', url: '/images/avatars/blonde-cake.webp' },
   { id: 'flower-offshoulder', name: '蓝花露肩', url: '/images/avatars/flower-offshoulder.webp' },
+  { id: 'chef-rat', name: '厨师鼠', url: '/images/avatars/chef-rat.webp' },
   { id: 'customer-1', name: '暖心雇主', url: '/images/customer/p1.webp' },
   { id: 'customer-2', name: '眼镜行家', url: '/images/customer/p2.webp' },
   { id: 'customer-3', name: '红巾客官', url: '/images/customer/p3.webp' },

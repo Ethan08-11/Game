@@ -33,10 +33,11 @@ const shownInviteIds = new Set<string>()
 let inviteDialogOpen = false
 
 const isInBattlePage = computed(() => String(route.name || '') === 'BattlePage')
+const isPreGameRoute = computed(() => Boolean(route.meta.noAuth))
 
 function canShowInvite() {
-  // 对战中不弹；残留 players 不应拦截（需同时有有效 roomId）
-  if (!user.isLoggedIn || isInBattlePage.value) return false
+  // 开场 CG / 登录页尚未进入游戏，不弹邀请
+  if (!user.isLoggedIn || isPreGameRoute.value || isInBattlePage.value) return false
   if (room.roomId && room.players.length >= 2) return false
   return true
 }
@@ -296,9 +297,10 @@ async function handleMatchEnded() {
 function ensureRoomSocket() {
   if (!sessionReady.value) return
   const accessToken = user.token || localStorage.getItem('token')
-  if (!accessToken) {
+  if (!accessToken || isPreGameRoute.value) {
     disconnectRoomSocket()
     stopFriendsFallbackRefresh()
+    stopPendingInvitePoll()
     return
   }
   if (user.userId) room.setCurrentUser(user.userId)
@@ -351,13 +353,19 @@ onMounted(() => {
   )
 })
 
-// 有登录态就建立房间 WS（含刷新后从 localStorage 恢复 token）
+// 有登录态且已进入游戏后再建立房间 WS（开场 CG / 登录页不连，避免未进游戏就弹邀请）
 watch(() => user.token, (newToken) => {
   sessionReady.value = !!newToken
   ensureRoomSocket()
-  if (newToken) startPendingInvitePoll()
+  if (newToken && !isPreGameRoute.value) startPendingInvitePoll()
   else stopPendingInvitePoll()
 }, { immediate: true })
+
+watch(() => route.fullPath, () => {
+  ensureRoomSocket()
+  if (user.token && !isPreGameRoute.value) startPendingInvitePoll()
+  else stopPendingInvitePoll()
+})
 
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)

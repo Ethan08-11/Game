@@ -49,6 +49,7 @@ const CIRCLE_FILL: Record<string, number> = {
   '/images/avatars/stripe-glasses-guy.webp': 0.875,
   '/images/avatars/blonde-cake.webp': 0.900,
   '/images/avatars/flower-offshoulder.webp': 0.930,
+  '/images/avatars/chef-rat.webp': 0.900,
 }
 
 export function avatarCropScale(url?: string | null): number {
