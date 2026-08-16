@@ -33,6 +33,7 @@ import flowerOffshoulder from '@/assets/avatars/flower-offshoulder.webp'
 import chefRat from '@/assets/avatars/chef-rat.webp'
 import navyVest from '@/assets/avatars/navy-vest.webp'
 import pinkShrug from '@/assets/avatars/pink-shrug.webp'
+import bangsGlasses from '@/assets/avatars/bangs-glasses.webp'
 import customer1 from '@/assets/avatars/customer-1.webp'
 import customer2 from '@/assets/avatars/customer-2.webp'
 import customer3 from '@/assets/avatars/customer-3.webp'
@@ -81,6 +82,7 @@ export const PRESET_AVATAR_SRC: Record<string, string> = {
   '/images/avatars/chef-rat.webp': chefRat,
   '/images/avatars/navy-vest.webp': navyVest,
   '/images/avatars/pink-shrug.webp': pinkShrug,
+  '/images/avatars/bangs-glasses.webp': bangsGlasses,
   '/images/customer/p1.webp': customer1,
   '/images/customer/p2.webp': customer2,
   '/images/customer/p3.webp': customer3,
@@ -122,6 +124,7 @@ export const PRESET_AVATARS: AvatarPreset[] = [
   { id: 'chef-rat', name: '厨师鼠', url: '/images/avatars/chef-rat.webp' },
   { id: 'navy-vest', name: '方镜马甲', url: '/images/avatars/navy-vest.webp' },
   { id: 'pink-shrug', name: '粉衫摊手', url: '/images/avatars/pink-shrug.webp' },
+  { id: 'bangs-glasses', name: '刘海圆镜', url: '/images/avatars/bangs-glasses.webp' },
   { id: 'customer-1', name: '暖心雇主', url: '/images/customer/p1.webp' },
   { id: 'customer-2', name: '眼镜行家', url: '/images/customer/p2.webp' },
   { id: 'customer-3', name: '红巾客官', url: '/images/customer/p3.webp' },
