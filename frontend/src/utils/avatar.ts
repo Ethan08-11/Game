@@ -36,6 +36,19 @@ const CIRCLE_FILL: Record<string, number> = {
   '/images/avatars/bluegray-toast.webp': 0.885,
   '/images/avatars/ombre-skewer.webp': 0.900,
   '/images/avatars/toothless-peace.webp': 0.910,
+  '/images/avatars/curly-leather.webp': 0.850,
+  '/images/avatars/fluffy-stripe.webp': 0.855,
+  '/images/avatars/beanie-stripe.webp': 0.900,
+  '/images/avatars/purple-cap-braids.webp': 0.910,
+  '/images/avatars/apple-dress.webp': 0.905,
+  '/images/avatars/purple-offshoulder.webp': 0.860,
+  '/images/avatars/birthday-cake.webp': 0.900,
+  '/images/avatars/stripe-touch-hair.webp': 0.875,
+  '/images/avatars/mesh-white-tee.webp': 0.900,
+  '/images/avatars/cowboy-hat.webp': 0.910,
+  '/images/avatars/stripe-glasses-guy.webp': 0.875,
+  '/images/avatars/blonde-cake.webp': 0.900,
+  '/images/avatars/flower-offshoulder.webp': 0.930,
 }
 
 export function avatarCropScale(url?: string | null): number {

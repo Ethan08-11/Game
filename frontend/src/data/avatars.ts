@@ -17,6 +17,19 @@ import earPullGlasses from '@/assets/avatars/ear-pull-glasses.webp'
 import bluegrayToast from '@/assets/avatars/bluegray-toast.webp'
 import ombreSkewer from '@/assets/avatars/ombre-skewer.webp'
 import toothlessPeace from '@/assets/avatars/toothless-peace.webp'
+import curlyLeather from '@/assets/avatars/curly-leather.webp'
+import fluffyStripe from '@/assets/avatars/fluffy-stripe.webp'
+import beanieStripe from '@/assets/avatars/beanie-stripe.webp'
+import purpleCapBraids from '@/assets/avatars/purple-cap-braids.webp'
+import appleDress from '@/assets/avatars/apple-dress.webp'
+import purpleOffshoulder from '@/assets/avatars/purple-offshoulder.webp'
+import birthdayCake from '@/assets/avatars/birthday-cake.webp'
+import stripeTouchHair from '@/assets/avatars/stripe-touch-hair.webp'
+import meshWhiteTee from '@/assets/avatars/mesh-white-tee.webp'
+import cowboyHat from '@/assets/avatars/cowboy-hat.webp'
+import stripeGlassesGuy from '@/assets/avatars/stripe-glasses-guy.webp'
+import blondeCake from '@/assets/avatars/blonde-cake.webp'
+import flowerOffshoulder from '@/assets/avatars/flower-offshoulder.webp'
 import customer1 from '@/assets/avatars/customer-1.webp'
 import customer2 from '@/assets/avatars/customer-2.webp'
 import customer3 from '@/assets/avatars/customer-3.webp'
@@ -49,6 +62,19 @@ export const PRESET_AVATAR_SRC: Record<string, string> = {
   '/images/avatars/bluegray-toast.webp': bluegrayToast,
   '/images/avatars/ombre-skewer.webp': ombreSkewer,
   '/images/avatars/toothless-peace.webp': toothlessPeace,
+  '/images/avatars/curly-leather.webp': curlyLeather,
+  '/images/avatars/fluffy-stripe.webp': fluffyStripe,
+  '/images/avatars/beanie-stripe.webp': beanieStripe,
+  '/images/avatars/purple-cap-braids.webp': purpleCapBraids,
+  '/images/avatars/apple-dress.webp': appleDress,
+  '/images/avatars/purple-offshoulder.webp': purpleOffshoulder,
+  '/images/avatars/birthday-cake.webp': birthdayCake,
+  '/images/avatars/stripe-touch-hair.webp': stripeTouchHair,
+  '/images/avatars/mesh-white-tee.webp': meshWhiteTee,
+  '/images/avatars/cowboy-hat.webp': cowboyHat,
+  '/images/avatars/stripe-glasses-guy.webp': stripeGlassesGuy,
+  '/images/avatars/blonde-cake.webp': blondeCake,
+  '/images/avatars/flower-offshoulder.webp': flowerOffshoulder,
   '/images/customer/p1.webp': customer1,
   '/images/customer/p2.webp': customer2,
   '/images/customer/p3.webp': customer3,
@@ -74,6 +100,19 @@ export const PRESET_AVATARS: AvatarPreset[] = [
   { id: 'bluegray-toast', name: '蓝灰举杯', url: '/images/avatars/bluegray-toast.webp' },
   { id: 'ombre-skewer', name: '渐变串烧', url: '/images/avatars/ombre-skewer.webp' },
   { id: 'toothless-peace', name: '龙帽比耶', url: '/images/avatars/toothless-peace.webp' },
+  { id: 'curly-leather', name: '比耶皮衣', url: '/images/avatars/curly-leather.webp' },
+  { id: 'fluffy-stripe', name: '条纹蓬发', url: '/images/avatars/fluffy-stripe.webp' },
+  { id: 'beanie-stripe', name: '冷帽条纹', url: '/images/avatars/beanie-stripe.webp' },
+  { id: 'purple-cap-braids', name: '紫帽编发', url: '/images/avatars/purple-cap-braids.webp' },
+  { id: 'apple-dress', name: '双苹短发', url: '/images/avatars/apple-dress.webp' },
+  { id: 'purple-offshoulder', name: '紫肩长发', url: '/images/avatars/purple-offshoulder.webp' },
+  { id: 'birthday-cake', name: '生日蛋糕', url: '/images/avatars/birthday-cake.webp' },
+  { id: 'stripe-touch-hair', name: '条纹扶发', url: '/images/avatars/stripe-touch-hair.webp' },
+  { id: 'mesh-white-tee', name: '纱网白T', url: '/images/avatars/mesh-white-tee.webp' },
+  { id: 'cowboy-hat', name: '牛仔草帽', url: '/images/avatars/cowboy-hat.webp' },
+  { id: 'stripe-glasses-guy', name: '条纹方镜', url: '/images/avatars/stripe-glasses-guy.webp' },
+  { id: 'blonde-cake', name: '金发蛋糕', url: '/images/avatars/blonde-cake.webp' },
+  { id: 'flower-offshoulder', name: '蓝花露肩', url: '/images/avatars/flower-offshoulder.webp' },
   { id: 'customer-1', name: '暖心雇主', url: '/images/customer/p1.webp' },
   { id: 'customer-2', name: '眼镜行家', url: '/images/customer/p2.webp' },
   { id: 'customer-3', name: '红巾客官', url: '/images/customer/p3.webp' },
