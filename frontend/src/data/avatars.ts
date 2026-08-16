@@ -16,7 +16,7 @@ import doubleGlasses from '@/assets/avatars/double-glasses.webp'
 import batikShirt from '@/assets/avatars/batik-shirt.webp'
 import magentaBob from '@/assets/avatars/magenta-bob.webp'
 import pearlGlasses from '@/assets/avatars/pearl-glasses.webp'
-import handInHandTee from '@/assets/avatars/hand-in-hand-tee.webp'
+import earPullGlasses from '@/assets/avatars/ear-pull-glasses.webp'
 import customer1 from '@/assets/avatars/customer-1.webp'
 import customer2 from '@/assets/avatars/customer-2.webp'
 import customer3 from '@/assets/avatars/customer-3.webp'
@@ -48,7 +48,7 @@ export const PRESET_AVATAR_SRC: Record<string, string> = {
   '/images/avatars/batik-shirt.webp': batikShirt,
   '/images/avatars/magenta-bob.webp': magentaBob,
   '/images/avatars/pearl-glasses.webp': pearlGlasses,
-  '/images/avatars/hand-in-hand-tee.webp': handInHandTee,
+  '/images/avatars/ear-pull-glasses.webp': earPullGlasses,
   '/images/customer/p1.webp': customer1,
   '/images/customer/p2.webp': customer2,
   '/images/customer/p3.webp': customer3,
@@ -73,7 +73,7 @@ export const PRESET_AVATARS: AvatarPreset[] = [
   { id: 'batik-shirt', name: '金纹衬衫', url: '/images/avatars/batik-shirt.webp' },
   { id: 'magenta-bob', name: '粉发心坠', url: '/images/avatars/magenta-bob.webp' },
   { id: 'pearl-glasses', name: '珍珠眼镜', url: '/images/avatars/pearl-glasses.webp' },
-  { id: 'hand-in-hand-tee', name: '携手白T', url: '/images/avatars/hand-in-hand-tee.webp' },
+  { id: 'ear-pull-glasses', name: '拉耳圆框', url: '/images/avatars/ear-pull-glasses.webp' },
   { id: 'customer-1', name: '暖心雇主', url: '/images/customer/p1.webp' },
   { id: 'customer-2', name: '眼镜行家', url: '/images/customer/p2.webp' },
   { id: 'customer-3', name: '红巾客官', url: '/images/customer/p3.webp' },

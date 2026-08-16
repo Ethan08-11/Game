@@ -35,7 +35,7 @@ const CIRCLE_FILL: Record<string, number> = {
   '/images/avatars/batik-shirt.webp': 0.765,
   '/images/avatars/magenta-bob.webp': 0.885,
   '/images/avatars/pearl-glasses.webp': 0.865,
-  '/images/avatars/hand-in-hand-tee.webp': 0.845,
+  '/images/avatars/ear-pull-glasses.webp': 0.860,
 }
 
 export function avatarCropScale(url?: string | null): number {
