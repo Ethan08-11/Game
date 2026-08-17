@@ -6,8 +6,11 @@ import cc.shturl.wa.demo.dto.req.LoginReq;
 import cc.shturl.wa.demo.dto.req.RegisterReq;
 import cc.shturl.wa.demo.dto.resp.AuthResp;
 import cc.shturl.wa.demo.dto.resp.UserMeResp;
+import cc.shturl.wa.demo.entity.Friendships;
 import cc.shturl.wa.demo.entity.User;
 import cc.shturl.wa.demo.entity.UserProfile;
+import cc.shturl.wa.demo.enums.FriendshipStatus;
+import cc.shturl.wa.demo.mapper.FriendshipsMapper;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.AuthService;
@@ -20,20 +23,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final UserProfileMapper profileMapper;
+    private final FriendshipsMapper friendshipsMapper;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
 
     @Override
     @Transactional
     public AuthResp register(RegisterReq request) {
+        String username = normalizeUsername(request.username());
         User user = new User();
-        user.setUsername(request.username());
+        user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setStatus(1);
         try {
@@ -43,7 +50,7 @@ public class AuthServiceImpl implements AuthService {
         }
         UserProfile profile = new UserProfile();
         profile.setUserId(user.getId());
-        profile.setDisplayName(user.getUsername());
+        profile.setDisplayName(username);
         profile.setLevel(1);
         profile.setExp(0);
         profile.setWinCount(0);
@@ -51,12 +58,17 @@ public class AuthServiceImpl implements AuthService {
         profile.setDrawCount(0);
         profile.setMoney(0L);
         profileMapper.insert(profile);
+        linkExistingFriends(user.getId());
         return response(user, profile);
     }
 
     @Override
     public AuthResp login(LoginReq request) {
-        User user = userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getUsername, request.username()));
+        String username = normalizeUsername(request.username());
+        User user = userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getUsername, username));
+        if (user == null && !username.equals(request.username().trim())) {
+            user = userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getUsername, request.username().trim()));
+        }
         if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BusinessException("用户名或密码错误");
         }
@@ -147,5 +159,33 @@ public class AuthServiceImpl implements AuthService {
         String displayName = profile == null ? user.getUsername() : profile.getDisplayName();
         return new AuthResp(tokens.accessToken(), tokens.refreshToken(),
                 new AuthResp.UserSummary(user.getId(), user.getUsername(), displayName, user.getAvatarUrl()));
+    }
+
+    private void linkExistingFriends(Long newUserId) {
+        List<User> others = userMapper.selectList(Wrappers.<User>lambdaQuery()
+                .ne(User::getId, newUserId)
+                .eq(User::getStatus, 1));
+        for (User other : others) {
+            if (other.getId() == null) {
+                continue;
+            }
+            Friendships friendships = new Friendships();
+            friendships.setUserId(newUserId);
+            friendships.setFriendId(other.getId());
+            friendships.setStatus(FriendshipStatus.ACCEPTED.getCode());
+            friendshipsMapper.insert(friendships);
+        }
+    }
+
+    private static String normalizeUsername(String username) {
+        if (username == null) {
+            return "";
+        }
+        String trimmed = username.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
     }
 }

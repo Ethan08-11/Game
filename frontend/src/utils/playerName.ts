@@ -7,3 +7,10 @@ export function formatPlayerName(name?: string | null): string {
     word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
   ))
 }
+
+/** 用户名：首字母大写，其余小写。ethan / ETHAN → Ethan */
+export function capitalizeUsername(name?: string | null): string {
+  const raw = String(name ?? '').trim()
+  if (!raw) return ''
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase()
+}

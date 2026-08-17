@@ -210,7 +210,15 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function register(user: string, pass: string) {
-    await api.register({ username: user, password: pass })
+    friends.value = []
+    achievements.value = []
+    profile.value = null
+    stats.value = null
+    myLeaderboardRank.value = null
+    const result = await api.register({ username: user, password: pass })
+    applyAuth(result)
+    await loadMe()
+    await loadAll().catch(() => {})
   }
 
   async function refreshToken() {

@@ -6,15 +6,15 @@
       <el-tabs v-model="activeTab">
         <el-tab-pane label="登录" name="login">
           <el-form @submit.prevent="onPanelLogin">
-            <el-form-item><el-input v-model="loginForm.username" placeholder="用户名" /></el-form-item>
+            <el-form-item><el-input :model-value="loginForm.username" placeholder="用户名" @update:model-value="onLoginUsername" /></el-form-item>
             <el-form-item><el-input v-model="loginForm.password" type="password" placeholder="密码" /></el-form-item>
             <el-form-item><el-button type="primary" @click="onPanelLogin" style="width:100%">登录</el-button></el-form-item>
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="注册" name="register">
           <el-form @submit.prevent="handleRegister">
-            <el-form-item><el-input v-model="regForm.username" placeholder="自定义账号" /></el-form-item>
-            <el-form-item><el-input v-model="regForm.password" type="password" placeholder="密码" /></el-form-item>
+            <el-form-item><el-input :model-value="regForm.username" placeholder="用户名（4-50位字母、数字或下划线）" @update:model-value="onRegUsername" /></el-form-item>
+            <el-form-item><el-input v-model="regForm.password" type="password" placeholder="密码（至少3位）" /></el-form-item>
             <el-form-item><el-button type="success" @click="handleRegister" style="width:100%">注册</el-button></el-form-item>
           </el-form>
         </el-tab-pane>
@@ -31,6 +31,7 @@ import { useUserStore } from '@/store/user'
 import { useCommonStore } from '@/store/common'
 
 import { connectRoomSocket } from '@/utils/roomSocket'
+import { capitalizeUsername } from '@/utils/playerName'
 import bgImage from '@/assets/login-bg2.webp'
 import parchmentBg from '@/assets/login-parchment-bg.webp'
 
@@ -42,6 +43,14 @@ const activeTab = ref('login')
 
 const loginForm = reactive({ username: '', password: '' })
 const regForm = reactive({ username: '', password: '' })
+
+function onLoginUsername(value: string | number) {
+  loginForm.username = capitalizeUsername(String(value ?? ''))
+}
+
+function onRegUsername(value: string | number) {
+  regForm.username = capitalizeUsername(String(value ?? ''))
+}
 
 function onEnterKey() {
   if (activeTab.value === 'login') {
@@ -56,14 +65,14 @@ function onPanelLogin() {
 }
 
 async function handleLogin() {
-  if (!loginForm.username || !loginForm.password) {
+  if (!loginForm.username.trim() || !loginForm.password) {
     ElMessage.warning('请输入完整登录信息')
     return
   }
   ElMessage.closeAll()
   common.showLoading()
   try {
-    await user.login(loginForm.username, loginForm.password)
+    await user.login(capitalizeUsername(loginForm.username), loginForm.password)
     if (user.userId) common.showLoading()
     if (user.token) connectRoomSocket(user.token)
     ElMessage.success('登录成功')
@@ -78,22 +87,26 @@ async function handleLogin() {
 }
 
 async function handleRegister() {
-  if (!regForm.username || !regForm.password) {
+  const username = capitalizeUsername(regForm.username)
+  const password = regForm.password
+  if (!username || !password) {
     ElMessage.warning('请输入完整注册信息')
     return
   }
-  if (regForm.password.length < 6) {
-    ElMessage.warning('密码至少6位')
+  if (!/^[A-Za-z0-9_]{4,50}$/.test(username)) {
+    ElMessage.warning('用户名须为4-50位字母、数字或下划线')
+    return
+  }
+  if (password.length < 3 || password.length > 64) {
+    ElMessage.warning('密码须为3-64位')
     return
   }
   try {
     common.showLoading()
-    await user.register(regForm.username, regForm.password)
+    await user.register(username, password)
+    if (user.token) connectRoomSocket(user.token)
     ElMessage.success('注册成功')
-    activeTab.value = 'login'
-    loginForm.username = regForm.username
-    regForm.username = ''
-    regForm.password = ''
+    router.push('/game-hall')
   } catch (e: any) {
     console.error('[LoginPage] 注册失败:', e)
     ElMessage.error(e.message || '注册失败，请稍后重试')
