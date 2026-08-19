@@ -37,6 +37,7 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         }
         ensureRequireUnlockColumn();
         ensureUserCardPoolsTable();
+        realignLegacyCardDepartments();
         runScript("db/004_collectible_cards.sql");
         runScript("db/005_it_sample_card.sql");
         log.info("Card collection schema bootstrap finished.");
@@ -74,6 +75,16 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户已获取/解锁的卡牌表'
                 """);
         log.warn("Created user_card_pools table.");
+    }
+
+    private void realignLegacyCardDepartments() {
+        int riley = jdbcTemplate.update(
+                "UPDATE `cards` SET `dept_id` = 1, `dept_type` = 'sales' WHERE `card_code` = 'O-15' OR `card_name` = 'Riley'");
+        int charlene = jdbcTemplate.update(
+                "UPDATE `cards` SET `dept_id` = 2, `dept_type` = 'purchase' WHERE `card_code` = 'O-01' OR `card_name` IN ('Charlene', 'Cherlene')");
+        if (riley > 0 || charlene > 0) {
+            log.warn("Realigned card departments: Riley/O-15 -> sales ({}), Charlene/O-01 -> purchase ({}).", riley, charlene);
+        }
     }
 
     private void runScript(String classpathLocation) {

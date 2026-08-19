@@ -32,12 +32,17 @@
                 decoding="async"
                 @error="onCardImgError"
               />
-              <span v-else class="card-placeholder">?</span>
+              <template v-if="card.unlocked">
+                <span class="card-face-dept">{{ deptLabel(card.deptType) }}</span>
+                <span class="card-face-name">{{ card.cardName }}</span>
+              </template>
+              <span v-if="!cardThumb(card)" class="card-placeholder">?</span>
             </div>
             <div class="card-name">{{ card.unlocked ? card.cardName : '???' }}</div>
             <div v-if="card.unlocked" class="card-meta">
               <span class="card-cost">{{ card.cost }}费</span>
               <span class="card-type-tag" :class="'type-' + card.cardType">{{ typeLabel(card.cardType) }}</span>
+              <span class="card-dept-tag">{{ deptLabel(card.deptType) }}</span>
             </div>
             <div v-else class="card-locked-hint">未解锁</div>
             <div class="card-desc">{{ card.unlocked ? card.description : '胜利后随机解锁' }}</div>
@@ -119,6 +124,11 @@ onMounted(async () => {
 function cardThumb(card: ApiCard): string | null {
   if (!card.unlocked) return lockedCardImg
   return getImageUrl(card.imageUrl)
+}
+
+function deptLabel(deptType: string | null | undefined): string {
+  if (!deptType) return ''
+  return deptMap[deptType] || deptType
 }
 
 function onCardImgError(event: Event) {
@@ -279,11 +289,43 @@ h2 {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  position: relative;
 }
 .card-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+}
+.card-face-dept {
+  position: absolute;
+  top: 3.2%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 48%;
+  color: #3E2723;
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 4px rgba(255, 248, 230, 0.9);
+}
+.card-face-name {
+  position: absolute;
+  top: 61.5%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 68%;
+  color: #3E2723;
+  font-size: 13px;
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
 .card-img-locked {
   object-fit: contain;
@@ -335,6 +377,10 @@ h2 {
 .type-heal { background: rgba(39, 174, 96, 0.2); color: #9ff0c0; }
 .type-buff { background: rgba(41, 128, 185, 0.2); color: #9dd4ff; }
 .type-support { background: rgba(22, 160, 133, 0.2); color: #7ee0cc; }
+.card-dept-tag {
+  font-size: var(--text-2xs);
+  color: rgba(255, 255, 255, 0.78);
+}
 
 .card-desc {
   font-size: var(--text-xs);
