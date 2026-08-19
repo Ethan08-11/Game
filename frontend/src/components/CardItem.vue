@@ -2,7 +2,7 @@
   <div
     class="card-item"
     :class="[`card-${type}`, { disabled }]"
-    :style="cardBgStyle"
+    :style="cardRootStyle"
     @click="!disabled && $emit('play')"
   >
     <span class="card-cost">{{ cost }}</span>
@@ -29,6 +29,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Switch, Aim, Download, Delete, MagicStick, Lightning, FirstAidKit, CirclePlus } from '@element-plus/icons-vue'
 import { getImageUrl } from '@/utils/imageUrl'
 import { displayCardDept } from '@/utils/cardDept'
+import { cardNameTopPercent } from '@/utils/cardOverlay'
 import fallbackBg from '@/assets/card-background1.webp'
 
 const DESC_MAX_PX = 18
@@ -57,6 +58,15 @@ let resizeObserver: ResizeObserver | null = null
 const cardBgStyle = computed(() => {
   const img = getImageUrl(props.imageUrl) || fallbackBg
   return { background: `url('${img}') center/100% 100% no-repeat` }
+})
+
+const cardRootStyle = computed(() => {
+  const nameTop = cardNameTopPercent(props.imageUrl, props.name)
+  return {
+    ...cardBgStyle.value,
+    '--card-name-top': `${nameTop}%`,
+    '--card-desc-top': `${Math.min(nameTop + 3.9, 82)}%`,
+  }
 })
 
 const displayDept = computed(() => displayCardDept(props.dept, props.imageUrl, props.dept))
@@ -189,7 +199,7 @@ onBeforeUnmount(() => {
 
 .card-name {
   position: absolute;
-  top: 70.6%;
+  top: var(--card-name-top, 72.2%);
   left: 50%;
   transform: translate(-50%, -50%);
   width: 62%;
@@ -206,7 +216,7 @@ onBeforeUnmount(() => {
 
 .card-desc-box {
   position: absolute;
-  top: 74.5%;
+  top: var(--card-desc-top, 76%);
   bottom: 8%;
   left: 13%;
   right: 13%;

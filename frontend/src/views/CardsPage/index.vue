@@ -34,7 +34,7 @@
                 />
                 <template v-if="card.unlocked">
                   <span class="card-face-dept">{{ cardDeptLabel(card) }}</span>
-                  <span class="card-face-name">{{ card.cardName }}</span>
+                  <span class="card-face-name" :style="{ top: cardNameTop(card) + '%' }">{{ card.cardName }}</span>
                 </template>
               </div>
               <span v-else class="card-placeholder">?</span>
@@ -61,6 +61,7 @@ import type { ApiCard } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { getImageUrl } from '@/utils/imageUrl'
 import { displayCardDept } from '@/utils/cardDept'
+import { cardNameTopPercent } from '@/utils/cardOverlay'
 import lockedCardImg from '@/assets/cards/Card_Locked.webp'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
@@ -135,6 +136,10 @@ function deptLabel(deptType: string | null | undefined): string {
 
 function cardDeptLabel(card: ApiCard): string {
   return displayCardDept(card.deptType, card.imageUrl, deptLabel(card.deptType))
+}
+
+function cardNameTop(card: ApiCard): number {
+  return cardNameTopPercent(card.imageUrl, card.cardName)
 }
 
 function onCardImgError(event: Event) {
@@ -327,7 +332,7 @@ h2 {
 }
 .card-face-name {
   position: absolute;
-  top: 70.6%;
+  top: var(--card-name-top, 72.2%);
   left: 50%;
   transform: translate(-50%, -50%);
   width: 62%;
