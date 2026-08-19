@@ -131,6 +131,7 @@ function getDeptColor(dept: string): string {
 }
 
 function typeLabel(type: string | null | undefined): string {
+  if (!type) return '未知'
   const labels: Record<string, string> = {
     attack: '攻击',
     defend: '防御',
