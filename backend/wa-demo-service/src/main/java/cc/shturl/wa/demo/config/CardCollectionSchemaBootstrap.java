@@ -38,6 +38,7 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         ensureRequireUnlockColumn();
         ensureUserCardPoolsTable();
         realignLegacyCardDepartments();
+        refreshEthanCardArt();
         runScript("db/004_collectible_cards.sql");
         runScript("db/005_it_sample_card.sql");
         log.info("Card collection schema bootstrap finished.");
@@ -84,6 +85,14 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
                 "UPDATE `cards` SET `dept_id` = 2, `dept_type` = 'purchase' WHERE `card_code` = 'O-01' OR `card_name` IN ('Charlene', 'Cherlene')");
         if (riley > 0 || charlene > 0) {
             log.warn("Realigned card departments: Riley/O-15 -> sales ({}), Charlene/O-01 -> purchase ({}).", riley, charlene);
+        }
+    }
+
+    private void refreshEthanCardArt() {
+        int n = jdbcTemplate.update(
+                "UPDATE `cards` SET `image_url` = '/images/cards/技术_Ethan.webp' WHERE `card_code` = 'O-13' OR `card_name` = 'Ethan'");
+        if (n > 0) {
+            log.warn("Updated Ethan/O-13 card art to 技术_Ethan.webp ({} rows).", n);
         }
     }
 

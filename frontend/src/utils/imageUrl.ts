@@ -18,9 +18,9 @@ export function getImageUrl(path: string | null | undefined): string | null {
     ? normalized.replace(/\.(png|jpe?g)$/i, '.webp')
     : normalized
   const url = `${BACKEND_HTTP_BASE}${webpPath}`
-  // 顾客立绘曾被压成不透明白底，必须换 URL 才能立刻绕过 30 天缓存
-  if (/\/images\/customer\//i.test(webpPath)) {
-    return `${url}?v=alpha`
+  // 顾客立绘、卡面曾被长缓存；换 query 才能立刻拿到新图
+  if (/\/images\/(customer|cards)\//i.test(webpPath)) {
+    return `${url}?v=craft`
   }
   return url
 }

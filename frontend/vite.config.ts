@@ -39,8 +39,11 @@ export default defineConfig(({ mode }) => {
           target: 'http://127.0.0.1:8080',
           changeOrigin: true,
           bypass(req) {
-            const url = req.url || ''
+            const url = (req.url || '').split('?')[0]
             if (url.startsWith('/images/avatars/')) return url
+            // 原卡打在 frontend/public，避免被代理回旧后端静态资源
+            if (url.startsWith('/images/cards/Card_')) return url
+            if (url.includes('/images/cards/技术_Ethan') || url.includes('/images/cards/%E6%8A%80%E6%9C%AF_Ethan')) return url
             return null
           },
         },
