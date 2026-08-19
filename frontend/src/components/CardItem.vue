@@ -6,7 +6,7 @@
     @click="!disabled && $emit('play')"
   >
     <span class="card-cost">{{ cost }}</span>
-    <span class="card-dept">{{ dept }}</span>
+    <span class="card-dept">{{ displayDept }}</span>
     <strong class="card-name">{{ name }}</strong>
     <div ref="descBoxRef" class="card-desc-box">
       <p
@@ -28,6 +28,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Switch, Aim, Download, Delete, MagicStick, Lightning, FirstAidKit, CirclePlus } from '@element-plus/icons-vue'
 import { getImageUrl } from '@/utils/imageUrl'
+import { displayCardDept } from '@/utils/cardDept'
 import fallbackBg from '@/assets/card-background1.webp'
 
 const DESC_MAX_PX = 18
@@ -57,6 +58,8 @@ const cardBgStyle = computed(() => {
   const img = getImageUrl(props.imageUrl) || fallbackBg
   return { background: `url('${img}') center/100% 100% no-repeat` }
 })
+
+const displayDept = computed(() => displayCardDept(props.dept, props.imageUrl, props.dept))
 
 function fitsInBox(box: HTMLElement, text: HTMLElement) {
   return text.scrollHeight <= box.clientHeight + 0.5

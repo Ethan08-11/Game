@@ -33,7 +33,7 @@
                   @error="onCardImgError"
                 />
                 <template v-if="card.unlocked">
-                  <span class="card-face-dept">{{ deptLabel(card.deptType) }}</span>
+                  <span class="card-face-dept">{{ cardDeptLabel(card) }}</span>
                   <span class="card-face-name">{{ card.cardName }}</span>
                 </template>
               </div>
@@ -43,7 +43,7 @@
             <div v-if="card.unlocked" class="card-meta">
               <span class="card-cost">{{ card.cost }}费</span>
               <span class="card-type-tag" :class="'type-' + card.cardType">{{ typeLabel(card.cardType) }}</span>
-              <span class="card-dept-tag">{{ deptLabel(card.deptType) }}</span>
+              <span class="card-dept-tag">{{ cardDeptLabel(card) }}</span>
             </div>
             <div v-else class="card-locked-hint">未解锁</div>
             <div class="card-desc">{{ card.unlocked ? card.description : '胜利后随机解锁' }}</div>
@@ -60,6 +60,7 @@ import { fetchCardList } from '@/api'
 import type { ApiCard } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { getImageUrl } from '@/utils/imageUrl'
+import { displayCardDept } from '@/utils/cardDept'
 import lockedCardImg from '@/assets/cards/Card_Locked.webp'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
@@ -130,6 +131,10 @@ function cardThumb(card: ApiCard): string | null {
 function deptLabel(deptType: string | null | undefined): string {
   if (!deptType) return ''
   return deptMap[deptType] || deptType
+}
+
+function cardDeptLabel(card: ApiCard): string {
+  return displayCardDept(card.deptType, card.imageUrl, deptLabel(card.deptType))
 }
 
 function onCardImgError(event: Event) {
