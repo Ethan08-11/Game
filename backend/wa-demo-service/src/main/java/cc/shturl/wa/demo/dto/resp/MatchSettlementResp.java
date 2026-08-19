@@ -27,7 +27,10 @@ public record MatchSettlementResp(
             Integer cardsPlayed,
             Integer actionPointsUsed,
             Integer expAwarded,
-            Long moneyAwarded
+            Long moneyAwarded,
+            Long unlockedCardId,
+            String unlockedCardName,
+            String unlockedCardImageUrl
     ) {
     }
 }

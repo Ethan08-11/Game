@@ -40,6 +40,7 @@ export interface MatchHandCardResp {
   zone?: string
   deckOrder?: number | null
   drawnRound?: number
+  requiresPlayerTarget?: boolean
 }
 
 export interface MatchDetailResp {
@@ -68,6 +69,26 @@ export interface MatchDetailResp {
   hand?: MatchHandCardResp[]
 }
 
+export interface MatchSettlementPlayer {
+  userId?: number | string
+  seatNo?: number
+  deptType?: string
+  resultType?: number
+  maxHp?: number
+  remainingHp?: number
+  damageDealt?: number
+  damageTaken?: number
+  healingDone?: number
+  shieldGranted?: number
+  cardsPlayed?: number
+  actionPointsUsed?: number
+  expAwarded?: number
+  moneyAwarded?: number
+  unlockedCardId?: number | string | null
+  unlockedCardName?: string | null
+  unlockedCardImageUrl?: string | null
+}
+
 export interface MatchSettlementResp {
   matchId?: number | string
   matchCode?: string
@@ -77,7 +98,7 @@ export interface MatchSettlementResp {
   durationSeconds?: number
   bossMaxHp?: number
   bossRemainingHp?: number
-  players?: Array<Record<string, any>>
+  players?: MatchSettlementPlayer[]
 }
 
 export interface MatchDeckCardResp {

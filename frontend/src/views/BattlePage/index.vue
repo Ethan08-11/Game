@@ -21,30 +21,7 @@
             <div class="entity-outline entity-outline-customer" :style="customerBoxStyle">
               <EmployerCard />
             </div>
-            <div class="guard-team">
-              <div class="entity-outline entity-outline-player1" :style="player1BoxStyle">
-                <PlayerInfo
-                  v-if="players[0]"
-                  :dept="players[0].dept"
-                  :username="resolvePlayerName(players[0].userId)"
-                  :stamina="players[0].hp"
-                  :max-stamina="players[0].maxHp"
-                  :is-self="players[0]?.userId === user.userId"
-                  :defense="players[0].defense"
-                />
-              </div>
-              <div class="entity-outline entity-outline-player2" :style="player2BoxStyle">
-                <PlayerInfo
-                  v-if="players[1]"
-                  :dept="players[1].dept"
-                  :username="resolvePlayerName(players[1].userId)"
-                  :stamina="players[1].hp"
-                  :max-stamina="players[1].maxHp"
-                  :is-self="players[1]?.userId === user.userId"
-                  :defense="players[1].defense"
-                />
-              </div>
-            </div>
+            <div class="guard-team" aria-hidden="true" />
             <div class="entity-outline entity-outline-bully" :style="bullyBoxStyle">
               <BullyCard />
             </div>
@@ -259,12 +236,34 @@
       </div>
       <div class="pos-rect pos-rect-player1" :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }">
         <img class="player-img" :src="player1Img" alt="玩家1" />
+        <div class="player-hp-hud">
+          <PlayerInfo
+            v-if="players[0]"
+            :dept="players[0].dept"
+            :username="resolvePlayerName(players[0].userId)"
+            :stamina="players[0].hp"
+            :max-stamina="players[0].maxHp"
+            :is-self="players[0]?.userId === user.userId"
+            :defense="players[0].defense"
+          />
+        </div>
         <div v-if="isPlayer1Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
       </div>
       <div class="pos-rect pos-rect-player2" :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }">
         <img class="player-img" :src="player2Img" alt="玩家2" />
+        <div class="player-hp-hud">
+          <PlayerInfo
+            v-if="players[1]"
+            :dept="players[1].dept"
+            :username="resolvePlayerName(players[1].userId)"
+            :stamina="players[1].hp"
+            :max-stamina="players[1].maxHp"
+            :is-self="players[1]?.userId === user.userId"
+            :defense="players[1].defense"
+          />
+        </div>
         <div v-if="isPlayer2Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
@@ -327,6 +326,7 @@ type BattleCard = {
   damage: number
   shield: number
   imageUrl?: string | null
+  requiresPlayerTarget?: boolean
 }
 
 type BattlePlayer = {
@@ -474,9 +474,6 @@ const descLeft = ref(0)
 const customerBoxPos = reactive({ top: 344, left: 118 })
 const finishBtn = reactive({ w: 167, h: 83, bottom: -176, right: -170, imgW: 248, imgH: 64 })
 const bullyBoxPos = reactive({ top: 8, left: -14 })
-const player1BoxPos = reactive({ top: 295, left: -230 })
-const player2BoxPos = reactive({ top: 238, left: 360 })
-
 const p1RectW = ref(270)
 const p1RectH = ref(234)
 const p1RectLeft = ref(27)
@@ -500,18 +497,6 @@ const teammateId = computed(() => {
   const teammate = players.value.find(p => p.userId !== selfId)
   return teammate?.userId || ''
 })
-const player1BoxStyle = computed(() => ({
-  position: 'relative' as const,
-  zIndex: showDeckModal.value ? 1 : 20,
-  top: px(player1BoxPos.top),
-  left: px(player1BoxPos.left),
-}))
-const player2BoxStyle = computed(() => ({
-  position: 'relative' as const,
-  zIndex: showDeckModal.value ? 1 : 20,
-  top: px(player2BoxPos.top),
-  left: px(player2BoxPos.left),
-}))
 const customerBoxStyle = computed(() => ({
   position: 'relative' as const,
   zIndex: 20,
@@ -727,6 +712,10 @@ function effectLabel(effectType?: string) {
     bully_hp_up: '霸凌者血量提升',
     bully_defense_up: '霸凌者防御提升',
     ADD_BOSS_SHIELD: '霸凌者防御提升',
+    REDUCE_BOSS_ATTACK: '霸凌者攻击降低',
+    DRAW_CARDS: '抽牌',
+    ADD_SHIELD: '增加防御',
+    HEAL_PLAYER: '恢复体力',
   }
   return map[effectType || ''] || effectType || '未知效果'
 }
@@ -750,6 +739,7 @@ function mapCard(card: any): BattleCard {
     damage: card.damage ?? card.effectValue ?? card.satisfactionChange ?? 0,
     shield: card.shield ?? card.shieldChange ?? card.defense ?? 0,
     imageUrl: card.imageUrl ?? null,
+    requiresPlayerTarget: typeof card.requiresPlayerTarget === 'boolean' ? card.requiresPlayerTarget : undefined,
   }
 }
 
@@ -891,14 +881,55 @@ async function refreshBattleState() {
   }
 }
 
+function notifyPlayCardEffects(res: any) {
+  const effects = res?.effects ?? []
+  const apEffects = effects.filter((e: any) => e.effectType === 'ADD_ACTION_POINTS')
+  const immediateAp = apEffects.filter((e: any) => !e.scheduled).reduce((sum: number, e: any) => sum + (e.actualValue ?? e.baseValue ?? 0), 0)
+  const scheduledAp = apEffects.filter((e: any) => e.scheduled).reduce((sum: number, e: any) => sum + (e.actualValue ?? e.baseValue ?? 0), 0)
+  if (immediateAp > 0 || scheduledAp > 0) {
+    const parts: string[] = []
+    if (immediateAp > 0) parts.push(`本回合调用机会 +${immediateAp}`)
+    if (scheduledAp > 0) parts.push(`下回合调用机会 +${scheduledAp}`)
+    ElMessage.success(parts.join('，'))
+  }
+  if (effects.some((e: any) => e.effectType === 'MULTIPLY_NEXT_CARD')) {
+    ElMessage.success('下一张牌的数值效果将翻倍')
+  }
+  if ((res.appliedMultiplier ?? 1) > 1) {
+    ElMessage.success(`数值效果已翻倍（×${res.appliedMultiplier}）`)
+  }
+  const drawn = effects
+    .filter((e: any) => e.effectType === 'DRAW_CARDS' && !e.scheduled)
+    .reduce((sum: number, e: any) => sum + (e.actualValue ?? 0), 0)
+  if (drawn > 0) {
+    ElMessage.success(`抽到 ${drawn} 张牌`)
+  }
+  const attackDown = effects
+    .filter((e: any) => e.effectType === 'REDUCE_BOSS_ATTACK' && !e.scheduled)
+    .reduce((sum: number, e: any) => sum + (e.actualValue ?? e.baseValue ?? 0), 0)
+  if (attackDown > 0) {
+    ElMessage.success(`本回合霸凌者攻击 -${attackDown}`)
+  }
+  if (effects.some((e: any) => e.effectType === 'ADD_SHIELD' && e.targetType === 'ALL_PLAYERS')) {
+    ElMessage.success('双方获得护盾')
+  }
+  if (effects.some((e: any) => e.effectType === 'HEAL_PLAYER' && e.targetType === 'ALL_PLAYERS')) {
+    ElMessage.success('双方恢复体力')
+  }
+}
+
 async function playCard(card: BattleCard) {
   if (!activeMatchId.value || !canActWithActivePlayer.value) return
-  // 攻击 / 抽牌 / 消耗 / 辅助(Dylan 等 SELF)：无需选择玩家目标
-  if (card.type === 'attack' || card.type === 'consume' || card.type === 'draw' || card.type === 'support') {
+  const skipTarget = card.requiresPlayerTarget === false
+    || (card.requiresPlayerTarget !== true && (card.type === 'attack' || card.type === 'consume' || card.type === 'draw' || card.type === 'support'))
+  // 攻击 / 抽牌 / 消耗 / 辅助 / 全体效果：无需选择玩家目标
+  if (skipTarget) {
     try {
       const payload: PlayCardPayload = {
         cardInstanceId: card.instanceId,
-        targetType: card.type === 'support' ? 'SELF' : 'BOSS',
+        targetType: card.type === 'support' || card.type === 'draw' || card.type === 'defend' || card.type === 'heal'
+          ? 'SELF'
+          : 'BOSS',
         targetUserId: null,
         clientActionId: `${room.currentUserId}-${activeMatchId.value}-${Date.now()}`,
         expectedVersion: activeVersion.value,
@@ -907,21 +938,7 @@ async function playCard(card: BattleCard) {
       const res = await playMatchCard(activeMatchId.value, payload)
       console.log(`[调试] play-card 响应:`, JSON.stringify(res, null, 2))
       console.log(`[调试] boss HP 变化 → beforeValue: ${res.beforeValue}, afterValue: ${res.afterValue}, effects:`, JSON.stringify(res.effects ?? []))
-      const apEffects = (res.effects ?? []).filter((e: any) => e.effectType === 'ADD_ACTION_POINTS')
-      const immediateAp = apEffects.filter((e: any) => !e.scheduled).reduce((sum: number, e: any) => sum + (e.actualValue ?? e.baseValue ?? 0), 0)
-      const scheduledAp = apEffects.filter((e: any) => e.scheduled).reduce((sum: number, e: any) => sum + (e.actualValue ?? e.baseValue ?? 0), 0)
-      if (immediateAp > 0 || scheduledAp > 0) {
-        const parts: string[] = []
-        if (immediateAp > 0) parts.push(`本回合调用机会 +${immediateAp}`)
-        if (scheduledAp > 0) parts.push(`下回合调用机会 +${scheduledAp}`)
-        ElMessage.success(parts.join('，'))
-      }
-      if ((res.effects ?? []).some((e: any) => e.effectType === 'MULTIPLY_NEXT_CARD')) {
-        ElMessage.success('下一张牌的数值效果将翻倍')
-      }
-      if ((res.appliedMultiplier ?? 1) > 1) {
-        ElMessage.success(`数值效果已翻倍（×${res.appliedMultiplier}）`)
-      }
+      notifyPlayCardEffects(res)
       if (res.matchEnded) {
         loadSettlement()
         return
@@ -990,9 +1007,7 @@ async function confirmTarget(targetUserId: string) {
     showTargetDialog.value = false
     pendingTargetUserId.value = targetUserId
     pendingTargetCard.value = null
-    if ((res.appliedMultiplier ?? 1) > 1) {
-      ElMessage.success(`数值效果已翻倍（×${res.appliedMultiplier}）`)
-    }
+    notifyPlayCardEffects(res)
     if (res.matchEnded) {
       loadSettlement()
       return
@@ -1454,8 +1469,8 @@ onUnmounted(() => {
   z-index: 0;
   pointer-events: none;
 }
-.battle-main { position: relative; flex: 1; min-height: 0; display: flex; overflow: visible; }
-.battle-footer { position: relative; z-index: 1; }
+.battle-main { position: relative; z-index: 1; flex: 1; min-height: 0; display: flex; overflow: visible; }
+.battle-footer { position: relative; z-index: 4; }
 .battle-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
 .stage-bg { text-align: center; color: #fff; width: 100%; }
 .turn-info {
@@ -1493,6 +1508,12 @@ onUnmounted(() => {
   animation: revivePulse 1.5s ease-in-out infinite;
 }
 .entity-row { display: flex; align-items: center; justify-content: center; gap: var(--space-6); overflow: visible; }
+.guard-team {
+  width: 280px;
+  height: 72px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
 .entity-outline-bully { overflow: visible; }
 .vs-divider { font-size: var(--text-3xl); font-weight: var(--weight-bold); }
 .action-log-panel {
@@ -1702,6 +1723,10 @@ onUnmounted(() => {
   border-top: none;
   overflow: visible;
 }
+.funds-indicator-wrap {
+  position: relative;
+  z-index: 6;
+}
 .footer-row {
   display: flex;
   align-items: flex-end;
@@ -1850,6 +1875,14 @@ onUnmounted(() => {
 .pos-rect-player1,
 .pos-rect-player2 {
   overflow: visible;
+}
+.player-hp-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
 }
 .me-tag {
   position: absolute;

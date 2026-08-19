@@ -9,23 +9,36 @@ import { apiCall } from './client'
 // ---------- 图鉴卡牌（后端 API 格式）----------
 export interface ApiCard {
   id: number
+  cardId?: number
   cardCode: string
   cardName: string
   deptType: string
-  cost: number
-  cardType: string
-  confidenceChange: number
-  satisfactionChange: number
-  rageChange: number
-  shieldChange: number
+  cost: number | null
+  cardType: string | null
+  confidenceChange?: number
+  satisfactionChange?: number
+  rageChange?: number
+  shieldChange?: number
   description: string
   imageUrl: string | null
   isUnique: number
   status: number
+  requireUnlock?: number
+  unlocked?: boolean
 }
 
 export async function fetchCardList(): Promise<ApiCard[]> {
-  return apiCall('/cards')
+  const list = await apiCall<any[]>('/cards')
+  return (list ?? []).map((item) => {
+    const unlocked = item.unlocked == null
+      ? Number(item.requireUnlock ?? 0) !== 1
+      : Boolean(item.unlocked)
+    return {
+      ...item,
+      id: Number(item.id ?? item.cardId ?? 0),
+      unlocked,
+    }
+  })
 }
 
 // ---------- 卡牌 ----------

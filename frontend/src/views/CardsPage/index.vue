@@ -12,27 +12,34 @@
         <div class="dept-header">
           <span class="dept-dot" :style="{ background: getDeptColor(group.dept) }"></span>
           <span class="dept-name">{{ group.dept }}</span>
-          <span class="dept-count">{{ group.cards.length }} 张</span>
+          <span class="dept-count">已解锁 {{ group.unlockedCount }} / {{ group.cards.length }}</span>
         </div>
         <div class="card-grid">
-          <div v-for="card in group.cards" :key="card.id" class="card-item">
+          <div
+            v-for="card in group.cards"
+            :key="card.id"
+            class="card-item"
+            :class="{ locked: !card.unlocked }"
+          >
             <div class="card-image-box">
               <img
                 v-if="card.imageUrl"
                 :src="getImageUrl(card.imageUrl)!"
-                :alt="card.cardName"
+                :alt="card.unlocked ? card.cardName : '未解锁卡牌'"
                 class="card-img"
+                :class="{ 'card-img-locked': !card.unlocked }"
                 loading="lazy"
                 decoding="async"
               />
-              <span v-else class="card-placeholder">+</span>
+              <span v-else class="card-placeholder">?</span>
             </div>
-            <div class="card-name">{{ card.cardName }}</div>
-            <div class="card-meta">
+            <div class="card-name">{{ card.unlocked ? card.cardName : '???' }}</div>
+            <div v-if="card.unlocked" class="card-meta">
               <span class="card-cost">{{ card.cost }}费</span>
               <span class="card-type-tag" :class="'type-' + card.cardType">{{ typeLabel(card.cardType) }}</span>
             </div>
-            <div class="card-desc">{{ card.description }}</div>
+            <div v-else class="card-locked-hint">未解锁</div>
+            <div class="card-desc">{{ card.unlocked ? card.description : '胜利后随机解锁' }}</div>
           </div>
         </div>
       </div>
@@ -52,6 +59,7 @@ import bg2 from '@/assets/hall-bg2.webp'
 interface DeptGroup {
   dept: string
   cards: ApiCard[]
+  unlockedCount: number
 }
 
 const cards = ref<ApiCard[]>([])
@@ -67,7 +75,8 @@ const deptMap: Record<string, string> = {
   logistics: '物流部',
   marketing: '营销部',
   design: '设计部',
-  tech: '技术部',
+  tech: '公共部',
+  it: '公共部',
   finance: '财务部',
   hr: '人事部',
 }
@@ -82,9 +91,15 @@ const cardGroups = computed<DeptGroup[]>(() => {
     list.push(card)
     map.set(dept, list)
   }
-  return deptOrder
-    .filter(d => map.has(d))
-    .map(dept => ({ dept, cards: map.get(dept)! }))
+  const ordered = [...deptOrder.filter(d => map.has(d)), ...[...map.keys()].filter(d => !deptOrder.includes(d)).sort()]
+  return ordered.map(dept => {
+      const list = [...map.get(dept)!].sort((a, b) => Number(Boolean(b.unlocked)) - Number(Boolean(a.unlocked)))
+      return {
+        dept,
+        cards: list,
+        unlockedCount: list.filter(card => card.unlocked).length,
+      }
+    })
 })
 
 onMounted(async () => {
@@ -115,7 +130,7 @@ function getDeptColor(dept: string): string {
   return colors[dept] || '#c4a962'
 }
 
-function typeLabel(type: string): string {
+function typeLabel(type: string | null | undefined): string {
   const labels: Record<string, string> = {
     attack: '攻击',
     defend: '防御',
@@ -231,6 +246,14 @@ h2 {
   border-color: rgba(255, 255, 255, 0.24);
   transform: translateY(-2px);
 }
+.card-item.locked {
+  background: rgba(8, 10, 14, 0.45);
+  border-color: rgba(196, 169, 98, 0.22);
+}
+.card-item.locked:hover {
+  transform: none;
+  background: rgba(8, 10, 14, 0.52);
+}
 
 .card-image-box {
   width: 100%;
@@ -247,6 +270,10 @@ h2 {
   height: 100%;
   object-fit: cover;
 }
+.card-img-locked {
+  object-fit: contain;
+  background: #0a0c10;
+}
 .card-placeholder {
   font-size: var(--text-4xl);
   color: rgba(255, 255, 255, 0.55);
@@ -257,6 +284,12 @@ h2 {
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   text-align: center;
+}
+.card-locked-hint {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: #c4a962;
+  letter-spacing: 0.12em;
 }
 
 .card-meta {

@@ -15,6 +15,8 @@ public record CardBasicResp(
         Long comboCardId,
         Integer isUnique,
         Integer status,
-        List<CardEffectResp> effects
+        List<CardEffectResp> effects,
+        Integer requireUnlock,
+        Boolean unlocked
 ) {
 }

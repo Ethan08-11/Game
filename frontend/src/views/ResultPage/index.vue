@@ -15,6 +15,21 @@
       <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
       <p v-if="isVictory" class="points-reward">获得酬劳：+{{ rewardMoney }} 金币</p>
     </div>
+    <div v-if="isVictory && unlockedCard" class="unlock-panel">
+      <p class="unlock-title">图鉴收录</p>
+      <img
+        v-if="unlockedCard.imageUrl"
+        :src="unlockedCard.imageUrl"
+        :alt="unlockedCard.name"
+        class="unlock-card-img"
+      />
+      <p class="unlock-name">{{ unlockedCard.name }}</p>
+      <p class="unlock-hint">已加入卡牌图鉴，下次对局可被抽到</p>
+    </div>
+    <div v-else-if="collectionComplete" class="unlock-panel unlock-complete">
+      <p class="unlock-title">图鉴已集齐</p>
+      <p class="unlock-hint">所有收藏卡均已解锁</p>
+    </div>
     <div v-if="!isVictory" class="revive-section">
       <el-button class="revive-btn" type="primary" :loading="reviving" @click="handleRevive">
         复活！！
@@ -38,6 +53,7 @@ import { useUserStore } from '@/store/user'
 import { useRoomStore } from '@/store/room'
 import { getMatchSettlement, getMatchReviveStatus, requestMatchRevive, type MatchSettlementResp } from '@/api'
 import BackButton from '@/components/BackButton.vue'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const route = useRoute()
 const router = useRouter()
@@ -55,11 +71,24 @@ const isVictory = computed(() => {
 })
 const rewardMoney = computed(() => {
   const list = settlement.value?.players ?? []
-  const mine = list.find((p: any) => String(p.userId) === String(user.userId)) || list[0]
+  const mine = list.find((p) => String(p.userId) === String(user.userId)) || list[0]
   const awarded = Number(mine?.moneyAwarded ?? game.pointsEarned)
   if (Number.isFinite(awarded) && awarded > 0) return awarded
   return isVictory.value ? 50 : 0
 })
+const mySettlement = computed(() => {
+  const list = settlement.value?.players ?? []
+  return list.find((p) => String(p.userId) === String(user.userId)) || list[0] || null
+})
+const unlockedCard = computed(() => {
+  const mine = mySettlement.value
+  if (!mine?.unlockedCardId || !mine.unlockedCardName) return null
+  return {
+    name: mine.unlockedCardName,
+    imageUrl: getImageUrl(mine.unlockedCardImageUrl),
+  }
+})
+const collectionComplete = computed(() => Boolean(isVictory.value && settlement.value && mySettlement.value && !mySettlement.value.unlockedCardId))
 
 onMounted(async () => {
   const matchId = String(route.params.matchId || room.matchId || '')
@@ -124,6 +153,37 @@ h1.lose { color: var(--color-text-tertiary); }
 }
 .stats-panel p { margin: var(--space-2) 0; }
 .points-reward { color: var(--color-accent); font-weight: var(--weight-bold); font-size: var(--text-xl); }
+.unlock-panel {
+  margin: 0 auto var(--space-8);
+  padding: var(--space-5) var(--space-8);
+  max-width: 280px;
+  background: var(--color-surface-02);
+  border: 1px solid rgba(196, 169, 98, 0.35);
+  border-radius: var(--radius-lg);
+}
+.unlock-complete { border-color: var(--color-border-subtle); }
+.unlock-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: #c4a962;
+}
+.unlock-card-img {
+  width: 160px;
+  aspect-ratio: 640 / 1023;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: #0a0c10;
+}
+.unlock-name {
+  margin: var(--space-3) 0 var(--space-1);
+  font-weight: var(--weight-bold);
+}
+.unlock-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
 .revive-section {
   margin-bottom: var(--space-6);
 }

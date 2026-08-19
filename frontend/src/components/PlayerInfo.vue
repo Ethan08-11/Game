@@ -1,11 +1,11 @@
 <template>
   <div class="player-info" :class="{ danger: staminaPercentage <= 25 }">
     <img class="info-bg-img" :src="infoBg" alt="" />
+    <div v-if="defense > 0" class="defense-row" aria-label="本回合防御点数">
+      <img :src="shieldIcon" alt="盾" class="defense-icon" />
+      <span class="defense-value">{{ defense }}</span>
+    </div>
     <div class="info-text">
-      <div v-if="defense > 0" class="defense-row" aria-label="本回合防御点数">
-        <img :src="shieldIcon" alt="盾" class="defense-icon" />
-        <span class="defense-value">{{ defense }}</span>
-      </div>
       <span class="stamina">{{ stamina }}/{{ maxStamina }} 血值</span>
       <div class="stamina-row">
         <span class="nickname">{{ displayName }}<span v-if="isSelf">（我）</span></span>
@@ -62,20 +62,22 @@ const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || pr
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface-02);
+  width: 248px;
+  min-height: 64px;
+  padding: 10px 16px 12px;
+  background-color: transparent;
   border-radius: var(--radius-md);
   color: #3E2723;
   transition: box-shadow var(--transition-base);
   position: relative;
+  overflow: visible;
 }
 .info-bg-img {
   position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translate(-50%, 25%);
-  width: 400px;
-  height: auto;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
   z-index: 0;
   pointer-events: none;
 }
@@ -88,32 +90,39 @@ const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || pr
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  min-height: 44px;
+  width: 100%;
 }
 .defense-row {
+  position: absolute;
+  left: 4px;
+  top: -8px;
   display: inline-flex;
   align-items: center;
   gap: 0;
   width: fit-content;
   padding: 0;
-  margin-left: -4px;
+  margin: 0;
   border-radius: 0;
   background: transparent;
   color: var(--color-accent);
   border: none;
   box-shadow: none;
-  font-size: 36px;
+  font-size: 28px;
   font-weight: var(--weight-bold);
   line-height: 1;
+  z-index: 2;
+  pointer-events: none;
 }
 .defense-icon {
-  width: 56px;
-  height: 56px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
   display: inline-block;
   filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.22));
 }
 .defense-value {
-  font-size: 36px;
+  font-size: 22px;
   line-height: 1;
   transform: translateY(-1px);
   font-feature-settings: 'tnum';

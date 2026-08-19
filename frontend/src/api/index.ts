@@ -37,7 +37,7 @@ export type { GameConfig, GameResultPayload, GameResultResponse } from './game'
 
 // match
 export { getMatchDetail, getMatchDeck, playMatchCard, endMatchTurn, reconnectMatch, abandonMatch, chooseFirstPlayer, getMatchSettlement, getMatchReviveStatus, requestMatchRevive } from './match'
-export type { MatchDetailResp, MatchDeckResp, MatchPlayerResp, MatchCustomerResp, MatchHandCardResp, MatchDeckCardResp, MatchSettlementResp, MatchReviveStatusResp, MatchReviveRequestPayload, MatchReviveRequestResp, PlayCardPayload, PlayCardResponse, EndTurnPayload, EndTurnResponse } from './match'
+export type { MatchDetailResp, MatchDeckResp, MatchPlayerResp, MatchCustomerResp, MatchHandCardResp, MatchDeckCardResp, MatchSettlementResp, MatchSettlementPlayer, MatchReviveStatusResp, MatchReviveRequestPayload, MatchReviveRequestResp, PlayCardPayload, PlayCardResponse, EndTurnPayload, EndTurnResponse } from './match'
 
 // social
 export { getSkins, purchaseSkin, getQuests, claimQuestReward, fetchTasks } from './social'

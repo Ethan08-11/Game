@@ -6,7 +6,7 @@ import cc.shturl.wa.demo.dto.resp.CardEffectDetailResp;
 import java.util.List;
 
 public interface CardQueryService {
-    List<CardBasicResp> listAllCards();
-    CardBasicResp getCardDetail(Long cardId);
-    List<CardEffectDetailResp> listCardEffects(Long cardId);
+    List<CardBasicResp> listAllCards(Long userId);
+    CardBasicResp getCardDetail(Long userId, Long cardId);
+    List<CardEffectDetailResp> listCardEffects(Long userId, Long cardId);
 }

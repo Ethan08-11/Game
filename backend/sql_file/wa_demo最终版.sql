@@ -210,8 +210,8 @@ INSERT INTO `cards` VALUES (70, 'O-09', 'Chrissy', 3, 'public', 1, 'attack', '�
 INSERT INTO `cards` VALUES (71, 'O-11', 'Harrison', 3, 'public', 2, 'attack', '本回合对霸凌者造成2点伤害，下回合再造成2点伤害', '/images/cards/Card_Harrison.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
 INSERT INTO `cards` VALUES (72, 'O-08', 'Iris', 3, 'public', 2, 'attack', '立即对霸凌者造成4点伤害', '/images/cards/Card_Iris.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
 INSERT INTO `cards` VALUES (73, 'O-12', 'Leo', 3, 'public', 3, 'attack', '本回合对霸凌者造成3点伤害，下回合再造成2点伤害', '/images/cards/Card_Leo.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
-INSERT INTO `cards` VALUES (74, 'O-15', 'Riley', 3, 'public', 0, 'attack', '本回合对霸凌者造成1点伤害，下回合再造成1点伤害', '/images/cards/Card_Riley.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
-INSERT INTO `cards` VALUES (75, 'O-01', 'Charlene', 3, 'public', 1, 'defend', '为一名玩家增加3点防御', '/images/cards/Card_Charlene.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
+INSERT INTO `cards` VALUES (74, 'O-15', 'Riley', 1, 'sales', 0, 'attack', '本回合对霸凌者造成1点伤害，下回合再造成1点伤害', '/images/cards/Card_Riley.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
+INSERT INTO `cards` VALUES (75, 'O-01', 'Charlene', 2, 'purchase', 1, 'defend', '为一名玩家增加3点防御', '/images/cards/Card_Charlene.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
 INSERT INTO `cards` VALUES (76, 'O-02', 'Eden', 3, 'public', 2, 'defend', '本回合为一名玩家增加2点防御，下回合再增加2点防御', '/images/cards/Card_Eden.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
 INSERT INTO `cards` VALUES (77, 'O-03', 'Rain', 3, 'public', 2, 'defend', '为一名玩家增加4点防御', '/images/cards/Card_Rain.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 21:26:42');
 INSERT INTO `cards` VALUES (78, 'O-10', 'Yuna', 3, 'public', 3, 'defend', '本回合为一名玩家增加3点防御，下回合再增加3点防御', '/images/cards/Card_Yuna.png', NULL, 0, 1, '2026-07-21 16:28:51', '2026-08-01 22:07:20');

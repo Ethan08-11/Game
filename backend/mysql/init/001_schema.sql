@@ -134,22 +134,22 @@ CREATE TABLE `card_effects`  (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '效果配置主键',
   `card_id` bigint NOT NULL COMMENT '归属卡牌ID',
   `effect_order` int NOT NULL DEFAULT 1 COMMENT '效果结算顺序',
-  `effect_scope` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '目标范围：BOSS/SELF/ANY_PLAYER',
-  `effect_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '效果类型：DAMAGE_BOSS/HEAL_PLAYER/ADD_SHIELD/ADD_ACTION_POINTS/MULTIPLY_NEXT_CARD',
+  `effect_scope` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '目标范围：BOSS/SELF/ANY_PLAYER/ALL_PLAYERS',
+  `effect_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '效果类型：DAMAGE_BOSS/HEAL_PLAYER/ADD_SHIELD/ADD_ACTION_POINTS/MULTIPLY_NEXT_CARD/DRAW_CARDS/REDUCE_BOSS_ATTACK',
   `trigger_timing` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'IMMEDIATE' COMMENT '触发时机：IMMEDIATE/ROUND_START/NEXT_CARD',
   `trigger_delay` int NOT NULL DEFAULT 0 COMMENT '延迟回合数；0表示当前时机，1表示下一回合',
   `remaining_triggers` int NOT NULL DEFAULT 1 COMMENT '创建本局待处理效果时的初始触发次数',
   `stack_rule` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'STACK' COMMENT '叠加规则：STACK/REPLACE/REFRESH',
   `duration_rounds` int NOT NULL DEFAULT 0 COMMENT '持续回合数；一次性效果为0',
   `value` int NOT NULL DEFAULT 0 COMMENT '效果基础数值',
-  `target_rule` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '目标规则：BOSS/SELF/ANY_PLAYER',
+  `target_rule` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '目标规则：BOSS/SELF/ANY_PLAYER/ALL_PLAYERS',
   `extra_data` json NULL COMMENT '其他效果机制JSON',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_card_id`(`card_id` ASC) USING BTREE COMMENT '卡牌ID查询索引',
   CONSTRAINT `card_effects_ibfk_1` FOREIGN KEY (`card_id`) REFERENCES `cards` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 47 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '卡牌复杂效果配置表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 51 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '卡牌复杂效果配置表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for card_effects_bak_20260724
@@ -216,7 +216,7 @@ CREATE TABLE `cards`  (
   UNIQUE INDEX `uk_card_code`(`card_code` ASC) USING BTREE COMMENT '卡牌编号唯一索引',
   INDEX `idx_dept_type_cost`(`dept_id` ASC, `card_type` ASC, `cost` ASC) USING BTREE COMMENT '用于按部门、类型和费用快速筛选卡牌的外键复合索引',
   CONSTRAINT `cards_ibfk_1` FOREIGN KEY (`dept_id`) REFERENCES `card_depts` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 86 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '卡牌基础信息表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 90 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '卡牌基础信息表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for cards_bak_20260724

@@ -18,6 +18,7 @@ public class Cards extends BaseEntity {
     private String imageUrl;
     private Long comboCardId;
     private Integer isUnique;
+    private Integer requireUnlock;
     private Integer status;
 }
 

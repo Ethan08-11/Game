@@ -54,8 +54,8 @@ INSERT INTO `cards` VALUES (70, 'O-09', '算力超频', 3, 'public', 1, 'attack'
 INSERT INTO `cards` VALUES (71, 'O-11', '权限提级', 3, 'public', 2, 'attack', '本回合对霸凌者造成2点伤害，下回合再造成2点伤害', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 14:52:58');
 INSERT INTO `cards` VALUES (72, 'O-08', '品牌共鸣', 3, 'public', 2, 'attack', '立即对霸凌者造成4点伤害', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 14:52:58');
 INSERT INTO `cards` VALUES (73, 'O-12', '破圈引流', 3, 'public', 3, 'attack', '本回合对霸凌者造成3点伤害，下回合再造成2点伤害', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 14:52:58');
-INSERT INTO `cards` VALUES (74, 'O-15', '全渠道赋能', 3, 'public', 0, 'attack', '本回合对霸凌者造成1点伤害，下回合再造成1点伤害', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 15:31:21');
-INSERT INTO `cards` VALUES (75, 'O-01', '紧急拨付', 3, 'public', 1, 'defend', '为一名玩家增加3点防御', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 14:52:58');
+INSERT INTO `cards` VALUES (74, 'O-15', '全渠道赋能', 1, 'sales', 0, 'attack', '本回合对霸凌者造成1点伤害，下回合再造成1点伤害', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 15:31:21');
+INSERT INTO `cards` VALUES (75, 'O-01', '紧急拨付', 2, 'purchase', 1, 'defend', '为一名玩家增加3点防御', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 14:52:58');
 INSERT INTO `cards` VALUES (76, 'O-02', '后勤保障', 3, 'public', 2, 'defend', '本回合为一名玩家增加2点防御，下回合再增加2点防御', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 14:52:58');
 INSERT INTO `cards` VALUES (77, 'O-03', '战略储备', 3, 'public', 2, 'defend', '为一名玩家增加4点防御', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 14:52:58');
 INSERT INTO `cards` VALUES (78, 'O-10', '全线空投', 3, 'public', 3, 'defend', '本回合为一名玩家增加3点防御，下回合再增加3点防御', NULL, NULL, 0, 1, '2026-07-21 16:28:51', '2026-07-24 14:52:58');
@@ -108,6 +108,15 @@ INSERT INTO `card_effects` VALUES (43, 83, 2, 'SELF', 'ADD_ACTION_POINTS', 'ROUN
 INSERT INTO `card_effects` VALUES (44, 84, 1, 'SELF', 'ADD_ACTION_POINTS', 'IMMEDIATE', 0, 1, 'STACK', 0, 2, 'SELF', NULL, '2026-07-24 15:31:21', '2026-07-24 15:31:21');
 INSERT INTO `card_effects` VALUES (45, 84, 2, 'SELF', 'ADD_ACTION_POINTS', 'ROUND_START', 1, 1, 'STACK', 0, 1, 'SELF', NULL, '2026-07-24 15:31:21', '2026-07-24 15:31:21');
 INSERT INTO `card_effects` VALUES (46, 85, 1, 'SELF', 'MULTIPLY_NEXT_CARD', 'NEXT_CARD', 0, 1, 'REPLACE', 0, 2, 'SELF', '{"consumeAfterUse": true}', '2026-07-24 15:31:21', '2026-07-24 15:31:21');
+
+INSERT INTO `cards` VALUES (86,'O-16','信使',3,'public',1,'draw','抽 2 张牌','/images/cards/物流_信使.webp',NULL,0,1,'2026-08-19 11:30:00','2026-08-19 11:30:00');
+INSERT INTO `cards` VALUES (87,'O-17','告示官',3,'public',1,'support','本回合霸凌者攻击 -2','/images/cards/宣传_告示官.webp',NULL,0,1,'2026-08-19 11:30:00','2026-08-19 11:30:00');
+INSERT INTO `cards` VALUES (88,'O-18','鼓舞手',3,'public',2,'defend','双方各获得 2 点防御','/images/cards/活动_鼓舞手.webp',NULL,0,1,'2026-08-19 11:30:00','2026-08-19 11:30:00');
+INSERT INTO `cards` VALUES (89,'O-19','宫廷乐师',3,'public',2,'heal','双方各恢复 2 点血量','/images/cards/演艺_宫廷乐师.webp',NULL,0,1,'2026-08-19 11:30:00','2026-08-19 11:30:00');
+INSERT INTO `card_effects` VALUES (47,86,1,'SELF','DRAW_CARDS','IMMEDIATE',0,1,'STACK',0,2,'SELF',NULL,'2026-08-19 11:30:00','2026-08-19 11:30:00');
+INSERT INTO `card_effects` VALUES (48,87,1,'BOSS','REDUCE_BOSS_ATTACK','IMMEDIATE',0,1,'STACK',0,2,'BOSS',NULL,'2026-08-19 11:30:00','2026-08-19 11:30:00');
+INSERT INTO `card_effects` VALUES (49,88,1,'ALL_PLAYERS','ADD_SHIELD','IMMEDIATE',0,1,'STACK',0,2,'ALL_PLAYERS',NULL,'2026-08-19 11:30:00','2026-08-19 11:30:00');
+INSERT INTO `card_effects` VALUES (50,89,1,'ALL_PLAYERS','HEAL_PLAYER','IMMEDIATE',0,1,'STACK',0,2,'ALL_PLAYERS',NULL,'2026-08-19 11:30:00','2026-08-19 11:30:00');
 
 -- ----------------------------
 -- Table data for user_achievements

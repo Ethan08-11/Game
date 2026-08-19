@@ -74,7 +74,7 @@ export const mockCardList: ApiCard[] = [
   { id: 61, cardCode: 'S-03', cardName: '羁绊重塑', deptType: 'sales', cost: 2, cardType: 'attack', confidenceChange: 0, satisfactionChange: 5, rageChange: 0, shieldChange: 0, description: '本回合+3，下回合+2满意度', imageUrl: null, isUnique: 0, status: 1 },
   { id: 65, cardCode: 'P-01', cardName: '危机斡旋', deptType: 'purchase', cost: 0, cardType: 'defend', confidenceChange: 0, satisfactionChange: 0, rageChange: -2, shieldChange: 0, description: '立即-2怒气值', imageUrl: null, isUnique: 0, status: 1 },
   { id: 66, cardCode: 'P-02', cardName: '闪电溯源', deptType: 'purchase', cost: 1, cardType: 'defend', confidenceChange: 0, satisfactionChange: 0, rageChange: -3, shieldChange: 0, description: '立即-3怒气值', imageUrl: null, isUnique: 0, status: 1 },
-  { id: 75, cardCode: 'O-01', cardName: '紧急拨付', deptType: 'public', cost: 1, cardType: 'defend', confidenceChange: 0, satisfactionChange: 0, rageChange: -3, shieldChange: 0, description: '怒气值-3', imageUrl: null, isUnique: 0, status: 1 },
+  { id: 75, cardCode: 'O-01', cardName: '紧急拨付', deptType: 'purchase', cost: 1, cardType: 'defend', confidenceChange: 0, satisfactionChange: 0, rageChange: -3, shieldChange: 0, description: '怒气值-3', imageUrl: null, isUnique: 0, status: 1 },
   { id: 69, cardCode: 'O-07', cardName: '系统热修复', deptType: 'public', cost: 0, cardType: 'attack', confidenceChange: 0, satisfactionChange: 2, rageChange: 0, shieldChange: 0, description: '+2满意度', imageUrl: null, isUnique: 0, status: 1 },
   { id: 84, cardCode: 'L-01', cardName: '自来水好评', deptType: 'neutral', cost: 2, cardType: 'attack', confidenceChange: 0, satisfactionChange: 0, rageChange: 0, shieldChange: 0, description: '本回合资金+2，下回合资金+1', imageUrl: null, isUnique: 0, status: 1 },
 ]

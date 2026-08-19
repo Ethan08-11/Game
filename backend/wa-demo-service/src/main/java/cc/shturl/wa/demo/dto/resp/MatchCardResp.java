@@ -12,6 +12,7 @@ public record MatchCardResp(
         String imageUrl,
         String zone,
         Integer deckOrder,
-        Integer drawnRound
+        Integer drawnRound,
+        Boolean requiresPlayerTarget
 ) {
 }

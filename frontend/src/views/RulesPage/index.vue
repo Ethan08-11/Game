@@ -26,8 +26,10 @@
           <ul>
             <li><strong>攻击牌</strong>：增加顾客满意度</li>
             <li><strong>防御牌</strong>：为队友提供护盾，抵挡 BOSS 伤害</li>
-            <li><strong>抽牌牌</strong>：额外抽取卡牌</li>
+            <li><strong>抽牌牌</strong>：本回合额外抽牌，未打出的牌仍会在结束回合时弃掉</li>
             <li><strong>消耗牌</strong>：一次性强力效果</li>
+            <li><strong>全体牌</strong>：同时为双方增加护盾或恢复体力，无需选择目标</li>
+            <li><strong>压制牌</strong>：降低本回合霸凌者攻击</li>
           </ul>
         </section>
         <section class="rule-section">
@@ -45,7 +47,7 @@
         </section>
         <section class="rule-section">
           <h3>胜利奖励</h3>
-          <p>胜利后根据满意度获得积分奖励，满意度达到 100 可额外获得 50 点积分加成。</p>
+          <p>胜利后根据满意度获得积分奖励，满意度达到 100 可额外获得 50 点积分加成。每位玩家还会随机解锁一张尚未拥有的收藏卡，收入卡牌图鉴；未解锁的卡不会出现在对局抽牌中。</p>
         </section>
       </div>
     </div>

@@ -47,6 +47,7 @@ import cc.shturl.wa.demo.mapper.MatchRoundsMapper;
 import cc.shturl.wa.demo.mapper.MatchesMapper;
 import cc.shturl.wa.demo.mapper.RoomMembersMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
+import cc.shturl.wa.demo.service.CardCollectionService;
 import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
@@ -106,6 +107,7 @@ public class MatchServiceImpl implements MatchService {
     private final RoomNotificationService notificationService;
     private final UserPresenceService userPresenceService;
     private final cc.shturl.wa.demo.service.TaskService taskService;
+    private final CardCollectionService cardCollectionService;
 
     @Override
     @Transactional
@@ -348,13 +350,32 @@ public class MatchServiceImpl implements MatchService {
         if (value(match.getStatus()) != 2 || value(match.getWinnerType()) == 0) {
             throw new BusinessException("对局尚未结束，暂时无法查看结算");
         }
+        List<MatchActions> unlockActions = matchActionsMapper.selectList(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, matchId)
+                .eq(MatchActions::getActionType, "unlock_card"));
+        Map<Long, Cards> unlockedByUser = new LinkedHashMap<>();
+        for (MatchActions action : unlockActions) {
+            if (action.getActorUserId() == null || action.getCardId() == null) {
+                continue;
+            }
+            Cards unlocked = cardsMapper.selectById(action.getCardId());
+            if (unlocked != null) {
+                unlockedByUser.put(action.getActorUserId(), unlocked);
+            }
+        }
         List<MatchSettlementResp.PlayerSettlement> settlements = players.stream()
                 .sorted(Comparator.comparing(MatchPlayers::getSeatNo))
-                .map(player -> new MatchSettlementResp.PlayerSettlement(
-                        player.getUserId(), player.getSeatNo(), player.getDeptType(), player.getResultType(),
-                        player.getMaxHp(), player.getCurrentHp(), player.getDamageDealt(), player.getDamageTaken(),
-                        player.getHealingDone(), player.getShieldGranted(), player.getCardsPlayedCount(),
-                        player.getTotalFundsUsed(), rewardExp(match.getWinnerType()), rewardMoney(match.getWinnerType())))
+                .map(player -> {
+                    Cards unlocked = unlockedByUser.get(player.getUserId());
+                    return new MatchSettlementResp.PlayerSettlement(
+                            player.getUserId(), player.getSeatNo(), player.getDeptType(), player.getResultType(),
+                            player.getMaxHp(), player.getCurrentHp(), player.getDamageDealt(), player.getDamageTaken(),
+                            player.getHealingDone(), player.getShieldGranted(), player.getCardsPlayedCount(),
+                            player.getTotalFundsUsed(), rewardExp(match.getWinnerType()), rewardMoney(match.getWinnerType()),
+                            unlocked == null ? null : unlocked.getId(),
+                            unlocked == null ? null : unlocked.getCardName(),
+                            unlocked == null ? null : unlocked.getImageUrl());
+                })
                 .toList();
         return new MatchSettlementResp(match.getId(), match.getMatchCode(), match.getWinnerType(),
                 value(match.getWinnerType()) == 1, match.getCurrentRound(), match.getDurationSeconds(),
@@ -415,8 +436,6 @@ public class MatchServiceImpl implements MatchService {
         }
         boolean requiresPlayerTarget = configuredEffects.stream()
                 .anyMatch(effect -> "ANY_PLAYER".equals(effect.getEffectScope()));
-        boolean onlyBossOrSelf = configuredEffects.stream()
-                .allMatch(effect -> "BOSS".equals(effect.getEffectScope()) || "SELF".equals(effect.getEffectScope()));
         MatchPlayers target = null;
         if (requiresPlayerTarget) {
             if (request.targetUserId() == null) {
@@ -427,9 +446,6 @@ public class MatchServiceImpl implements MatchService {
             if (target == null || value(target.getCurrentHp()) <= 0) {
                 throw new BusinessException("目标玩家不合法");
             }
-        } else if (onlyBossOrSelf) {
-            // BOSS/SELF 效果卡忽略客户端传入的玩家目标（如 Dylan 辅助卡）
-            target = null;
         }
         Bullies bully = requireBully(match.getBullyId());
         boolean appliesNumericEffects = configuredEffects.stream()
@@ -489,7 +505,8 @@ public class MatchServiceImpl implements MatchService {
 
         MatchActionResp response = new MatchActionResp(matchId, action.getId(), request.clientActionId(), "PLAY_CARD",
                 currentUserId, instance.getId(), card.getId(), card.getCardName(),
-                requiresPlayerTarget ? "PLAYER" : "BOSS", target == null ? null : target.getUserId(),
+                resolveResponseTargetType(configuredEffects, requiresPlayerTarget),
+                target == null ? null : target.getUserId(),
                 actor.getActionPoints(), multiplier, effectResults,
                 match.getVersion(), matchEnded, match.getWinnerType());
         notifyCardPlayed(matchId, response);
@@ -555,16 +572,7 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void createDeck(Long matchId, MatchPlayers player) {
-        List<Long> cardIds;
-        if (SALES.equals(player.getDeptType())) {
-            // 销售部全部卡各2张 + 其他部门（除采购部）随机补齐至20
-            cardIds = buildCoreDeptDeckCardIds(SALES, PURCHASE, "销售部");
-        } else if (PURCHASE.equals(player.getDeptType())) {
-            // 采购部全部卡各2张 + 其他部门（除销售部）随机补齐至20
-            cardIds = buildCoreDeptDeckCardIds(PURCHASE, SALES, "采购部");
-        } else {
-            cardIds = buildConfiguredDeckCardIds(player.getDeptType());
-        }
+        List<Long> cardIds = buildUnlockedDeckCardIds(player.getUserId(), player.getDeptType());
         Collections.shuffle(cardIds);
         // 再随机决定起手牌，避免“展示顺序 == 发牌顺序”的可预测感
         List<Long> handCardIds = new ArrayList<>(cardIds.subList(0, INITIAL_HAND_SIZE));
@@ -601,6 +609,65 @@ public class MatchServiceImpl implements MatchService {
         if (insertIndex != DECK_SIZE) {
             throw new BusinessException("牌组初始化数量异常");
         }
+    }
+
+    /**
+     * 仅使用该玩家已解锁的卡牌组 20 张：本部门优先各 2 张，不足则用公共/路人部补齐。
+     */
+    private List<Long> buildUnlockedDeckCardIds(Long userId, String deptType) {
+        Set<Long> playable = cardCollectionService.listPlayableCardIds(userId);
+        if (playable.isEmpty()) {
+            throw new BusinessException("没有已解锁的可用卡牌");
+        }
+        String opponent = SALES.equals(deptType) ? PURCHASE : PURCHASE.equals(deptType) ? SALES : null;
+        List<Cards> enabled = cardsMapper.selectList(Wrappers.<Cards>lambdaQuery()
+                .eq(Cards::getStatus, 1)
+                .orderByAsc(Cards::getId));
+        List<Cards> core = new ArrayList<>();
+        List<Cards> fillers = new ArrayList<>();
+        for (Cards card : enabled) {
+            if (!playable.contains(card.getId())) {
+                continue;
+            }
+            if (deptType != null && deptType.equals(card.getDeptType())) {
+                core.add(card);
+            } else if (opponent == null || !opponent.equals(card.getDeptType())) {
+                fillers.add(card);
+            }
+        }
+        if (core.isEmpty() && fillers.isEmpty()) {
+            throw new BusinessException("已解锁卡牌不足以组成牌组");
+        }
+        Collections.shuffle(core);
+        Collections.shuffle(fillers);
+        List<Long> cardIds = new ArrayList<>(DECK_SIZE);
+        for (Cards card : core) {
+            if (cardIds.size() + 2 <= DECK_SIZE) {
+                cardIds.add(card.getId());
+                cardIds.add(card.getId());
+            } else if (cardIds.size() + 1 <= DECK_SIZE) {
+                cardIds.add(card.getId());
+                break;
+            } else {
+                break;
+            }
+        }
+        List<Long> fillerPool = fillers.stream().map(Cards::getId).collect(Collectors.toCollection(ArrayList::new));
+        if (fillerPool.isEmpty()) {
+            fillerPool = core.stream().map(Cards::getId).collect(Collectors.toCollection(ArrayList::new));
+        }
+        int index = 0;
+        while (cardIds.size() < DECK_SIZE) {
+            if (fillerPool.isEmpty()) {
+                throw new BusinessException("已解锁卡牌不足以组成20张牌组");
+            }
+            if (index >= fillerPool.size()) {
+                Collections.shuffle(fillerPool);
+                index = 0;
+            }
+            cardIds.add(fillerPool.get(index++));
+        }
+        return cardIds;
     }
 
     /** 兜底：按 deck_card_configs 固定 20 张 */
@@ -947,13 +1014,23 @@ public class MatchServiceImpl implements MatchService {
         }
         Map<Long, Cards> templates = cardsMapper.selectBatchIds(instances.stream().map(MatchCards::getCardId).distinct().toList())
                 .stream().collect(Collectors.toMap(Cards::getId, Function.identity()));
+        Map<Long, Boolean> requiresTargetByCard = Map.of();
+        if (!templates.isEmpty()) {
+            List<CardEffects> effectRows = cardEffectsMapper.selectList(Wrappers.<CardEffects>lambdaQuery()
+                    .in(CardEffects::getCardId, templates.keySet()));
+            requiresTargetByCard = effectRows.stream().collect(Collectors.groupingBy(CardEffects::getCardId,
+                    Collectors.collectingAndThen(Collectors.toList(),
+                            list -> list.stream().anyMatch(effect -> "ANY_PLAYER".equals(effect.getEffectScope())))));
+        }
+        Map<Long, Boolean> targetFlags = requiresTargetByCard;
         return instances.stream().map(instance -> {
             Cards card = templates.get(instance.getCardId());
             return new MatchCardResp(instance.getId(), instance.getCardId(), card == null ? null : card.getCardCode(),
                     card == null ? null : card.getCardName(), card == null ? null : card.getDeptType(),
                     card == null ? null : card.getCost(), card == null ? null : card.getCardType(),
                     card == null ? null : card.getDescription(), card == null ? null : card.getImageUrl(),
-                    instance.getZone(), instance.getDeckOrder(), instance.getDrawnRound());
+                    instance.getZone(), instance.getDeckOrder(), instance.getDrawnRound(),
+                    card == null ? Boolean.FALSE : targetFlags.getOrDefault(card.getId(), Boolean.FALSE));
         }).toList();
     }
 
@@ -973,7 +1050,7 @@ public class MatchServiceImpl implements MatchService {
             return false;
         }
         // 公共部 / 路人部（neutral）卡任意职业都可打
-        if ("public".equals(card) || "neutral".equals(card) || "passerby".equals(card)) {
+        if ("public".equals(card) || "neutral".equals(card) || "passerby".equals(card) || "tech".equals(card)) {
             return true;
         }
         return card.equals(actor);
@@ -1004,62 +1081,127 @@ public class MatchServiceImpl implements MatchService {
                                       int multiplier, List<CardEffectResp> results) {
         int baseValue = Math.max(value(effect.getValue()), 0);
         int actualValue = baseValue * multiplier;
-        String targetType;
-        Long targetUserId = null;
-        int beforeValue;
-        int afterValue;
         switch (effect.getEffectType()) {
             case "DAMAGE_BOSS" -> {
-                targetType = "BOSS";
-                beforeValue = value(match.getBossCurrentHp());
+                int beforeValue = value(match.getBossCurrentHp());
                 int defense = bully == null ? 0 : value(bully.getDefenseValue());
                 int finalDamage = Math.max(0, actualValue - defense);
-                afterValue = Math.max(0, beforeValue - finalDamage);
+                int afterValue = Math.max(0, beforeValue - finalDamage);
                 match.setBossCurrentHp(afterValue);
                 actor.setDamageDealt(value(actor.getDamageDealt()) + beforeValue - afterValue);
+                results.add(effectResult(effect, "BOSS", null, baseValue, beforeValue - afterValue,
+                        beforeValue, afterValue, match.getCurrentRound()));
+            }
+            case "REDUCE_BOSS_ATTACK" -> {
+                int beforeValue = value(match.getBossCurrentAttack());
+                int afterValue = Math.max(0, beforeValue - actualValue);
+                match.setBossCurrentAttack(afterValue);
+                results.add(effectResult(effect, "BOSS", null, baseValue, beforeValue - afterValue,
+                        beforeValue, afterValue, match.getCurrentRound()));
+            }
+            case "DRAW_CARDS" -> {
+                for (MatchPlayers recipient : resolveEffectTargets(match.getId(), actor, target, effect)) {
+                    int beforeValue = countCards(match.getId(), recipient.getUserId(), "HAND");
+                    int drawn = drawCards(match.getId(), recipient.getUserId(), match.getCurrentRound(), actualValue);
+                    int afterValue = beforeValue + drawn;
+                    results.add(effectResult(effect, resultTargetType(effect), recipient.getUserId(), baseValue, drawn,
+                            beforeValue, afterValue, match.getCurrentRound()));
+                }
             }
             case "HEAL_PLAYER" -> {
-                requireEffectTarget(target);
-                targetType = "PLAYER";
-                targetUserId = target.getUserId();
-                beforeValue = value(target.getCurrentHp());
-                afterValue = Math.min(value(target.getMaxHp()), beforeValue + actualValue);
-                target.setCurrentHp(afterValue);
-                actor.setHealingDone(value(actor.getHealingDone()) + afterValue - beforeValue);
-                matchPlayersMapper.updateById(target);
+                for (MatchPlayers recipient : resolveEffectTargets(match.getId(), actor, target, effect)) {
+                    int beforeValue = value(recipient.getCurrentHp());
+                    int afterValue = Math.min(value(recipient.getMaxHp()), beforeValue + actualValue);
+                    recipient.setCurrentHp(afterValue);
+                    actor.setHealingDone(value(actor.getHealingDone()) + afterValue - beforeValue);
+                    persistPlayerIfNotActor(actor, recipient);
+                    results.add(effectResult(effect, resultTargetType(effect), recipient.getUserId(), baseValue,
+                            afterValue - beforeValue, beforeValue, afterValue, match.getCurrentRound()));
+                }
             }
             case "ADD_SHIELD" -> {
-                requireEffectTarget(target);
-                targetType = "PLAYER";
-                targetUserId = target.getUserId();
-                beforeValue = value(target.getShield());
-                afterValue = beforeValue + actualValue;
-                target.setShield(afterValue);
-                actor.setShieldGranted(value(actor.getShieldGranted()) + actualValue);
-                matchPlayersMapper.updateById(target);
+                for (MatchPlayers recipient : resolveEffectTargets(match.getId(), actor, target, effect)) {
+                    int beforeValue = value(recipient.getShield());
+                    int afterValue = beforeValue + actualValue;
+                    recipient.setShield(afterValue);
+                    actor.setShieldGranted(value(actor.getShieldGranted()) + actualValue);
+                    persistPlayerIfNotActor(actor, recipient);
+                    results.add(effectResult(effect, resultTargetType(effect), recipient.getUserId(), baseValue,
+                            actualValue, beforeValue, afterValue, match.getCurrentRound()));
+                }
             }
             case "ADD_ACTION_POINTS" -> {
-                MatchPlayers recipient = "SELF".equals(effect.getEffectScope()) ? actor : target;
-                requireEffectTarget(recipient);
-                targetType = "PLAYER";
-                targetUserId = recipient.getUserId();
-                beforeValue = value(recipient.getActionPoints());
-                afterValue = beforeValue + actualValue;
-                recipient.setActionPoints(afterValue);
-                if (!recipient.getId().equals(actor.getId())) {
-                    matchPlayersMapper.updateById(recipient);
+                for (MatchPlayers recipient : resolveEffectTargets(match.getId(), actor, target, effect)) {
+                    int beforeValue = value(recipient.getActionPoints());
+                    int afterValue = beforeValue + actualValue;
+                    recipient.setActionPoints(afterValue);
+                    persistPlayerIfNotActor(actor, recipient);
+                    results.add(effectResult(effect, resultTargetType(effect), recipient.getUserId(), baseValue,
+                            actualValue, beforeValue, afterValue, match.getCurrentRound()));
                 }
             }
             default -> throw new BusinessException("不支持的立即效果类型：" + effect.getEffectType());
         }
-        results.add(new CardEffectResp(effect.getEffectType(), effect.getTriggerTiming(), targetType, targetUserId,
-                baseValue, Math.abs(afterValue - beforeValue), beforeValue, afterValue, false,
-                match.getCurrentRound(), null));
     }
 
     private void requireEffectTarget(MatchPlayers target) {
         if (target == null) {
             throw new BusinessException("卡牌效果缺少合法玩家目标");
+        }
+    }
+
+    private String resolveResponseTargetType(List<CardEffects> effects, boolean requiresPlayerTarget) {
+        if (requiresPlayerTarget) {
+            return "PLAYER";
+        }
+        if (effects.stream().anyMatch(effect -> "ALL_PLAYERS".equals(effect.getEffectScope()))) {
+            return "ALL_PLAYERS";
+        }
+        boolean hasSelf = effects.stream().anyMatch(effect -> "SELF".equals(effect.getEffectScope()));
+        boolean hasBoss = effects.stream().anyMatch(effect -> "BOSS".equals(effect.getEffectScope())
+                || "DAMAGE_BOSS".equals(effect.getEffectType())
+                || "REDUCE_BOSS_ATTACK".equals(effect.getEffectType()));
+        if (hasSelf && !hasBoss) {
+            return "SELF";
+        }
+        return "BOSS";
+    }
+
+    private String resultTargetType(CardEffects effect) {
+        return "ALL_PLAYERS".equals(effect.getEffectScope()) ? "ALL_PLAYERS" : "PLAYER";
+    }
+
+    private CardEffectResp effectResult(CardEffects effect, String targetType, Long targetUserId, int baseValue,
+                                        int actualValue, int beforeValue, int afterValue, Integer triggerRound) {
+        return new CardEffectResp(effect.getEffectType(), effect.getTriggerTiming(), targetType, targetUserId,
+                baseValue, actualValue, beforeValue, afterValue, false, triggerRound, null);
+    }
+
+    private List<MatchPlayers> resolveEffectTargets(Long matchId, MatchPlayers actor, MatchPlayers selected, CardEffects effect) {
+        String scope = effect.getEffectScope();
+        if ("ALL_PLAYERS".equals(scope)) {
+            List<MatchPlayers> targets = new ArrayList<>();
+            for (MatchPlayers player : listPlayers(matchId)) {
+                if (value(player.getCurrentHp()) <= 0) {
+                    continue;
+                }
+                targets.add(player.getId().equals(actor.getId()) ? actor : player);
+            }
+            return targets;
+        }
+        if ("SELF".equals(scope) || selected == null) {
+            if ("ANY_PLAYER".equals(scope)) {
+                requireEffectTarget(null);
+            }
+            return List.of(actor);
+        }
+        requireEffectTarget(selected);
+        return List.of(selected.getId().equals(actor.getId()) ? actor : selected);
+    }
+
+    private void persistPlayerIfNotActor(MatchPlayers actor, MatchPlayers player) {
+        if (player != null && !actor.getId().equals(player.getId())) {
+            matchPlayersMapper.updateById(player);
         }
     }
 
@@ -1079,26 +1221,48 @@ public class MatchServiceImpl implements MatchService {
             if ("MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
                 replacePendingNextCardMultipliers(match.getId(), actor.getUserId());
             }
-            MatchPendingEffects pending = new MatchPendingEffects();
-            pending.setMatchId(match.getId());
-            pending.setMatchPlayerId(actor.getId());
-            pending.setSourceUserId(actor.getUserId());
-            pending.setSourceCardInstanceId(instance.getId());
-            pending.setEffectType(effect.getEffectType());
-            boolean selfTarget = "SELF".equals(effect.getEffectScope());
-            pending.setTargetType("DAMAGE_BOSS".equals(effect.getEffectType()) ? "BOSS" : "PLAYER");
-            pending.setTargetUserId(selfTarget ? actor.getUserId() : target == null ? null : target.getUserId());
-            pending.setEffectValue(value(effect.getValue()) * multiplier);
-            pending.setTriggerRound(triggerRound);
-            pending.setRemainingTriggers(Math.max(value(effect.getRemainingTriggers()),
-                    Math.max(value(effect.getDurationRounds()), 1)));
-            pending.setStatus("PENDING");
-            pending.setExtraData(effect.getExtraData());
-            matchPendingEffectsMapper.insert(pending);
-            results.add(new CardEffectResp(effect.getEffectType(), effect.getTriggerTiming(), pending.getTargetType(),
-                    pending.getTargetUserId(), value(effect.getValue()), pending.getEffectValue(), null, null, true,
-                    triggerRound, pending.getId()));
+            List<Long> targetUserIds = pendingTargetUserIds(match.getId(), actor, target, effect);
+            String pendingTargetType = pendingTargetType(effect);
+            for (Long targetUserId : targetUserIds) {
+                MatchPendingEffects pending = new MatchPendingEffects();
+                pending.setMatchId(match.getId());
+                pending.setMatchPlayerId(actor.getId());
+                pending.setSourceUserId(actor.getUserId());
+                pending.setSourceCardInstanceId(instance.getId());
+                pending.setEffectType(effect.getEffectType());
+                pending.setTargetType(pendingTargetType);
+                pending.setTargetUserId(targetUserId);
+                pending.setEffectValue(value(effect.getValue()) * multiplier);
+                pending.setTriggerRound(triggerRound);
+                pending.setRemainingTriggers(Math.max(value(effect.getRemainingTriggers()),
+                        Math.max(value(effect.getDurationRounds()), 1)));
+                pending.setStatus("PENDING");
+                pending.setExtraData(effect.getExtraData());
+                matchPendingEffectsMapper.insert(pending);
+                results.add(new CardEffectResp(effect.getEffectType(), effect.getTriggerTiming(),
+                        "ALL_PLAYERS".equals(effect.getEffectScope()) ? "ALL_PLAYERS" : pending.getTargetType(),
+                        pending.getTargetUserId(), value(effect.getValue()), pending.getEffectValue(), null, null, true,
+                        triggerRound, pending.getId()));
+            }
         }
+    }
+
+    private String pendingTargetType(CardEffects effect) {
+        if ("DAMAGE_BOSS".equals(effect.getEffectType()) || "REDUCE_BOSS_ATTACK".equals(effect.getEffectType())) {
+            return "BOSS";
+        }
+        return "PLAYER";
+    }
+
+    private List<Long> pendingTargetUserIds(Long matchId, MatchPlayers actor, MatchPlayers selected, CardEffects effect) {
+        if ("DAMAGE_BOSS".equals(effect.getEffectType()) || "REDUCE_BOSS_ATTACK".equals(effect.getEffectType())
+                || "MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
+            if ("MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
+                return List.of(actor.getUserId());
+            }
+            return Collections.singletonList(null);
+        }
+        return resolveEffectTargets(matchId, actor, selected, effect).stream().map(MatchPlayers::getUserId).toList();
     }
 
     @Override
@@ -1284,6 +1448,10 @@ public class MatchServiceImpl implements MatchService {
             if ("DAMAGE_BOSS".equals(pending.getEffectType())) {
                 int finalDamage = Math.max(0, value(pending.getEffectValue()) - defense);
                 match.setBossCurrentHp(Math.max(0, value(match.getBossCurrentHp()) - finalDamage));
+            } else if ("REDUCE_BOSS_ATTACK".equals(pending.getEffectType())) {
+                match.setBossCurrentAttack(Math.max(0, value(match.getBossCurrentAttack()) - value(pending.getEffectValue())));
+            } else if ("DRAW_CARDS".equals(pending.getEffectType()) && pending.getTargetUserId() != null) {
+                drawCards(match.getId(), pending.getTargetUserId(), roundNo, value(pending.getEffectValue()));
             } else {
                 MatchPlayers target = pending.getTargetUserId() == null ? null : matchPlayersMapper.selectOne(
                         Wrappers.<MatchPlayers>lambdaQuery().eq(MatchPlayers::getMatchId, match.getId())
@@ -1323,7 +1491,7 @@ public class MatchServiceImpl implements MatchService {
      * 规则：只有当 DECK 抽空（本轮牌库中的牌全部抽完）后，才允许把 DISCARD 洗回 DECK；
      * 牌库仍有牌时绝不触碰弃牌堆。
      */
-    private void drawCards(Long matchId, Long userId, int roundNo, int count) {
+    private int drawCards(Long matchId, Long userId, int roundNo, int count) {
         int drawn = 0;
         while (drawn < count) {
             int deckCount = countCards(matchId, userId, "DECK");
@@ -1353,6 +1521,7 @@ public class MatchServiceImpl implements MatchService {
             }
             reindexDeckOrder(matchId, userId);
         }
+        return drawn;
     }
 
     /** @return true 若成功将弃牌洗入牌库；false 若弃牌也为空 */
@@ -1467,6 +1636,21 @@ public class MatchServiceImpl implements MatchService {
                         .map(MatchPlayers::getUserId)
                         .findFirst().orElse(null);
                 taskService.recordMatchResult(player.getUserId(), resultType, teammateId);
+            }
+            if (winnerType == 1) {
+                for (MatchPlayers player : settledPlayers) {
+                    Cards unlocked = cardCollectionService.unlockRandomCollectible(player.getUserId());
+                    if (unlocked == null) {
+                        continue;
+                    }
+                    MatchActions unlockAction = new MatchActions();
+                    unlockAction.setMatchId(match.getId());
+                    unlockAction.setActorType("system");
+                    unlockAction.setActorUserId(player.getUserId());
+                    unlockAction.setActionType("unlock_card");
+                    unlockAction.setCardId(unlocked.getId());
+                    matchActionsMapper.insert(unlockAction);
+                }
             }
         }
     }
