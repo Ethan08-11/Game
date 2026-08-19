@@ -22,21 +22,22 @@
             :class="{ locked: !card.unlocked }"
           >
             <div class="card-image-box">
-              <img
-                v-if="cardThumb(card)"
-                :src="cardThumb(card)!"
-                :alt="card.unlocked ? card.cardName : '未解锁卡牌'"
-                class="card-img"
-                :class="{ 'card-img-locked': !card.unlocked }"
-                loading="lazy"
-                decoding="async"
-                @error="onCardImgError"
-              />
-              <template v-if="card.unlocked">
-                <span class="card-face-dept">{{ deptLabel(card.deptType) }}</span>
-                <span class="card-face-name">{{ card.cardName }}</span>
-              </template>
-              <span v-if="!cardThumb(card)" class="card-placeholder">?</span>
+              <div v-if="cardThumb(card)" class="card-face">
+                <img
+                  :src="cardThumb(card)!"
+                  :alt="card.unlocked ? card.cardName : '未解锁卡牌'"
+                  class="card-img"
+                  :class="{ 'card-img-locked': !card.unlocked }"
+                  loading="lazy"
+                  decoding="async"
+                  @error="onCardImgError"
+                />
+                <template v-if="card.unlocked">
+                  <span class="card-face-dept">{{ deptLabel(card.deptType) }}</span>
+                  <span class="card-face-name">{{ card.cardName }}</span>
+                </template>
+              </div>
+              <span v-else class="card-placeholder">?</span>
             </div>
             <div class="card-name">{{ card.unlocked ? card.cardName : '???' }}</div>
             <div v-if="card.unlocked" class="card-meta">
@@ -291,10 +292,17 @@ h2 {
   overflow: hidden;
   position: relative;
 }
+.card-face {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 640 / 1023;
+  max-width: 100%;
+}
 .card-img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: fill;
+  display: block;
 }
 .card-face-dept {
   position: absolute;
@@ -309,16 +317,17 @@ h2 {
   text-align: center;
   white-space: nowrap;
   pointer-events: none;
+  z-index: 2;
   text-shadow: 0 0 4px rgba(255, 248, 230, 0.9);
 }
 .card-face-name {
   position: absolute;
-  top: 61.5%;
+  top: 70.6%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 68%;
+  width: 62%;
   color: #3E2723;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: var(--weight-bold);
   line-height: 1;
   text-align: center;
@@ -326,6 +335,7 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
+  z-index: 2;
 }
 .card-img-locked {
   object-fit: contain;

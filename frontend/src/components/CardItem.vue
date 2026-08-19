@@ -186,11 +186,11 @@ onBeforeUnmount(() => {
 
 .card-name {
   position: absolute;
-  top: 64%;
+  top: 70.6%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 68%;
-  font-size: calc(var(--text-base) * 2);
+  width: 62%;
+  font-size: calc(var(--text-base) * 1.7);
   line-height: 1;
   color: #3E2723;
   text-align: center;
@@ -203,8 +203,8 @@ onBeforeUnmount(() => {
 
 .card-desc-box {
   position: absolute;
-  top: 69%;
-  bottom: 10%;
+  top: 74.5%;
+  bottom: 8%;
   left: 13%;
   right: 13%;
   display: flex;
