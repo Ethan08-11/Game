@@ -301,7 +301,7 @@ function startRoomPoll() {
   void syncCurrentRoom()
   roomPollTimer = setInterval(() => {
     void syncCurrentRoom()
-  }, 1500)
+  }, 2500)
 }
 
 async function syncRoom(roomId: string) {

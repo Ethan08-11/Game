@@ -30,7 +30,11 @@ public record MatchSettlementResp(
             Long moneyAwarded,
             Long unlockedCardId,
             String unlockedCardName,
-            String unlockedCardImageUrl
+            String unlockedCardImageUrl,
+            String unlockedCardDeptType,
+            Integer unlockedCardCost,
+            String unlockedCardType,
+            String unlockedCardDescription
     ) {
     }
 }

@@ -177,7 +177,7 @@ async function pollPendingInvites() {
 function startPendingInvitePoll() {
   if (pendingInviteTimer || !user.isLoggedIn) return
   void pollPendingInvites()
-  pendingInviteTimer = setInterval(() => { void pollPendingInvites() }, 4000)
+  pendingInviteTimer = setInterval(() => { void pollPendingInvites() }, 12_000)
 }
 
 function stopPendingInvitePoll() {
@@ -229,7 +229,10 @@ async function refreshFriends() {
 
 function startFriendsFallbackRefresh() {
   if (friendsRefreshTimer || !user.isLoggedIn) return
-  friendsRefreshTimer = setInterval(refreshFriends, 8_000)
+  friendsRefreshTimer = setInterval(() => {
+    if (String(route.name || '') === 'BattlePage') return
+    void refreshFriends()
+  }, 30_000)
 }
 
 function stopFriendsFallbackRefresh() {

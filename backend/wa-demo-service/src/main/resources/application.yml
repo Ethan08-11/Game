@@ -1,6 +1,12 @@
 server:
   # Zeabur 注入 PORT；本地可用 SERVER_PORT
   port: ${PORT:${SERVER_PORT:8080}}
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:200}
+    accept-count: 200
+    max-connections: 10000
+    connection-timeout: 20000
 
 spring:
   application:
@@ -32,7 +38,8 @@ spring:
     hikari:
       connection-timeout: 10000
       initialization-fail-timeout: 30000
-      maximum-pool-size: 10
+      maximum-pool-size: ${MYSQL_POOL_SIZE:30}
+      minimum-idle: 5
 
   data:
     redis:
@@ -43,10 +50,10 @@ spring:
       timeout: 3000ms
       lettuce:
         pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 0
-          max-wait: -1ms
+          max-active: ${REDIS_POOL_SIZE:32}
+          max-idle: 16
+          min-idle: 4
+          max-wait: 3000ms
 
   # Zeabur：RABBITMQ_USERNAME / RABBITMQ_PASSWORD 必须写成字面量，禁止 ${PASSWORD}（会和 MySQL 冲突）
   rabbitmq:

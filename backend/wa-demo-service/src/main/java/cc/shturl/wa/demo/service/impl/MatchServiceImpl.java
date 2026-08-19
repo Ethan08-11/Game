@@ -31,6 +31,7 @@ import cc.shturl.wa.demo.entity.MatchPendingEffects;
 import cc.shturl.wa.demo.entity.MatchRounds;
 import cc.shturl.wa.demo.entity.Matches;
 import cc.shturl.wa.demo.entity.RoomMembers;
+import cc.shturl.wa.demo.entity.UserCardPools;
 import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.mapper.BulliesMapper;
 import cc.shturl.wa.demo.mapper.CardEffectsMapper;
@@ -46,6 +47,7 @@ import cc.shturl.wa.demo.mapper.MatchPendingEffectsMapper;
 import cc.shturl.wa.demo.mapper.MatchRoundsMapper;
 import cc.shturl.wa.demo.mapper.MatchesMapper;
 import cc.shturl.wa.demo.mapper.RoomMembersMapper;
+import cc.shturl.wa.demo.mapper.UserCardPoolsMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.CardCollectionService;
 import cc.shturl.wa.demo.service.MatchService;
@@ -104,6 +106,7 @@ public class MatchServiceImpl implements MatchService {
     private final CustomerTypesMapper customerTypesMapper;
     private final BulliesMapper bulliesMapper;
     private final UserProfileMapper userProfileMapper;
+    private final UserCardPoolsMapper userCardPoolsMapper;
     private final RoomNotificationService notificationService;
     private final UserPresenceService userPresenceService;
     private final cc.shturl.wa.demo.service.TaskService taskService;
@@ -365,21 +368,48 @@ public class MatchServiceImpl implements MatchService {
         }
         List<MatchSettlementResp.PlayerSettlement> settlements = players.stream()
                 .sorted(Comparator.comparing(MatchPlayers::getSeatNo))
-                .map(player -> {
-                    Cards unlocked = unlockedByUser.get(player.getUserId());
-                    return new MatchSettlementResp.PlayerSettlement(
-                            player.getUserId(), player.getSeatNo(), player.getDeptType(), player.getResultType(),
-                            player.getMaxHp(), player.getCurrentHp(), player.getDamageDealt(), player.getDamageTaken(),
-                            player.getHealingDone(), player.getShieldGranted(), player.getCardsPlayedCount(),
-                            player.getTotalFundsUsed(), rewardExp(match.getWinnerType()), rewardMoney(match.getWinnerType()),
-                            unlocked == null ? null : unlocked.getId(),
-                            unlocked == null ? null : unlocked.getCardName(),
-                            unlocked == null ? null : unlocked.getImageUrl());
-                })
+                .map(player -> toPlayerSettlement(player, resolveMatchUnlock(player.getUserId(), unlockedByUser, match), match.getWinnerType()))
                 .toList();
         return new MatchSettlementResp(match.getId(), match.getMatchCode(), match.getWinnerType(),
                 value(match.getWinnerType()) == 1, match.getCurrentRound(), match.getDurationSeconds(),
                 match.getBossMaxHp(), match.getBossCurrentHp(), settlements);
+    }
+
+    private Cards resolveMatchUnlock(Long userId, Map<Long, Cards> unlockedByUser, Matches match) {
+        Cards unlocked = userId == null ? null : unlockedByUser.get(userId);
+        if (unlocked != null) {
+            return unlocked;
+        }
+        if (userId == null || value(match.getWinnerType()) != 1 || match.getEndedAt() == null) {
+            return null;
+        }
+        List<UserCardPools> rows = userCardPoolsMapper.selectList(Wrappers.<UserCardPools>lambdaQuery()
+                .eq(UserCardPools::getUserId, userId)
+                .eq(UserCardPools::getUnlockedStatus, 1)
+                .ge(UserCardPools::getCreatedAt, match.getEndedAt().minusSeconds(15))
+                .le(UserCardPools::getCreatedAt, match.getEndedAt().plusSeconds(90))
+                .orderByDesc(UserCardPools::getId)
+                .last("LIMIT 1"));
+        if (rows == null || rows.isEmpty() || rows.get(0).getCardId() == null) {
+            return null;
+        }
+        return cardsMapper.selectById(rows.get(0).getCardId());
+    }
+
+    private MatchSettlementResp.PlayerSettlement toPlayerSettlement(MatchPlayers player, Cards unlocked, Integer winnerType) {
+        int winner = value(winnerType);
+        return new MatchSettlementResp.PlayerSettlement(
+                player.getUserId(), player.getSeatNo(), player.getDeptType(), player.getResultType(),
+                player.getMaxHp(), player.getCurrentHp(), player.getDamageDealt(), player.getDamageTaken(),
+                player.getHealingDone(), player.getShieldGranted(), player.getCardsPlayedCount(),
+                player.getTotalFundsUsed(), rewardExp(winner), rewardMoney(winner),
+                unlocked == null ? null : unlocked.getId(),
+                unlocked == null ? null : unlocked.getCardName(),
+                unlocked == null ? null : unlocked.getImageUrl(),
+                unlocked == null ? null : unlocked.getDeptType(),
+                unlocked == null ? null : unlocked.getCost(),
+                unlocked == null ? null : unlocked.getCardType(),
+                unlocked == null ? null : unlocked.getDescription());
     }
 
     @Override
@@ -1645,6 +1675,7 @@ public class MatchServiceImpl implements MatchService {
                     }
                     MatchActions unlockAction = new MatchActions();
                     unlockAction.setMatchId(match.getId());
+                    unlockAction.setRoundId(round == null ? null : round.getId());
                     unlockAction.setActorType("system");
                     unlockAction.setActorUserId(player.getUserId());
                     unlockAction.setActionType("unlock_card");

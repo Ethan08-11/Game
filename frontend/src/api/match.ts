@@ -87,6 +87,54 @@ export interface MatchSettlementPlayer {
   unlockedCardId?: number | string | null
   unlockedCardName?: string | null
   unlockedCardImageUrl?: string | null
+  unlockedCardDeptType?: string | null
+  unlockedCardCost?: number | null
+  unlockedCardType?: string | null
+  unlockedCardDescription?: string | null
+}
+
+export interface UnlockedCollectibleCard {
+  id: number | string
+  name: string
+  imageUrl: string | null
+  deptType?: string | null
+  cost?: number | null
+  cardType?: string | null
+  description?: string | null
+}
+
+export function findSettlementPlayer(
+  players: MatchSettlementPlayer[] | undefined,
+  userId: unknown,
+): MatchSettlementPlayer | null {
+  const uid = String(userId ?? '').trim()
+  if (!uid || uid === 'undefined' || uid === 'null') return null
+  return (players ?? []).find((player) => String(player.userId) === uid) ?? null
+}
+
+function pickUnlockField(player: Record<string, unknown>, camel: string, snake: string) {
+  const value = player[camel] ?? player[snake]
+  return value == null || value === '' ? null : value
+}
+
+export function unlockedCardFromSettlement(
+  player: MatchSettlementPlayer | null | undefined,
+): UnlockedCollectibleCard | null {
+  if (!player) return null
+  const raw = player as Record<string, unknown>
+  const id = pickUnlockField(raw, 'unlockedCardId', 'unlocked_card_id')
+  const name = pickUnlockField(raw, 'unlockedCardName', 'unlocked_card_name')
+  if (id == null || name == null) return null
+  const cost = pickUnlockField(raw, 'unlockedCardCost', 'unlocked_card_cost')
+  return {
+    id: id as number | string,
+    name: String(name),
+    imageUrl: (pickUnlockField(raw, 'unlockedCardImageUrl', 'unlocked_card_image_url') as string | null) ?? null,
+    deptType: (pickUnlockField(raw, 'unlockedCardDeptType', 'unlocked_card_dept_type') as string | null) ?? null,
+    cost: cost == null ? null : Number(cost),
+    cardType: (pickUnlockField(raw, 'unlockedCardType', 'unlocked_card_type') as string | null) ?? null,
+    description: (pickUnlockField(raw, 'unlockedCardDescription', 'unlocked_card_description') as string | null) ?? null,
+  }
 }
 
 export interface MatchSettlementResp {

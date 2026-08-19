@@ -10,7 +10,6 @@ import org.springframework.web.socket.WebSocketSession;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -62,13 +61,10 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
         redisTemplate.opsForValue().set(userConnectionKey(userId, connectionId), now,
                 Duration.ofMillis(ONLINE_TIMEOUT_MILLIS));
         lastHeartbeatAt.put(userId, now);
-        cleanupExpired();
     }
 
     @Override
     public boolean isOnline(Long userId) {
-        cleanupExpired();
-        // 本机仍有存活 WebSocket 时直接视为在线，避免 Redis KEYS/TTL 短暂不一致导致误判离线
         Map<String, WebSocketSession> userSessions = sessions.get(userId);
         if (userSessions != null) {
             for (WebSocketSession session : userSessions.values()) {
@@ -77,11 +73,8 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
                 }
             }
         }
-        if (hasFreshRedisConnection(userId)) {
-            return true;
-        }
-        Set<String> members = redisTemplate.keys(RedisKeyConstants.USER_CONNECTIONS_PREFIX + userId + ":*");
-        return members != null && !members.isEmpty();
+        Long last = lastHeartbeatAt.get(userId);
+        return last != null && System.currentTimeMillis() - last < ONLINE_TIMEOUT_MILLIS;
     }
 
     @Override
@@ -96,32 +89,30 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
         if (userSessions == null) {
             return;
         }
+        TextMessage payload = new TextMessage(message);
+        IOException lastError = null;
         for (WebSocketSession session : userSessions.values()) {
-            if (session.isOpen()) {
-                session.sendMessage(new TextMessage(message));
+            try {
+                sendSafely(session, payload);
+            } catch (IOException exception) {
+                lastError = exception;
             }
+        }
+        if (lastError != null) {
+            throw lastError;
         }
     }
 
-    private boolean hasFreshRedisConnection(Long userId) {
-        long minScore = System.currentTimeMillis() - ONLINE_TIMEOUT_MILLIS;
-        Set<Object> members = redisTemplate.opsForZSet()
-                .rangeByScore(RedisKeyConstants.ONLINE_CONNECTIONS, minScore, Double.POSITIVE_INFINITY);
-        if (members == null || members.isEmpty()) {
-            return false;
+    private void sendSafely(WebSocketSession session, TextMessage payload) throws IOException {
+        if (session == null || !session.isOpen()) {
+            return;
         }
-        String prefix = userId + ":";
-        for (Object member : members) {
-            if (member != null && String.valueOf(member).startsWith(prefix)) {
-                return true;
+        synchronized (session) {
+            if (!session.isOpen()) {
+                return;
             }
+            session.sendMessage(payload);
         }
-        return false;
-    }
-
-    private void cleanupExpired() {
-        redisTemplate.opsForZSet().removeRangeByScore(RedisKeyConstants.ONLINE_CONNECTIONS, 0,
-                System.currentTimeMillis() - ONLINE_TIMEOUT_MILLIS);
     }
 
     private String connectionId(WebSocketSession session) {

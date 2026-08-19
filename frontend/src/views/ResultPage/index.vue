@@ -16,19 +16,25 @@
       <p v-if="isVictory" class="points-reward">获得酬劳：+{{ rewardMoney }} 金币</p>
     </div>
     <div v-if="isVictory && unlockedCard" class="unlock-panel">
-      <p class="unlock-title">图鉴收录</p>
-      <img
-        v-if="unlockedCard.imageUrl"
-        :src="unlockedCard.imageUrl"
-        :alt="unlockedCard.name"
-        class="unlock-card-img"
-      />
+      <p class="unlock-title">本局解锁</p>
+      <div class="unlock-card-wrap">
+        <CardItem
+          :name="unlockedCard.name"
+          :dept="unlockedCard.deptType || ''"
+          :cost="unlockedCard.cost ?? 0"
+          :type="unlockedCard.cardType || 'support'"
+          :description="unlockedCard.description || ''"
+          :damage="0"
+          :shield="0"
+          :image-url="unlockedCard.imageUrl"
+        />
+      </div>
       <p class="unlock-name">{{ unlockedCard.name }}</p>
       <p class="unlock-hint">已加入卡牌图鉴，下次对局可被抽到</p>
     </div>
     <div v-else-if="collectionComplete" class="unlock-panel unlock-complete">
       <p class="unlock-title">图鉴已集齐</p>
-      <p class="unlock-hint">所有收藏卡均已解锁</p>
+      <p class="unlock-hint">本局没有新的收藏卡</p>
     </div>
     <div v-if="!isVictory" class="revive-section">
       <el-button class="revive-btn" type="primary" :loading="reviving" @click="handleRevive">
@@ -51,9 +57,9 @@ import { ElMessage } from 'element-plus'
 import { useGameStore } from '@/store/game'
 import { useUserStore } from '@/store/user'
 import { useRoomStore } from '@/store/room'
-import { getMatchSettlement, getMatchReviveStatus, requestMatchRevive, type MatchSettlementResp } from '@/api'
+import { getMatchSettlement, getMatchReviveStatus, requestMatchRevive, findSettlementPlayer, unlockedCardFromSettlement, type MatchSettlementResp } from '@/api'
 import BackButton from '@/components/BackButton.vue'
-import { getImageUrl } from '@/utils/imageUrl'
+import CardItem from '@/components/CardItem.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -71,24 +77,14 @@ const isVictory = computed(() => {
 })
 const rewardMoney = computed(() => {
   const list = settlement.value?.players ?? []
-  const mine = list.find((p) => String(p.userId) === String(user.userId)) || list[0]
+  const mine = findSettlementPlayer(list, user.userId) || list[0]
   const awarded = Number(mine?.moneyAwarded ?? game.pointsEarned)
   if (Number.isFinite(awarded) && awarded > 0) return awarded
   return isVictory.value ? 50 : 0
 })
-const mySettlement = computed(() => {
-  const list = settlement.value?.players ?? []
-  return list.find((p) => String(p.userId) === String(user.userId)) || list[0] || null
-})
-const unlockedCard = computed(() => {
-  const mine = mySettlement.value
-  if (!mine?.unlockedCardId || !mine.unlockedCardName) return null
-  return {
-    name: mine.unlockedCardName,
-    imageUrl: getImageUrl(mine.unlockedCardImageUrl),
-  }
-})
-const collectionComplete = computed(() => Boolean(isVictory.value && settlement.value && mySettlement.value && !mySettlement.value.unlockedCardId))
+const mySettlement = computed(() => findSettlementPlayer(settlement.value?.players, user.userId))
+const unlockedCard = computed(() => unlockedCardFromSettlement(mySettlement.value))
+const collectionComplete = computed(() => Boolean(isVictory.value && settlement.value && mySettlement.value && !unlockedCard.value))
 
 onMounted(async () => {
   const matchId = String(route.params.matchId || room.matchId || '')
@@ -168,12 +164,11 @@ h1.lose { color: var(--color-text-tertiary); }
   font-weight: var(--weight-semibold);
   color: #c4a962;
 }
-.unlock-card-img {
-  width: 160px;
-  aspect-ratio: 640 / 1023;
-  object-fit: contain;
-  border-radius: var(--radius-md);
-  background: #0a0c10;
+.unlock-card-wrap {
+  width: 168px;
+  --card-width: 168px;
+  pointer-events: none;
+  margin: 0 auto;
 }
 .unlock-name {
   margin: var(--space-3) 0 var(--space-1);

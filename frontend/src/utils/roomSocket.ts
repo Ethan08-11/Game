@@ -36,15 +36,18 @@ let connectedToken = ''
 let connectedUrl = ''
 let lastHeartbeatAckAt = 0
 
-async function getFreshTokenForReconnect() {
-  const currentToken = localStorage.getItem('token') || connectedToken
-  if (!currentToken) return ''
+function currentAccessToken() {
+  return localStorage.getItem('token') || connectedToken
+}
 
+async function getFreshTokenForReconnect() {
+  const currentToken = currentAccessToken()
+  if (!currentToken) return ''
   try {
     const { refreshAccessTokenForWs } = await import('@/api/client')
     return await refreshAccessTokenForWs()
   } catch {
-    return localStorage.getItem('token') || currentToken
+    return currentAccessToken()
   }
 }
 
@@ -79,11 +82,17 @@ async function reconnectWithFreshToken() {
   connectRoomSocket(freshToken)
 }
 
-function scheduleReconnect() {
+function scheduleReconnect(forceRefresh = false) {
   if (reconnectTimer || !connectedToken || manuallyClosed) return
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
-    void reconnectWithFreshToken()
+    if (forceRefresh) {
+      void reconnectWithFreshToken()
+      return
+    }
+    const token = currentAccessToken()
+    if (!token || manuallyClosed) return
+    connectRoomSocket(token)
   }, RECONNECT_DELAY)
 }
 
@@ -123,10 +132,12 @@ export function connectRoomSocket(accessToken: string) {
     }
   }
 
-  socket.onclose = () => {
+  socket.onclose = (event) => {
     stopHeartbeat()
     socket = null
-    if (!manuallyClosed) scheduleReconnect()
+    if (manuallyClosed) return
+    const needRefresh = event.code === 1008 || event.code === 4401
+    scheduleReconnect(needRefresh)
   }
 
   socket.onerror = () => {

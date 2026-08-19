@@ -1,6 +1,7 @@
 package cc.shturl.wa.demo.service.impl;
 
 import cc.shturl.wa.common.exception.BusinessException;
+import cc.shturl.wa.common.result.ResultCode;
 import cc.shturl.wa.demo.dto.req.ChangePasswordReq;
 import cc.shturl.wa.demo.dto.req.LoginReq;
 import cc.shturl.wa.demo.dto.req.RegisterReq;
@@ -85,7 +86,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthResp refresh(String refreshToken) {
         Long userId = tokenService.resolveUserIdByRefreshToken(refreshToken);
         if (userId == null) {
-            throw new BusinessException("刷新令牌无效或已过期");
+            throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), "刷新令牌无效或已过期");
         }
         User user = userMapper.selectById(userId);
         if (user == null) {
@@ -113,7 +114,7 @@ public class AuthServiceImpl implements AuthService {
     public UserMeResp me(String accessToken) {
         Long userId = tokenService.resolveUserId(accessToken);
         if (userId == null) {
-            throw new BusinessException("登录态已失效");
+            throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), "登录态已失效");
         }
         User user = userMapper.selectById(userId);
         if (user == null) {

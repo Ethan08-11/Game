@@ -165,13 +165,35 @@
             <div class="result-header" :style="{ position: 'relative', top: resultHeaderTop + 'px', left: resultHeaderLeft + 'px' }">
               <h1 :class="game.isVictory ? 'win' : 'lose'">{{ game.isVictory ? '胜利' : '失败' }}</h1>
             </div>
-            <div class="stats-panel" :style="{ position: 'relative', top: statsPanelTop + 'px', left: statsPanelLeft + 'px' }">
-              <p>对局回合：{{ resultRounds }}</p>
-              <p>对局结果：{{ game.isVictory ? '胜利' : '失败' }}</p>
-              <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
-              <p>P1 最终血量：{{ resultPlayer1Hp }}/{{ resultPlayer1MaxHp }} <span v-if="resultPlayer1Dead" class="dead-tag">（阵亡）</span></p>
-              <p>P2 最终血量：{{ resultPlayer2Hp }}/{{ resultPlayer2MaxHp }} <span v-if="resultPlayer2Dead" class="dead-tag">（阵亡）</span></p>
-              <p v-if="game.isVictory" class="points-reward">获得酬劳：+{{ resultRewardMoney }} 金币</p>
+            <div class="result-mid" :style="{ position: 'relative', top: statsPanelTop + 'px', left: statsPanelLeft + 'px' }">
+              <div class="stats-panel">
+                <p>对局回合：{{ resultRounds }}</p>
+                <p>对局结果：{{ game.isVictory ? '胜利' : '失败' }}</p>
+                <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
+                <p>P1 最终血量：{{ resultPlayer1Hp }}/{{ resultPlayer1MaxHp }} <span v-if="resultPlayer1Dead" class="dead-tag">（阵亡）</span></p>
+                <p>P2 最终血量：{{ resultPlayer2Hp }}/{{ resultPlayer2MaxHp }} <span v-if="resultPlayer2Dead" class="dead-tag">（阵亡）</span></p>
+                <p v-if="game.isVictory" class="points-reward">获得酬劳：+{{ resultRewardMoney }} 金币</p>
+              </div>
+              <div v-if="game.isVictory && resultUnlockedCard" class="unlock-panel">
+                <p class="unlock-title">本局解锁</p>
+                <div class="unlock-card-wrap">
+                  <CardItem
+                    :name="resultUnlockedCard.name"
+                    :dept="resultUnlockedCard.deptType || ''"
+                    :cost="resultUnlockedCard.cost ?? 0"
+                    :type="resultUnlockedCard.cardType || 'support'"
+                    :description="resultUnlockedCard.description || ''"
+                    :damage="0"
+                    :shield="0"
+                    :image-url="resultUnlockedCard.imageUrl"
+                  />
+                </div>
+                <p class="unlock-hint">已加入卡牌图鉴</p>
+              </div>
+              <div v-else-if="game.isVictory && settlementFetched && !resultUnlockedCard" class="unlock-panel unlock-complete">
+                <p class="unlock-title">图鉴已集齐</p>
+                <p class="unlock-hint">本局没有新的收藏卡</p>
+              </div>
             </div>
             <div class="btn-group" :style="{ position: 'relative', top: hallBtnTop + 'px', left: hallBtnLeft + 'px' }">
               <el-button type="primary" size="large" @click="$router.push('/game-hall')">返回大厅</el-button>
@@ -285,8 +307,8 @@ import { useGameStore } from '@/store/game'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 //import { abandonMatch, endMatchTurn, getMatchDeck, getMatchDetail, playMatchCard, reconnectMatch } from '@/api'
-import { abandonMatch, chooseFirstPlayer, endMatchTurn, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive } from '@/api'
-import type { PlayCardPayload } from '@/api'
+import { abandonMatch, chooseFirstPlayer, endMatchTurn, findSettlementPlayer, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive, unlockedCardFromSettlement } from '@/api'
+import type { PlayCardPayload, UnlockedCollectibleCard } from '@/api'
 import { subscribeRoomEvent } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
 import { formatPlayerName } from '@/utils/playerName'
@@ -406,8 +428,10 @@ const showDisconnectDialog = ref(false)
 const disconnectCountdown = ref(30)
 const showReviveDialog = ref(false)
 const resultRounds = ref(0)
-const settlementLoading = ref(false)
+const settlementFetched = ref(false)
 const resultRewardMoney = ref(0)
+const resultUnlockedCard = ref<UnlockedCollectibleCard | null>(null)
+let settlementPromise: Promise<void> | null = null
 let pendingWinnerType: number | undefined
 const resultPlayers = ref<Array<{ userId?: number | string; currentHp?: number; maxHp?: number; playerStatus?: string; deptType?: string }>>([])
 const resultPlayer1Hp = computed(() => resultPlayers.value[0]?.currentHp ?? 0)
@@ -840,6 +864,7 @@ async function refreshBattleState() {
   if ((detail.phase === 'FINISHED' || detail.matchEnded) && detail.phase !== 'REVIVE_WAIT' && !justRevived.value) {
     applyGameOver(detail)
     stopActionPhasePoll()
+    void loadSettlement()
     return
   }
 
@@ -940,7 +965,7 @@ async function playCard(card: BattleCard) {
       console.log(`[调试] boss HP 变化 → beforeValue: ${res.beforeValue}, afterValue: ${res.afterValue}, effects:`, JSON.stringify(res.effects ?? []))
       notifyPlayCardEffects(res)
       if (res.matchEnded) {
-        loadSettlement()
+        await loadSettlement()
         return
       }
       const hpBefore = game.bullyHP
@@ -977,7 +1002,7 @@ async function endTurn() {
     const res = await endMatchTurn(activeMatchId.value, payload)
     console.log(`[调试] end-turn 响应:`, JSON.stringify(res, null, 2))
     if (res.matchEnded) {
-      loadSettlement()
+      await loadSettlement()
       return
     }
     const hpBefore = game.bullyHP
@@ -1009,7 +1034,7 @@ async function confirmTarget(targetUserId: string) {
     pendingTargetCard.value = null
     notifyPlayCardEffects(res)
     if (res.matchEnded) {
-      loadSettlement()
+      await loadSettlement()
       return
     }
     await refreshBattleState()
@@ -1142,9 +1167,18 @@ function normalizeResultPlayers(players: any[] = []) {
   })
 }
 
+function currentBattleUserId() {
+  return String(user.userId || room.currentUserId || localStorage.getItem('userId') || '')
+}
+
+function captureUnlockFromPlayers(list: any[] | undefined) {
+  const unlocked = unlockedCardFromSettlement(findSettlementPlayer(list, currentBattleUserId()))
+  if (unlocked) resultUnlockedCard.value = unlocked
+}
+
 function pickRewardMoney(detail: any): number {
   const list = detail?.players ?? []
-  const mine = list.find((p: any) => String(p.userId) === String(user.userId)) || list[0]
+  const mine = findSettlementPlayer(list, currentBattleUserId()) || list[0]
   const awarded = Number(detail?.moneyAwarded ?? mine?.moneyAwarded)
   if (Number.isFinite(awarded) && awarded > 0) return awarded
   return resolveIsVictory(detail) ? 50 : 0
@@ -1162,6 +1196,11 @@ function applyGameOver(detail: any) {
     resultRewardMoney.value = reward
     game.pointsEarned = reward
   }
+  if (game.isVictory) {
+    captureUnlockFromPlayers(detail.players)
+  } else {
+    resultUnlockedCard.value = null
+  }
   pendingWinnerType = undefined
   sessionStorage.removeItem('activeMatchId')
   room.resetMatchMaking()
@@ -1169,30 +1208,44 @@ function applyGameOver(detail: any) {
 }
 
 async function loadSettlement() {
-  if (settlementLoading.value) return
-  settlementLoading.value = true
-  try {
+  if (settlementPromise) return settlementPromise
+  settlementPromise = (async () => {
     const matchId = activeMatchId.value
     if (!matchId) return
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const settlement = await getMatchSettlement(matchId)
+        const mine = findSettlementPlayer(settlement.players, currentBattleUserId())
+        applyGameOver({
+          winnerType: settlement.winnerType,
+          victory: settlement.victory,
+          currentRound: settlement.totalRounds,
+          bossCurrentHp: settlement.bossRemainingHp,
+          bossMaxHp: settlement.bossMaxHp,
+          players: settlement.players,
+          moneyAwarded: mine?.moneyAwarded,
+          expAwarded: mine?.expAwarded,
+        })
+        const unlocked = unlockedCardFromSettlement(mine)
+        if (unlocked) resultUnlockedCard.value = unlocked
+        settlementFetched.value = true
+        return
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)))
+      }
+    }
     try {
-      const settlement = await getMatchSettlement(matchId)
-      const mine = (settlement.players ?? []).find((p: any) => String(p.userId) === String(user.userId))
-      applyGameOver({
-        winnerType: settlement.winnerType,
-        victory: settlement.victory,
-        currentRound: settlement.totalRounds,
-        bossCurrentHp: settlement.bossRemainingHp,
-        bossMaxHp: settlement.bossMaxHp,
-        players: settlement.players,
-        moneyAwarded: mine?.moneyAwarded,
-        expAwarded: mine?.expAwarded,
-      })
-    } catch {
       const detail = await getMatchDetail(matchId)
       applyGameOver(detail)
+    } catch {
+      // ignore
     }
+    settlementFetched.value = true
+  })()
+  try {
+    await settlementPromise
   } finally {
-    settlementLoading.value = false
+    settlementPromise = null
   }
 }
 
@@ -1611,6 +1664,38 @@ onUnmounted(() => {
 }
 .stats-panel p { margin: var(--space-2) 0; color: #4a3020; font-size: calc(var(--text-base) * 2); }
 .points-reward { color: #5d3a1a; font-weight: var(--weight-bold); font-size: calc(var(--text-xl) * 2); }
+.result-mid {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  width: fit-content;
+}
+.unlock-panel {
+  min-width: 160px;
+  padding: 8px 10px 10px;
+  background: rgba(247, 236, 214, 0.88);
+  border: 1px solid rgba(107, 74, 40, 0.45);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.unlock-complete { align-self: center; }
+.unlock-title {
+  margin: 0 0 8px;
+  color: #5d3a1a;
+  font-size: calc(var(--text-base) * 1.6);
+  font-weight: var(--weight-bold);
+}
+.unlock-card-wrap {
+  width: 240px;
+  --card-width: 240px;
+  pointer-events: none;
+  margin: 0 auto;
+}
+.unlock-hint {
+  margin: 8px 0 0;
+  color: #6b4a28;
+  font-size: calc(var(--text-sm) * 1.4);
+}
 .dead-tag { color: #8b3a3a; font-size: var(--text-sm); margin-left: var(--space-1); }
 .btn-group { display: flex; gap: var(--space-4); justify-content: center; flex-wrap: wrap; }
 .btn-group .el-button { font-size: calc(var(--text-base) * 2); color: #4a3020; }

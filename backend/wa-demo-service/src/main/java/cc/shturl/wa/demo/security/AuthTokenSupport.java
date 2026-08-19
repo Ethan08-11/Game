@@ -1,6 +1,7 @@
 package cc.shturl.wa.demo.security;
 
 import cc.shturl.wa.common.exception.BusinessException;
+import cc.shturl.wa.common.result.ResultCode;
 import cc.shturl.wa.demo.service.TokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -24,7 +25,7 @@ public class AuthTokenSupport {
     public Long requireUserIdFromAccessToken(String authorization) {
         Long userId = tokenService.resolveUserId(extractBearerToken(authorization));
         if (userId == null) {
-            throw new BusinessException("登录态已失效");
+            throw new BusinessException(ResultCode.UNAUTHORIZED.getCode(), "登录态已失效");
         }
         return userId;
     }

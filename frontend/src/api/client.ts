@@ -25,6 +25,16 @@ const REQUEST_TIMEOUT = 10000
 
 let refreshPromise: Promise<string> | null = null
 
+function isAuthExpiredError(error: unknown) {
+  const msg = String((error as { message?: string })?.message || '')
+  return /令牌|过期|失效|未授权|401/.test(msg) && !/超时|连接|网络|未就绪/.test(msg)
+}
+
+function shouldRefreshAuth(code?: number, message?: string) {
+  if (code === 401) return true
+  return /登录态已失效|未授权/.test(String(message || ''))
+}
+
 function applyAuthResult(result: { token: string; refreshToken?: string; user?: { id?: number | string; username?: string; displayName?: string } }) {
   localStorage.setItem('token', result.token)
   if (result.refreshToken) localStorage.setItem('refreshToken', result.refreshToken)
@@ -50,7 +60,9 @@ async function refreshAccessToken(): Promise<string> {
     applyAuthResult(result)
     return result.token
   }).catch((e) => {
-    window.dispatchEvent(new CustomEvent('auth:expired'))
+    if (isAuthExpiredError(e)) {
+      window.dispatchEvent(new CustomEvent('auth:expired'))
+    }
     throw e
   }).finally(() => {
     refreshPromise = null
@@ -98,7 +110,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}, skipRe
 
     const json: ApiResponse<T> = await res.json()
     if (!json.success) {
-      if (json.code === 401 && !skipRefresh) {
+      if (!skipRefresh && shouldRefreshAuth(json.code, json.message)) {
         await refreshAccessToken()
         return request<T>(endpoint, options, true)
       }

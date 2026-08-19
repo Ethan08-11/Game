@@ -87,7 +87,7 @@ public class CardCollectionServiceImpl implements CardCollectionService {
         try {
             userCardPoolsMapper.insert(row);
         } catch (DuplicateKeyException ignored) {
-            return null;
+            return picked;
         }
         return picked;
     }
