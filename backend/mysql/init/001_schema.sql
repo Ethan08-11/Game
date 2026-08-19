@@ -209,6 +209,7 @@ CREATE TABLE `cards`  (
   `image_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '卡牌卡面图片URL',
   `combo_card_id` bigint NULL DEFAULT NULL COMMENT '强关联连携卡牌ID',
   `is_unique` tinyint NOT NULL DEFAULT 0 COMMENT '是否唯一卡：1是 0否',
+  `require_unlock` tinyint NOT NULL DEFAULT 0 COMMENT '1需胜利解锁才可进入对局',
   `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态：1启用 0禁用',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
