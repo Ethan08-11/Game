@@ -23,13 +23,14 @@
           >
             <div class="card-image-box">
               <img
-                v-if="card.imageUrl"
-                :src="getImageUrl(card.imageUrl)!"
+                v-if="cardThumb(card)"
+                :src="cardThumb(card)!"
                 :alt="card.unlocked ? card.cardName : '未解锁卡牌'"
                 class="card-img"
                 :class="{ 'card-img-locked': !card.unlocked }"
                 loading="lazy"
                 decoding="async"
+                @error="onCardImgError"
               />
               <span v-else class="card-placeholder">?</span>
             </div>
@@ -53,6 +54,7 @@ import { fetchCardList } from '@/api'
 import type { ApiCard } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { getImageUrl } from '@/utils/imageUrl'
+import lockedCardImg from '@/assets/cards/Card_Locked.webp'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
 
@@ -113,6 +115,18 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+function cardThumb(card: ApiCard): string | null {
+  if (!card.unlocked) return lockedCardImg
+  return getImageUrl(card.imageUrl)
+}
+
+function onCardImgError(event: Event) {
+  const img = event.target as HTMLImageElement
+  if (!img || img.dataset.fallback === '1') return
+  img.dataset.fallback = '1'
+  img.src = lockedCardImg
+}
 
 function getDeptColor(dept: string): string {
   const colors: Record<string, string> = {
