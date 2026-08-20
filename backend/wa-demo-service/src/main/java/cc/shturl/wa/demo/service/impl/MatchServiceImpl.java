@@ -32,7 +32,6 @@ import cc.shturl.wa.demo.entity.MatchRounds;
 import cc.shturl.wa.demo.entity.Matches;
 import cc.shturl.wa.demo.entity.RoomMembers;
 import cc.shturl.wa.demo.entity.UserCardPools;
-import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.mapper.BulliesMapper;
 import cc.shturl.wa.demo.mapper.CardEffectsMapper;
 import cc.shturl.wa.demo.mapper.CardsMapper;
@@ -252,7 +251,9 @@ public class MatchServiceImpl implements MatchService {
     }
 
     @Override
-    @Scheduled(fixedDelayString = "${app.match.revive-timeout-check-ms:5000}")
+    @Scheduled(
+            fixedDelayString = "${app.match.revive-timeout-check-ms:5000}",
+            initialDelayString = "${app.match.revive-timeout-initial-delay-ms:15000}")
     public void timeoutReviveMatches() {
         List<Matches> waitingMatches = matchesMapper.selectList(Wrappers.<Matches>lambdaQuery()
                 .eq(Matches::getStatus, 1).eq(Matches::getPhase, "REVIVE_WAIT"));
@@ -1674,13 +1675,36 @@ public class MatchServiceImpl implements MatchService {
             return;
         }
         LocalDateTime endedAt = LocalDateTime.now();
+        Integer duration = match.getStartedAt() == null
+                ? null
+                : (int) Math.max(java.time.Duration.between(match.getStartedAt(), endedAt).getSeconds(), 0);
+        int claimed = matchesMapper.update(null, Wrappers.<Matches>lambdaUpdate()
+                .eq(Matches::getId, match.getId())
+                .eq(Matches::getStatus, 1)
+                .set(Matches::getStatus, 2)
+                .set(Matches::getPhase, "FINISHED")
+                .set(Matches::getWinnerType, winnerType)
+                .set(Matches::getEndedAt, endedAt)
+                .set(duration != null, Matches::getDurationSeconds, duration)
+                .set(Matches::getVersion, nextVersion(match.getVersion())));
+        if (claimed == 0) {
+            Matches latest = matchesMapper.selectById(match.getId());
+            if (latest != null) {
+                match.setStatus(latest.getStatus());
+                match.setPhase(latest.getPhase());
+                match.setWinnerType(latest.getWinnerType());
+                match.setEndedAt(latest.getEndedAt());
+                match.setDurationSeconds(latest.getDurationSeconds());
+                match.setVersion(latest.getVersion());
+            }
+            return;
+        }
         match.setStatus(2);
         match.setPhase("FINISHED");
         match.setWinnerType(winnerType);
         match.setEndedAt(endedAt);
-        if (match.getStartedAt() != null) {
-            match.setDurationSeconds((int) Math.max(java.time.Duration.between(match.getStartedAt(), endedAt).getSeconds(), 0));
-        }
+        match.setDurationSeconds(duration);
+        match.setVersion(nextVersion(match.getVersion()));
         MatchRounds round = currentRound(match);
         if (round != null && value(round.getRoundStatus()) == 0) {
             round.setRoundStatus(1);
@@ -1759,23 +1783,12 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards) {
-        UserProfile profile = userProfileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery()
-                .eq(UserProfile::getUserId, userId));
-        if (profile == null) {
-            return;
-        }
-        if (winnerType == 1) {
-            profile.setWinCount(value(profile.getWinCount()) + 1);
-        } else if (winnerType == 2) {
-            profile.setLoseCount(value(profile.getLoseCount()) + 1);
-        } else {
-            profile.setDrawCount(value(profile.getDrawCount()) + 1);
-        }
-        if (grantRewards) {
-            profile.setExp(value(profile.getExp()) + rewardExp(winnerType));
-            profile.setMoney((profile.getMoney() == null ? 0L : profile.getMoney()) + rewardMoney(winnerType));
-        }
-        userProfileMapper.updateById(profile);
+        int winDelta = winnerType == 1 ? 1 : 0;
+        int loseDelta = winnerType == 2 ? 1 : 0;
+        int drawDelta = winnerType == 1 || winnerType == 2 ? 0 : 1;
+        int expDelta = grantRewards ? rewardExp(winnerType) : 0;
+        long moneyDelta = grantRewards ? rewardMoney(winnerType) : 0L;
+        userProfileMapper.applyMatchSettlement(userId, winDelta, loseDelta, drawDelta, expDelta, moneyDelta);
     }
 
     private int rewardExp(int winnerType) {

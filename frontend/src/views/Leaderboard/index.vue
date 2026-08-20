@@ -11,7 +11,7 @@
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
         <PlayerAvatar class="row-avatar" :src="item.avatarUrl" :alt="item.displayName || item.username" />
         <span class="name">{{ item.displayName || item.username }}</span>
-        <span class="pts">{{ item.money }} 资金</span>
+        <span class="pts">{{ item.money }} 金币</span>
       </div>
       <div v-if="list.length === 0" class="empty">暂无排行数据</div>
     </div>
