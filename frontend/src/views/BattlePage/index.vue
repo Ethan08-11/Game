@@ -552,17 +552,17 @@ const fundsIndicatorStyle = computed(() => ({
 }))
 const activeFullDeck = computed(() => currentPlayerDetail.value ? players.value[currentUserSeat.value]?.fullDeck || [] : [])
 const revealedDeckCards = computed(() =>
-  activeFullDeck.value.filter((card) => card.zone === 'HAND' || card.zone === 'DISCARD'),
+  activeFullDeck.value.filter((card: BattleCard) => card.zone === 'HAND' || card.zone === 'DISCARD'),
 )
 const hiddenDeckCount = computed(() => {
   if (!activeFullDeck.value.length) return activeDeckCount.value
-  return activeFullDeck.value.filter((card) => card.zone !== 'HAND' && card.zone !== 'DISCARD').length
+  return activeFullDeck.value.filter((card: BattleCard) => card.zone !== 'HAND' && card.zone !== 'DISCARD').length
 })
 const activeHand = computed(() => {
   const source = Array.isArray(matchDetail.value?.hand)
     ? matchDetail.value.hand
     : (players.value[currentUserSeat.value]?.hand || [])
-  return source.map(mapCard).filter((card) => card.zone !== 'DECK')
+  return (source as unknown[]).map(mapCard).filter((card: BattleCard) => card.zone !== 'DECK')
 })
 const activeHandCount = computed(() => matchDetail.value?.players?.[currentUserSeat.value]?.handCount ?? players.value[currentUserSeat.value]?.handCount ?? 0)
 const currentPlayerDetail = computed(() => matchDetail.value?.players?.[currentUserSeat.value] ?? null)
