@@ -85,9 +85,8 @@ public class MatchServiceImpl implements MatchService {
     private static final Logger logger = LoggerFactory.getLogger(MatchServiceImpl.class);
     private static final int PLAYER_COUNT = 2;
     private static final int DECK_SIZE = 30;
-    private static final int DEPT_UNIQUE_COUNT = 5;
-    private static final int DEPT_COPIES = 3;
-    private static final int SHARED_CARD_COUNT = 15;
+    private static final int DEPT_UNIQUE_COUNT = 10;
+    private static final int DEPT_COPIES = 2;
     private static final int INITIAL_HAND_SIZE = 5;
     private static final String SALES = "sales";
     private static final String PURCHASE = "purchase";
@@ -696,10 +695,13 @@ public class MatchServiceImpl implements MatchService {
 
     private void createDeck(Long matchId, MatchPlayers player) {
         List<Long> cardIds = buildUnlockedDeckCardIds(player.getUserId(), player.getDeptType());
+        if (cardIds.isEmpty() || cardIds.size() > DECK_SIZE) {
+            throw new BusinessException("牌组数量异常");
+        }
         Collections.shuffle(cardIds);
-        // 再随机决定起手牌，避免“展示顺序 == 发牌顺序”的可预测感
-        List<Long> handCardIds = new ArrayList<>(cardIds.subList(0, INITIAL_HAND_SIZE));
-        List<Long> deckCardIds = new ArrayList<>(cardIds.subList(INITIAL_HAND_SIZE, cardIds.size()));
+        int handSize = Math.min(INITIAL_HAND_SIZE, cardIds.size());
+        List<Long> handCardIds = new ArrayList<>(cardIds.subList(0, handSize));
+        List<Long> deckCardIds = new ArrayList<>(cardIds.subList(handSize, cardIds.size()));
         Collections.shuffle(handCardIds);
         Collections.shuffle(deckCardIds);
         int insertIndex = 0;
@@ -729,14 +731,15 @@ public class MatchServiceImpl implements MatchService {
             matchCardsMapper.insert(card);
             insertIndex++;
         }
-        if (insertIndex != DECK_SIZE) {
+        if (insertIndex != cardIds.size()) {
             throw new BusinessException("牌组初始化数量异常");
         }
     }
 
     /**
-     * 本局牌组 30 张：本部门随机 5 种不同卡各 3 张，再从公共/路人部抽 15 张（不含对方部门）。
-     * 例：销售部 = 销售 5 种 ×3 + 公共部 15 张（不含采购部）。
+     * 本局牌组尽量凑满 30 张：本部门最多 10 种不同卡各 2 张，其余从公共部（不含对方部门）抽不同卡补齐。
+     * 例：销售部 = 销售最多 10 种 ×2 + 除采购部外的公共部 n 张，总数 ≤ 30。
+     * 解锁不足时可以少于 30 张；只要已解锁数量够填满剩余席位，就必须正好 30 张。
      */
     private List<Long> buildUnlockedDeckCardIds(Long userId, String deptType) {
         Set<Long> playable = cardCollectionService.listPlayableCardIds(userId);
@@ -761,17 +764,24 @@ public class MatchServiceImpl implements MatchService {
                 shared.add(card);
             }
         }
-        if (core.size() < DEPT_UNIQUE_COUNT) {
-            throw new BusinessException("已解锁的本部门卡牌不足 5 种，无法组成牌组");
-        }
-        if (shared.isEmpty()) {
-            throw new BusinessException("没有可用的公共部卡牌");
+        if (core.isEmpty() && shared.isEmpty()) {
+            throw new BusinessException("没有可用于组牌的已解锁卡牌");
         }
         List<Long> cardIds = new ArrayList<>(DECK_SIZE);
-        cardIds.addAll(pickUniqueWithCopies(core, DEPT_UNIQUE_COUNT, DEPT_COPIES));
-        cardIds.addAll(pickUpToCount(shared, SHARED_CARD_COUNT));
-        if (cardIds.size() != DECK_SIZE) {
+        int ownUnique = Math.min(DEPT_UNIQUE_COUNT, core.size());
+        if (ownUnique > 0) {
+            cardIds.addAll(pickUniqueWithCopies(core, ownUnique, DEPT_COPIES));
+        }
+        int sharedSlots = Math.max(DECK_SIZE - cardIds.size(), 0);
+        if (sharedSlots > 0 && !shared.isEmpty()) {
+            cardIds.addAll(pickDistinct(shared, sharedSlots));
+        }
+        if (cardIds.isEmpty() || cardIds.size() > DECK_SIZE) {
             throw new BusinessException("牌组生成数量异常");
+        }
+        int available = ownUnique * DEPT_COPIES + shared.size();
+        if (available >= DECK_SIZE && cardIds.size() != DECK_SIZE) {
+            throw new BusinessException("已解锁卡牌足够时牌组必须凑满 " + DECK_SIZE + " 张");
         }
         return cardIds;
     }
@@ -784,6 +794,18 @@ public class MatchServiceImpl implements MatchService {
             for (int copy = 0; copy < copies; copy++) {
                 ids.add(cardId);
             }
+        }
+        return ids;
+    }
+
+    private List<Long> pickDistinct(List<Cards> pool, int count) {
+        Collections.shuffle(pool);
+        List<Long> ids = new ArrayList<>(Math.min(count, pool.size()));
+        for (Cards card : pool) {
+            if (ids.size() >= count) {
+                break;
+            }
+            ids.add(card.getId());
         }
         return ids;
     }
@@ -1209,7 +1231,7 @@ public class MatchServiceImpl implements MatchService {
 
     private boolean isSharedDept(String cardDept) {
         String card = cardDept == null ? "" : cardDept.trim().toLowerCase();
-        return "public".equals(card) || "neutral".equals(card) || "passerby".equals(card) || "tech".equals(card);
+        return !card.isEmpty() && !SALES.equals(card) && !PURCHASE.equals(card);
     }
 
     private MatchPendingEffects findNextCardMultiplier(Long matchId, Long userId) {

@@ -1486,9 +1486,14 @@ function logMatchEvent(type: string, data: any, message?: any) {
     case 'boss.attack.resolved':
       addAction('Boss 发动攻击', `boss:${d?.resolvedRound ?? d?.currentRound ?? d?.version ?? Date.now()}`)
       break
-    case 'match.ended':
-      addAction(game.isVictory ? '击败霸凌者！雇主安全了！' : `${fallenDeptLabel.value}倒下，保护失败`, `ended:${d?.winnerType ?? ''}:${d?.version ?? ''}`)
+    case 'match.ended': {
+      const won = resolveIsVictory(d) || game.isVictory
+      addAction(
+        won ? '霸凌者倒下，保护成功' : `${fallenDeptLabel.value || '护卫'}倒下，保护失败`,
+        `ended:${d?.winnerType ?? ''}:${d?.version ?? ''}`,
+      )
       break
+    }
   }
 }
 
@@ -1608,9 +1613,9 @@ onMounted(async () => {
     subscribeRoomEvent('match.revive.failed', handleMatchEvent),
     subscribeRoomEvent('match.ended', async (data: any) => {
       // match.ended 不做 matchId 过滤，确保放弃/掉线等通知不会因 ID 不匹配被静默丢弃
-      logMatchEvent('match.ended', data)
       const d = data?.data ?? data
       if (d?.winnerType != null) pendingWinnerType = Number(d.winnerType)
+      logMatchEvent('match.ended', data)
       await refreshBattleState()
     }),
   )
