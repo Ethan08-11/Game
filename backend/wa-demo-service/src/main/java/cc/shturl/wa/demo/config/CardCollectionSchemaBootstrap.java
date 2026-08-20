@@ -43,6 +43,7 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         runScript("db/005_it_sample_card.sql");
         runScript("db/006_hr_collectible_cards.sql");
         runScript("db/007_boss_collectible_cards.sql");
+        runScript("db/008_character_collectible_cards.sql");
         log.info("Card collection schema bootstrap finished.");
     }
 
