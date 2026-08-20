@@ -4,12 +4,18 @@ import cc.shturl.wa.common.result.Result;
 import cc.shturl.wa.common.result.ResultCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -64,6 +70,37 @@ public class GlobalExceptionHandler {
     public Result<Void> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("非法参数: {}", e.getMessage());
         return Result.fail(ResultCode.BAD_REQUEST.getCode(), e.getMessage());
+    }
+
+    /**
+     * 探活、浏览器打开根路径、缺静态文件时，Spring 会抛 NoResourceFoundException。
+     * 不能走通用 Exception 处理器，否则 404 会被记成 ERROR「系统异常」。
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Result<Void> handleNotFound(Exception e) {
+        log.debug("资源不存在: {}", e.getMessage());
+        return Result.fail(ResultCode.NOT_FOUND);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public Result<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        log.debug("HTTP 方法不支持: {}", e.getMessage());
+        return Result.fail(ResultCode.BAD_REQUEST.getCode(), e.getMessage());
+    }
+
+    @ExceptionHandler({MissingServletRequestParameterException.class, HttpMessageNotReadableException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleBadRequest(Exception e) {
+        log.debug("请求无法读取: {}", e.getMessage());
+        return Result.fail(ResultCode.BAD_REQUEST.getCode(), e.getMessage());
+    }
+
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public Result<Void> handleClientGone(AsyncRequestNotUsableException e) {
+        log.debug("客户端已断开: {}", e.getMessage());
+        return Result.fail(ResultCode.FAIL.getCode(), "客户端已断开");
     }
 
     /**

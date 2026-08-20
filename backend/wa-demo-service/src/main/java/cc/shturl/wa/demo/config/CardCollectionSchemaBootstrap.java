@@ -56,7 +56,7 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
                 ADD COLUMN `require_unlock` tinyint NOT NULL DEFAULT 0
                 COMMENT '1需胜利解锁才可进入对局' AFTER `is_unique`
                 """);
-        log.warn("Added cards.require_unlock column.");
+        log.info("Added cards.require_unlock column.");
     }
 
     private void ensureUserCardPoolsTable() {
@@ -78,24 +78,36 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
                   KEY `card_id` (`card_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户已获取/解锁的卡牌表'
                 """);
-        log.warn("Created user_card_pools table.");
+        log.info("Created user_card_pools table.");
     }
 
     private void realignLegacyCardDepartments() {
-        int riley = jdbcTemplate.update(
-                "UPDATE `cards` SET `dept_id` = 1, `dept_type` = 'sales' WHERE `card_code` = 'O-15' OR `card_name` = 'Riley'");
-        int charlene = jdbcTemplate.update(
-                "UPDATE `cards` SET `dept_id` = 2, `dept_type` = 'purchase' WHERE `card_code` = 'O-01' OR `card_name` IN ('Charlene', 'Cherlene')");
+        int riley = jdbcTemplate.update("""
+                UPDATE `cards`
+                SET `dept_id` = 1, `dept_type` = 'sales'
+                WHERE (`card_code` = 'O-15' OR `card_name` = 'Riley')
+                  AND (`dept_id` IS NULL OR `dept_id` <> 1 OR `dept_type` IS NULL OR `dept_type` <> 'sales')
+                """);
+        int charlene = jdbcTemplate.update("""
+                UPDATE `cards`
+                SET `dept_id` = 2, `dept_type` = 'purchase'
+                WHERE (`card_code` = 'O-01' OR `card_name` IN ('Charlene', 'Cherlene'))
+                  AND (`dept_id` IS NULL OR `dept_id` <> 2 OR `dept_type` IS NULL OR `dept_type` <> 'purchase')
+                """);
         if (riley > 0 || charlene > 0) {
-            log.warn("Realigned card departments: Riley/O-15 -> sales ({}), Charlene/O-01 -> purchase ({}).", riley, charlene);
+            log.info("Realigned card departments: Riley/O-15 -> sales ({}), Charlene/O-01 -> purchase ({}).", riley, charlene);
         }
     }
 
     private void refreshEthanCardArt() {
-        int n = jdbcTemplate.update(
-                "UPDATE `cards` SET `image_url` = '/images/cards/技术_Ethan.webp' WHERE `card_code` = 'O-13' OR `card_name` = 'Ethan'");
+        int n = jdbcTemplate.update("""
+                UPDATE `cards`
+                SET `image_url` = '/images/cards/技术_Ethan.webp'
+                WHERE (`card_code` = 'O-13' OR `card_name` = 'Ethan')
+                  AND (`image_url` IS NULL OR `image_url` <> '/images/cards/技术_Ethan.webp')
+                """);
         if (n > 0) {
-            log.warn("Updated Ethan/O-13 card art to 技术_Ethan.webp ({} rows).", n);
+            log.info("Updated Ethan/O-13 card art to 技术_Ethan.webp ({} rows).", n);
         }
     }
 
