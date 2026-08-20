@@ -65,7 +65,7 @@ public class CardCollectionServiceImpl implements CardCollectionService {
     @Override
     @Transactional
     public Cards unlockRandomCollectible(Long userId) {
-        if (userId == null || hasFullCollection(userId)) {
+        if (userId == null || userMapper.selectById(userId) == null || hasFullCollection(userId)) {
             return null;
         }
         List<Cards> locked = cardsMapper.selectList(Wrappers.<Cards>lambdaQuery()

@@ -55,12 +55,16 @@ import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -79,6 +83,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class MatchServiceImpl implements MatchService {
+    private static final Logger logger = LoggerFactory.getLogger(MatchServiceImpl.class);
     private static final int PLAYER_COUNT = 2;
     private static final int DECK_SIZE = 30;
     private static final int DEPT_UNIQUE_COUNT = 5;
@@ -117,6 +122,7 @@ public class MatchServiceImpl implements MatchService {
     private final UserPresenceService userPresenceService;
     private final cc.shturl.wa.demo.service.TaskService taskService;
     private final CardCollectionService cardCollectionService;
+    private final PlatformTransactionManager transactionManager;
 
     @Override
     @Transactional
@@ -247,22 +253,35 @@ public class MatchServiceImpl implements MatchService {
 
     @Override
     @Scheduled(fixedDelayString = "${app.match.revive-timeout-check-ms:5000}")
-    @Transactional
     public void timeoutReviveMatches() {
         List<Matches> waitingMatches = matchesMapper.selectList(Wrappers.<Matches>lambdaQuery()
                 .eq(Matches::getStatus, 1).eq(Matches::getPhase, "REVIVE_WAIT"));
         LocalDateTime now = LocalDateTime.now();
-        for (Matches match : waitingMatches) {
-            List<MatchPlayers> players = listPlayers(match.getId());
-            boolean hasExpired = players.stream().filter(player -> value(player.getCurrentHp()) <= 0)
-                    .anyMatch(player -> player.getUpdatedAt() == null
-                            || java.time.Duration.between(player.getUpdatedAt(), now).toMillis() >= REVIVE_TIMEOUT_MILLIS);
-            if (hasExpired) {
-                finishMatch(match, 2);
-                notifyPlayers(match.getId(), "match.ended", Map.of(
-                        "matchId", match.getId(), "winnerType", 2, "reason", "revive_timeout"));
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        for (Matches waiting : waitingMatches) {
+            try {
+                template.executeWithoutResult(status -> settleExpiredReviveMatch(waiting.getId(), now));
+            } catch (Exception e) {
+                logger.warn("Revive timeout settlement failed matchId={}: {}", waiting.getId(), e.getMessage());
             }
         }
+    }
+
+    private void settleExpiredReviveMatch(Long matchId, LocalDateTime now) {
+        Matches match = matchesMapper.selectById(matchId);
+        if (match == null || value(match.getStatus()) != 1 || !"REVIVE_WAIT".equals(match.getPhase())) {
+            return;
+        }
+        List<MatchPlayers> players = listPlayers(match.getId());
+        boolean hasExpired = players.stream().filter(player -> value(player.getCurrentHp()) <= 0)
+                .anyMatch(player -> player.getUpdatedAt() == null
+                        || java.time.Duration.between(player.getUpdatedAt(), now).toMillis() >= REVIVE_TIMEOUT_MILLIS);
+        if (!hasExpired) {
+            return;
+        }
+        finishMatch(match, 2);
+        notifyPlayers(match.getId(), "match.ended", Map.of(
+                "matchId", match.getId(), "winnerType", 2, "reason", "revive_timeout"));
     }
 
     @Override
@@ -1703,27 +1722,37 @@ public class MatchServiceImpl implements MatchService {
         if (grantRewards && (winnerType == 1 || winnerType == 2)) {
             List<MatchPlayers> settledPlayers = listPlayers(match.getId());
             for (MatchPlayers player : settledPlayers) {
-                String resultType = winnerType == 1 ? "WIN" : "LOSE";
-                Long teammateId = settledPlayers.stream()
-                        .filter(p -> !p.getUserId().equals(player.getUserId()))
-                        .map(MatchPlayers::getUserId)
-                        .findFirst().orElse(null);
-                taskService.recordMatchResult(player.getUserId(), resultType, teammateId);
+                try {
+                    String resultType = winnerType == 1 ? "WIN" : "LOSE";
+                    Long teammateId = settledPlayers.stream()
+                            .filter(p -> !p.getUserId().equals(player.getUserId()))
+                            .map(MatchPlayers::getUserId)
+                            .findFirst().orElse(null);
+                    taskService.recordMatchResult(player.getUserId(), resultType, teammateId);
+                } catch (Exception e) {
+                    logger.warn("Skip match task progress userId={} matchId={}: {}",
+                            player.getUserId(), match.getId(), e.getMessage());
+                }
             }
             if (winnerType == 1) {
                 for (MatchPlayers player : settledPlayers) {
-                    Cards unlocked = cardCollectionService.unlockRandomCollectible(player.getUserId());
-                    if (unlocked == null) {
-                        continue;
+                    try {
+                        Cards unlocked = cardCollectionService.unlockRandomCollectible(player.getUserId());
+                        if (unlocked == null) {
+                            continue;
+                        }
+                        MatchActions unlockAction = new MatchActions();
+                        unlockAction.setMatchId(match.getId());
+                        unlockAction.setRoundId(round == null ? null : round.getId());
+                        unlockAction.setActorType("system");
+                        unlockAction.setActorUserId(player.getUserId());
+                        unlockAction.setActionType("unlock_card");
+                        unlockAction.setCardId(unlocked.getId());
+                        matchActionsMapper.insert(unlockAction);
+                    } catch (Exception e) {
+                        logger.warn("Skip card unlock userId={} matchId={}: {}",
+                                player.getUserId(), match.getId(), e.getMessage());
                     }
-                    MatchActions unlockAction = new MatchActions();
-                    unlockAction.setMatchId(match.getId());
-                    unlockAction.setRoundId(round == null ? null : round.getId());
-                    unlockAction.setActorType("system");
-                    unlockAction.setActorUserId(player.getUserId());
-                    unlockAction.setActionType("unlock_card");
-                    unlockAction.setCardId(unlocked.getId());
-                    matchActionsMapper.insert(unlockAction);
                 }
             }
         }

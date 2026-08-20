@@ -5,12 +5,16 @@ import cc.shturl.wa.demo.dto.resp.TaskClaimResp;
 import cc.shturl.wa.demo.dto.resp.TaskResp;
 import cc.shturl.wa.demo.dto.resp.UserTaskResp;
 import cc.shturl.wa.demo.entity.Tasks;
+import cc.shturl.wa.demo.entity.User;
 import cc.shturl.wa.demo.entity.UserTask;
 import cc.shturl.wa.demo.mapper.TaskMapper;
+import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserTaskMapper;
 import cc.shturl.wa.demo.service.TaskService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +24,7 @@ import java.time.temporal.WeekFields;
 import java.util.List;
 import java.util.Locale;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
@@ -30,6 +35,7 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskMapper taskMapper;
     private final UserTaskMapper userTaskMapper;
+    private final UserMapper userMapper;
 
     @Override
     public List<TaskResp> listTasks(String taskType) {
@@ -45,6 +51,9 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public List<UserTaskResp> listMyTasks(Long userId) {
+        if (!userExists(userId)) {
+            return List.of();
+        }
         ensureDefaultTasks(userId);
         List<UserTask> userTasks = userTaskMapper.selectList(Wrappers.<UserTask>lambdaQuery()
                 .eq(UserTask::getUserId, userId)
@@ -78,6 +87,10 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public void recordMatchResult(Long userId, String resultType, Long teammateId) {
+        if (!userExists(userId)) {
+            log.warn("Skip match task progress for missing user {}", userId);
+            return;
+        }
         List<Tasks> tasks = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
                 .eq(Tasks::getStatus, 1)
                 .like(Tasks::getTaskCode, "T-DAILY-")
@@ -98,6 +111,9 @@ public class TaskServiceImpl implements TaskService {
             }
             String periodKey = buildPeriodKey(task.getPeriodScope());
             UserTask userTask = findOrCreateUserTask(userId, task, periodKey);
+            if (userTask == null || userTask.getId() == null) {
+                continue;
+            }
             int next = (userTask.getProgressValue() == null ? 0 : userTask.getProgressValue()) + 1;
             userTask.setProgressValue(next);
             if (userTask.getTargetValue() == null || userTask.getTargetValue() <= 0) {
@@ -118,6 +134,10 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public void recordRoomFormation(Long userId, Long teammateId) {
+        if (!userExists(userId)) {
+            log.warn("Skip room task progress for missing user {}", userId);
+            return;
+        }
         List<Tasks> tasks = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
                 .eq(Tasks::getStatus, 1)
                 .like(Tasks::getProgressType, "DISTINCT_TEAMMATE_COUNT")
@@ -125,6 +145,9 @@ public class TaskServiceImpl implements TaskService {
         for (Tasks task : tasks) {
             String periodKey = buildPeriodKey(task.getPeriodScope());
             UserTask userTask = findOrCreateUserTask(userId, task, periodKey);
+            if (userTask == null || userTask.getId() == null) {
+                continue;
+            }
             int next = (userTask.getProgressValue() == null ? 0 : userTask.getProgressValue()) + 1;
             userTask.setProgressValue(next);
             if (userTask.getTargetValue() == null || userTask.getTargetValue() <= 0) {
@@ -143,6 +166,9 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void ensureDefaultTasks(Long userId) {
+        if (!userExists(userId)) {
+            return;
+        }
         List<Tasks> tasks = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
                 .eq(Tasks::getStatus, 1));
         for (Tasks task : tasks) {
@@ -152,14 +178,7 @@ public class TaskServiceImpl implements TaskService {
                     .eq(UserTask::getTaskId, task.getId())
                     .eq(UserTask::getPeriodKey, periodKey));
             if (existing == null) {
-                UserTask userTask = new UserTask();
-                userTask.setUserId(userId);
-                userTask.setTaskId(task.getId());
-                userTask.setPeriodKey(periodKey);
-                userTask.setProgressValue(0);
-                userTask.setTargetValue(task.getTargetCount() == null ? 1 : task.getTargetCount());
-                userTask.setStatus(0);
-                userTaskMapper.insert(userTask);
+                insertUserTask(userId, task, periodKey);
             }
         }
     }
@@ -170,16 +189,51 @@ public class TaskServiceImpl implements TaskService {
                 .eq(UserTask::getTaskId, task.getId())
                 .eq(UserTask::getPeriodKey, periodKey));
         if (userTask == null) {
-            userTask = new UserTask();
-            userTask.setUserId(userId);
-            userTask.setTaskId(task.getId());
-            userTask.setPeriodKey(periodKey);
-            userTask.setProgressValue(0);
-            userTask.setTargetValue(task.getTargetCount() == null ? 1 : task.getTargetCount());
-            userTask.setStatus(0);
-            userTaskMapper.insert(userTask);
+            userTask = insertUserTask(userId, task, periodKey);
         }
         return userTask;
+    }
+
+    private UserTask insertUserTask(Long userId, Tasks task, String periodKey) {
+        UserTask userTask = new UserTask();
+        userTask.setUserId(userId);
+        userTask.setTaskId(task.getId());
+        userTask.setPeriodKey(periodKey);
+        userTask.setProgressValue(0);
+        userTask.setTargetValue(task.getTargetCount() == null ? 1 : task.getTargetCount());
+        userTask.setStatus(0);
+        try {
+            userTaskMapper.insert(userTask);
+        } catch (RuntimeException e) {
+            if (!isIntegrityViolation(e)) {
+                throw e;
+            }
+            log.warn("Skip user_tasks insert for user {} task {}: {}", userId, task.getId(), e.getMessage());
+            return userTaskMapper.selectOne(Wrappers.<UserTask>lambdaQuery()
+                    .eq(UserTask::getUserId, userId)
+                    .eq(UserTask::getTaskId, task.getId())
+                    .eq(UserTask::getPeriodKey, periodKey));
+        }
+        return userTask;
+    }
+
+    private boolean isIntegrityViolation(Throwable error) {
+        while (error != null) {
+            if (error instanceof DataIntegrityViolationException
+                    || error instanceof java.sql.SQLIntegrityConstraintViolationException) {
+                return true;
+            }
+            error = error.getCause();
+        }
+        return false;
+    }
+
+    private boolean userExists(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        User user = userMapper.selectById(userId);
+        return user != null;
     }
 
     private String buildPeriodKey(String scope) {
