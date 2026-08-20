@@ -73,21 +73,32 @@
           </div>
 
           <div class="hand-cards" :style="{ '--card-width': cardWidth + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }">
-            <CardItem
-              v-for="card in activeHand"
-              :key="card.id"
-              :name="card.name"
-              :dept="card.dept"
-              :cost="card.cost"
-              :type="card.type"
-              :description="card.description"
-              :damage="card.damage || 0"
-              :shield="card.shield || 0"
-              :image-url="card.imageUrl"
-              :disabled="!canActWithActivePlayer"
-              @play="playCard(card)"
-            />
-            <div v-if="activeHandCount === 0" class="hand-empty">当前回合手牌已用完</div>
+            <template v-if="canRevealHand">
+              <CardItem
+                v-for="card in activeHand"
+                :key="card.id"
+                :name="card.name"
+                :dept="card.dept"
+                :cost="card.cost"
+                :type="card.type"
+                :description="card.description"
+                :damage="card.damage || 0"
+                :shield="card.shield || 0"
+                :image-url="card.imageUrl"
+                :disabled="!canActWithActivePlayer"
+                @play="playCard(card)"
+              />
+              <div v-if="activeHandCount === 0" class="hand-empty">当前回合手牌已用完</div>
+            </template>
+            <template v-else>
+              <div
+                v-for="n in hiddenHandCount"
+                :key="`hand-back-${n}`"
+                class="hand-card-back"
+                aria-hidden="true"
+              />
+              <div class="hand-wait-hint">等待自己的回合</div>
+            </template>
           </div>
         </div>
 
@@ -107,12 +118,12 @@
       append-to-body
       :z-index="200000"
     >
-      <div v-if="revealedDeckCards.length === 0 && hiddenDeckCount === 0" class="deck-empty">暂无牌组数据</div>
+      <div v-if="matchDeckCards.length === 0" class="deck-empty">暂无牌组数据</div>
       <template v-else>
-        <p class="deck-privacy-hint">仅展示已入手或已弃置的牌，牌库保持背面。</p>
-        <div v-if="revealedDeckCards.length" class="deck-grid" style="--card-width: 168px">
+        <p class="deck-privacy-hint">本局牌组已抽取完成，可查看全部 {{ matchDeckCards.length }} 张卡牌信息。</p>
+        <div class="deck-grid" style="--card-width: 168px">
           <CardItem
-            v-for="card in revealedDeckCards"
+            v-for="card in matchDeckCards"
             :key="card.id"
             class="deck-card-item"
             :name="card.name"
@@ -125,12 +136,6 @@
             :image-url="card.imageUrl"
             disabled
           />
-        </div>
-        <div v-if="hiddenDeckCount > 0" class="deck-backs">
-          <p class="deck-backs-title">牌库剩余 {{ hiddenDeckCount }} 张</p>
-          <div class="deck-back-row">
-            <div v-for="n in hiddenDeckCount" :key="`deck-back-${n}`" class="deck-card-back" aria-hidden="true" />
-          </div>
         </div>
       </template>
     </el-dialog>
@@ -232,14 +237,7 @@
 
     <Teleport to="body">
       <div v-if="showReviveDialog" class="revive-overlay">
-        <div class="revive-card" @click.stop>
-          <h2>观看视频广告复活</h2>
-          <p v-if="reviveStatusLoading">正在查询复活状态…</p>
-          <template v-else>
-            <p>当前可复活次数：{{ reviveStatus?.reviveCount ?? 0 }}/{{ reviveStatus?.reviveLimit ?? 1 }}</p>
-            <p>当前血量：{{ reviveStatus?.currentHp ?? 0 }}/{{ reviveStatus?.maxHp ?? 0 }}</p>
-            <p v-if="reviveStatus && !reviveStatus.canRevive" class="revive-hint">{{ reviveStatus.message || '当前无法复活' }}</p>
-          </template>
+        <div class="revive-stage" @click.stop>
           <video
             v-if="canShowRevive"
             ref="reviveVideoRef"
@@ -254,7 +252,17 @@
           >
             <source :src="reviveAdVideo" type="video/mp4" />
           </video>
-          <p v-if="reviveVideoError" class="revive-error">{{ reviveVideoError }}</p>
+          <div v-else class="revive-video revive-video-placeholder" />
+          <div class="revive-header">
+            <h2>观看视频广告复活</h2>
+            <p v-if="reviveStatusLoading">正在查询复活状态…</p>
+            <template v-else>
+              <p>当前可复活次数：{{ reviveStatus?.reviveCount ?? 0 }}/{{ reviveStatus?.reviveLimit ?? 1 }}</p>
+              <p>当前血量：{{ reviveStatus?.currentHp ?? 0 }}/{{ reviveStatus?.maxHp ?? 0 }}</p>
+              <p v-if="reviveStatus && !reviveStatus.canRevive" class="revive-hint">{{ reviveStatus.message || '当前无法复活' }}</p>
+            </template>
+            <p v-if="reviveVideoError" class="revive-error">{{ reviveVideoError }}</p>
+          </div>
           <div class="revive-actions">
             <el-button @click="handleReviveClose">放弃复活</el-button>
             <el-button type="primary" :disabled="!canConfirmRevive" :loading="reviveSubmitting" @click="submitRevive">确认复活</el-button>
@@ -551,13 +559,7 @@ const fundsIndicatorStyle = computed(() => ({
   transform: `translate(${px(fundsPos.left)}, ${px(fundsPos.top)})`,
 }))
 const activeFullDeck = computed(() => currentPlayerDetail.value ? players.value[currentUserSeat.value]?.fullDeck || [] : [])
-const revealedDeckCards = computed(() =>
-  activeFullDeck.value.filter((card: BattleCard) => card.zone === 'HAND' || card.zone === 'DISCARD'),
-)
-const hiddenDeckCount = computed(() => {
-  if (!activeFullDeck.value.length) return activeDeckCount.value
-  return activeFullDeck.value.filter((card: BattleCard) => card.zone !== 'HAND' && card.zone !== 'DISCARD').length
-})
+const matchDeckCards = computed(() => activeFullDeck.value)
 const activeHand = computed(() => {
   const source = Array.isArray(matchDetail.value?.hand)
     ? matchDetail.value.hand
@@ -674,6 +676,17 @@ const canActWithActivePlayer = computed(() => {
   if (game.isGameOver || isSelectingFirstPlayer.value || isCurrentUserEnded.value) return false
   if (activePhase.value && activePhase.value !== 'PLAYER_ACTION') return false
   return isCurrentUserActiveTurnPlayer.value
+})
+const canRevealHand = computed(() => {
+  if (game.isGameOver) return false
+  if (isSelectingFirstPlayer.value) return true
+  if (activePhase.value !== 'PLAYER_ACTION') return false
+  return isCurrentUserActiveTurnPlayer.value && !isCurrentUserEnded.value
+})
+const hiddenHandCount = computed(() => {
+  const fromHand = activeHand.value.length
+  const fromCount = activeHandCount.value
+  return Math.max(fromHand, fromCount, 0)
 })
 const customerStatusText = computed(() => {
   if (customerTriggered.value === null) return '顾客机制：等待判定'
@@ -1634,17 +1647,17 @@ onUnmounted(() => {
 }
 .result-panel {
   position: relative;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-xl);
+  border: none;
+  border-radius: 18px;
   text-align: center;
   width: min(760px, 94vw);
   height: min(620px, 88vh);
   overflow: hidden;
-  background: #000;
+  background: transparent;
 }
 .result-bg-layer {
   position: absolute;
-  inset: 0;
+  inset: -24% -14%;
   background: center / cover no-repeat;
   z-index: 0;
 }
@@ -1801,63 +1814,83 @@ onUnmounted(() => {
 .revive-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.72);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   z-index: 10000;
   animation: fadeIn 0.3s ease;
-  padding: 24px;
+  padding: 0;
 }
-.revive-card {
-  background: var(--color-surface-02);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 12px;
-  padding: 14px 16px 12px;
-  text-align: center;
-  width: min(340px, calc(100vw - 48px));
-  max-height: min(78vh, 520px);
-  overflow: auto;
+.revive-stage {
+  position: relative;
+  width: min(42vw, 640px);
+  height: 100%;
+  background: #000;
   color: var(--color-text-primary);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.55);
 }
-.revive-card h2 {
-  font-size: 18px;
+.revive-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  padding: 18px 20px 28px;
+  text-align: center;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.35), transparent);
+  pointer-events: none;
+}
+.revive-header h2 {
+  font-size: 22px;
   margin: 0 0 8px;
   color: var(--color-accent);
 }
-.revive-card p {
+.revive-header p {
   margin: 4px 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 .revive-video {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  max-width: 260px;
-  max-height: 146px;
+  height: 100%;
+  max-width: none;
+  max-height: none;
   object-fit: contain;
-  border-radius: 8px;
-  margin: 8px auto;
+  background: #000;
+  border-radius: 0;
+  margin: 0;
+}
+.revive-video-placeholder {
   background: #000;
 }
 .revive-error {
   color: #f56c6c;
-  font-size: 12px;
-  margin-top: 4px;
+  font-size: 13px;
+  margin-top: 8px;
 }
 .revive-hint {
   color: var(--color-text-tertiary);
-  font-size: 12px;
+  font-size: 13px;
 }
 .revive-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 64px;
+  z-index: 2;
   display: flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: center;
-  margin-top: 10px;
+  padding: 0 16px;
 }
 .revive-actions .el-button {
-  font-size: 13px;
-  padding: 6px 14px;
+  font-size: 15px;
+  padding: 10px 22px;
+  min-width: 120px;
 }
 
 .revive-unavailable {
@@ -2022,6 +2055,30 @@ onUnmounted(() => {
   color: rgba(255,255,255,0.7);
   padding: var(--space-4);
   white-space: nowrap;
+}
+.hand-card-back {
+  width: calc(var(--card-width) * 0.88);
+  aspect-ratio: 441 / 800;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(196, 169, 98, 0.5);
+  background:
+    linear-gradient(160deg, rgba(196, 169, 98, 0.38), rgba(40, 28, 16, 0.96)),
+    repeating-linear-gradient(45deg, rgba(196, 169, 98, 0.18) 0 8px, transparent 8px 16px);
+  box-shadow: inset 0 0 0 4px rgba(90, 58, 28, 0.45), 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+.hand-wait-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  text-align: center;
+  color: rgba(255, 248, 230, 0.92);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
 }
 .finish-btn:disabled {
   cursor: not-allowed;

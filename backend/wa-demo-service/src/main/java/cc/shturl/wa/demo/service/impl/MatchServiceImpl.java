@@ -344,14 +344,12 @@ public class MatchServiceImpl implements MatchService {
 
     @Override
     public MatchDeckResp getMatchDeck(Long currentUserId, Long matchId) {
-        Matches match = requireMatch(matchId);
         requirePlayerAndList(currentUserId, matchId);
         List<MatchCards> cards = matchCardsMapper.selectList(Wrappers.<MatchCards>lambdaQuery()
                 .eq(MatchCards::getMatchId, matchId)
                 .eq(MatchCards::getUserId, currentUserId)
                 .orderByAsc(MatchCards::getId));
-        boolean hideUpcoming = value(match.getStatus()) == 1;
-        return new MatchDeckResp(matchId, currentUserId, cards.size(), toCardResponses(cards, hideUpcoming));
+        return new MatchDeckResp(matchId, currentUserId, cards.size(), toCardResponses(cards));
     }
 
     @Override
