@@ -67,6 +67,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -77,7 +78,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MatchServiceImpl implements MatchService {
     private static final int PLAYER_COUNT = 2;
-    private static final int DECK_SIZE = 20;
+    private static final int DECK_SIZE = 30;
+    private static final int DEPT_UNIQUE_COUNT = 5;
+    private static final int DEPT_COPIES = 3;
+    private static final int SHARED_CARD_COUNT = 15;
     private static final int INITIAL_HAND_SIZE = 5;
     private static final String SALES = "sales";
     private static final String PURCHASE = "purchase";
@@ -191,8 +195,10 @@ public class MatchServiceImpl implements MatchService {
                 .sorted(Comparator.comparing(MatchPlayers::getSeatNo))
                 .map(player -> toPlayerState(player, cardsByUser.getOrDefault(player.getUserId(), List.of())))
                 .toList();
+        int currentRoundNo = value(match.getCurrentRound());
         List<MatchCardResp> hand = toCardResponses(allCards.stream()
-                .filter(card -> currentUserId.equals(card.getUserId()) && "HAND".equals(card.getZone()))
+                .filter(card -> Objects.equals(currentUserId, card.getUserId()) && "HAND".equals(card.getZone()))
+                .filter(card -> card.getDrawnRound() == null || value(card.getDrawnRound()) == currentRoundNo)
                 .toList());
         MatchPlayers firstPlayer = players.stream().filter(player -> value(player.getEndedTurn()) == 0)
                 .sorted(Comparator.comparing(MatchPlayers::getSeatNo)).findFirst().orElse(null);
@@ -338,12 +344,14 @@ public class MatchServiceImpl implements MatchService {
 
     @Override
     public MatchDeckResp getMatchDeck(Long currentUserId, Long matchId) {
+        Matches match = requireMatch(matchId);
         requirePlayerAndList(currentUserId, matchId);
         List<MatchCards> cards = matchCardsMapper.selectList(Wrappers.<MatchCards>lambdaQuery()
                 .eq(MatchCards::getMatchId, matchId)
                 .eq(MatchCards::getUserId, currentUserId)
-                .orderByAsc(MatchCards::getCardId, MatchCards::getId));
-        return new MatchDeckResp(matchId, currentUserId, cards.size(), toCardResponses(cards));
+                .orderByAsc(MatchCards::getId));
+        boolean hideUpcoming = value(match.getStatus()) == 1;
+        return new MatchDeckResp(matchId, currentUserId, cards.size(), toCardResponses(cards, hideUpcoming));
     }
 
     @Override
@@ -642,62 +650,74 @@ public class MatchServiceImpl implements MatchService {
     }
 
     /**
-     * 仅使用该玩家已解锁的卡牌组 20 张：本部门优先各 2 张，不足则用公共/路人部补齐。
+     * 本局牌组 30 张：本部门随机 5 种不同卡各 3 张，再从公共/路人部抽 15 张（不含对方部门）。
+     * 例：销售部 = 销售 5 种 ×3 + 公共部 15 张（不含采购部）。
      */
     private List<Long> buildUnlockedDeckCardIds(Long userId, String deptType) {
         Set<Long> playable = cardCollectionService.listPlayableCardIds(userId);
         if (playable.isEmpty()) {
             throw new BusinessException("没有已解锁的可用卡牌");
         }
-        String opponent = SALES.equals(deptType) ? PURCHASE : PURCHASE.equals(deptType) ? SALES : null;
+        String ownDept = deptType == null ? "" : deptType.trim().toLowerCase();
+        String opponent = SALES.equals(ownDept) ? PURCHASE : PURCHASE.equals(ownDept) ? SALES : null;
         List<Cards> enabled = cardsMapper.selectList(Wrappers.<Cards>lambdaQuery()
                 .eq(Cards::getStatus, 1)
                 .orderByAsc(Cards::getId));
         List<Cards> core = new ArrayList<>();
-        List<Cards> fillers = new ArrayList<>();
+        List<Cards> shared = new ArrayList<>();
         for (Cards card : enabled) {
             if (!playable.contains(card.getId())) {
                 continue;
             }
-            if (deptType != null && deptType.equals(card.getDeptType())) {
+            String cardDept = card.getDeptType() == null ? "" : card.getDeptType().trim().toLowerCase();
+            if (!ownDept.isEmpty() && ownDept.equals(cardDept)) {
                 core.add(card);
-            } else if (opponent == null || !opponent.equals(card.getDeptType())) {
-                fillers.add(card);
+            } else if (isSharedDept(cardDept) && (opponent == null || !opponent.equals(cardDept))) {
+                shared.add(card);
             }
         }
-        if (core.isEmpty() && fillers.isEmpty()) {
-            throw new BusinessException("已解锁卡牌不足以组成牌组");
+        if (core.size() < DEPT_UNIQUE_COUNT) {
+            throw new BusinessException("已解锁的本部门卡牌不足 5 种，无法组成牌组");
         }
-        Collections.shuffle(core);
-        Collections.shuffle(fillers);
+        if (shared.isEmpty()) {
+            throw new BusinessException("没有可用的公共部卡牌");
+        }
         List<Long> cardIds = new ArrayList<>(DECK_SIZE);
-        for (Cards card : core) {
-            if (cardIds.size() + 2 <= DECK_SIZE) {
-                cardIds.add(card.getId());
-                cardIds.add(card.getId());
-            } else if (cardIds.size() + 1 <= DECK_SIZE) {
-                cardIds.add(card.getId());
-                break;
-            } else {
-                break;
-            }
-        }
-        List<Long> fillerPool = fillers.stream().map(Cards::getId).collect(Collectors.toCollection(ArrayList::new));
-        if (fillerPool.isEmpty()) {
-            fillerPool = core.stream().map(Cards::getId).collect(Collectors.toCollection(ArrayList::new));
-        }
-        int index = 0;
-        while (cardIds.size() < DECK_SIZE) {
-            if (fillerPool.isEmpty()) {
-                throw new BusinessException("已解锁卡牌不足以组成20张牌组");
-            }
-            if (index >= fillerPool.size()) {
-                Collections.shuffle(fillerPool);
-                index = 0;
-            }
-            cardIds.add(fillerPool.get(index++));
+        cardIds.addAll(pickUniqueWithCopies(core, DEPT_UNIQUE_COUNT, DEPT_COPIES));
+        cardIds.addAll(pickUpToCount(shared, SHARED_CARD_COUNT));
+        if (cardIds.size() != DECK_SIZE) {
+            throw new BusinessException("牌组生成数量异常");
         }
         return cardIds;
+    }
+
+    private List<Long> pickUniqueWithCopies(List<Cards> pool, int uniqueCount, int copies) {
+        Collections.shuffle(pool);
+        List<Long> ids = new ArrayList<>(uniqueCount * copies);
+        for (int i = 0; i < uniqueCount; i++) {
+            Long cardId = pool.get(i).getId();
+            for (int copy = 0; copy < copies; copy++) {
+                ids.add(cardId);
+            }
+        }
+        return ids;
+    }
+
+    private List<Long> pickUpToCount(List<Cards> pool, int count) {
+        Collections.shuffle(pool);
+        List<Long> ids = new ArrayList<>(count);
+        for (Cards card : pool) {
+            if (ids.size() >= count) {
+                break;
+            }
+            ids.add(card.getId());
+        }
+        int index = 0;
+        while (ids.size() < count) {
+            ids.add(pool.get(index % pool.size()).getId());
+            index++;
+        }
+        return ids;
     }
 
     /** 兜底：按 deck_card_configs 固定 20 张 */
@@ -1039,10 +1059,21 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private List<MatchCardResp> toCardResponses(List<MatchCards> instances) {
+        return toCardResponses(instances, false);
+    }
+
+    private List<MatchCardResp> toCardResponses(List<MatchCards> instances, boolean hideDeckContents) {
         if (instances.isEmpty()) {
             return List.of();
         }
-        Map<Long, Cards> templates = cardsMapper.selectBatchIds(instances.stream().map(MatchCards::getCardId).distinct().toList())
+        List<MatchCards> visible = hideDeckContents
+                ? instances.stream().filter(card -> !"DECK".equals(card.getZone())).toList()
+                : instances;
+        List<MatchCards> hiddenDeck = hideDeckContents
+                ? instances.stream().filter(card -> "DECK".equals(card.getZone())).toList()
+                : List.of();
+        Map<Long, Cards> templates = visible.isEmpty() ? Map.of()
+                : cardsMapper.selectBatchIds(visible.stream().map(MatchCards::getCardId).distinct().toList())
                 .stream().collect(Collectors.toMap(Cards::getId, Function.identity()));
         Map<Long, Boolean> requiresTargetByCard = Map.of();
         if (!templates.isEmpty()) {
@@ -1053,15 +1084,21 @@ public class MatchServiceImpl implements MatchService {
                             list -> list.stream().anyMatch(effect -> "ANY_PLAYER".equals(effect.getEffectScope())))));
         }
         Map<Long, Boolean> targetFlags = requiresTargetByCard;
-        return instances.stream().map(instance -> {
+        List<MatchCardResp> result = new ArrayList<>(instances.size());
+        for (MatchCards instance : visible) {
             Cards card = templates.get(instance.getCardId());
-            return new MatchCardResp(instance.getId(), instance.getCardId(), card == null ? null : card.getCardCode(),
+            result.add(new MatchCardResp(instance.getId(), instance.getCardId(), card == null ? null : card.getCardCode(),
                     card == null ? null : card.getCardName(), card == null ? null : card.getDeptType(),
                     card == null ? null : card.getCost(), card == null ? null : card.getCardType(),
                     card == null ? null : card.getDescription(), card == null ? null : card.getImageUrl(),
-                    instance.getZone(), instance.getDeckOrder(), instance.getDrawnRound(),
-                    card == null ? Boolean.FALSE : targetFlags.getOrDefault(card.getId(), Boolean.FALSE));
-        }).toList();
+                    instance.getZone(), null, instance.getDrawnRound(),
+                    card == null ? Boolean.FALSE : targetFlags.getOrDefault(card.getId(), Boolean.FALSE)));
+        }
+        for (MatchCards instance : hiddenDeck) {
+            result.add(new MatchCardResp(instance.getId(), null, null, null, null, null, null, null, null,
+                    "DECK", null, instance.getDrawnRound(), Boolean.FALSE));
+        }
+        return result;
     }
 
     private CustomerInfoResp toCustomerResp(CustomerTypes customer) {
@@ -1079,11 +1116,15 @@ public class MatchServiceImpl implements MatchService {
         if (card.isEmpty()) {
             return false;
         }
-        // 公共部 / 路人部（neutral）卡任意职业都可打
-        if ("public".equals(card) || "neutral".equals(card) || "passerby".equals(card) || "tech".equals(card)) {
+        if (isSharedDept(card)) {
             return true;
         }
         return card.equals(actor);
+    }
+
+    private boolean isSharedDept(String cardDept) {
+        String card = cardDept == null ? "" : cardDept.trim().toLowerCase();
+        return "public".equals(card) || "neutral".equals(card) || "passerby".equals(card) || "tech".equals(card);
     }
 
     private MatchPendingEffects findNextCardMultiplier(Long matchId, Long userId) {

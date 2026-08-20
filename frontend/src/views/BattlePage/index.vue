@@ -101,29 +101,38 @@
 
     <el-dialog
       v-model="showDeckModal"
-      :title="`P${activePlayer + 1} 本局个人牌组`"
+      :title="`P${currentUserSeat + 1} 本局卡牌`"
       width="960px"
       class="deck-dialog"
       append-to-body
       :z-index="200000"
     >
-      <div v-if="activeFullDeck.length === 0" class="deck-empty">暂无牌组数据</div>
-      <div v-else class="deck-grid" style="--card-width: 168px">
-        <CardItem
-          v-for="card in activeFullDeck"
-          :key="card.id"
-          class="deck-card-item"
-          :name="card.name"
-          :dept="card.dept"
-          :cost="card.cost"
-          :type="card.type"
-          :description="card.description"
-          :damage="card.damage || 0"
-          :shield="card.shield || 0"
-          :image-url="card.imageUrl"
-          disabled
-        />
-      </div>
+      <div v-if="revealedDeckCards.length === 0 && hiddenDeckCount === 0" class="deck-empty">暂无牌组数据</div>
+      <template v-else>
+        <p class="deck-privacy-hint">仅展示已入手或已弃置的牌，牌库保持背面。</p>
+        <div v-if="revealedDeckCards.length" class="deck-grid" style="--card-width: 168px">
+          <CardItem
+            v-for="card in revealedDeckCards"
+            :key="card.id"
+            class="deck-card-item"
+            :name="card.name"
+            :dept="card.dept"
+            :cost="card.cost"
+            :type="card.type"
+            :description="card.description"
+            :damage="card.damage || 0"
+            :shield="card.shield || 0"
+            :image-url="card.imageUrl"
+            disabled
+          />
+        </div>
+        <div v-if="hiddenDeckCount > 0" class="deck-backs">
+          <p class="deck-backs-title">牌库剩余 {{ hiddenDeckCount }} 张</p>
+          <div class="deck-back-row">
+            <div v-for="n in hiddenDeckCount" :key="`deck-back-${n}`" class="deck-card-back" aria-hidden="true" />
+          </div>
+        </div>
+      </template>
     </el-dialog>
 
     <Teleport to="body">
@@ -161,11 +170,11 @@
       <div v-if="game.isGameOver" class="result-overlay">
         <div class="result-panel">
           <div class="result-bg-layer" :style="{ backgroundImage: `url('${game.isVictory ? resultWinBg : resultLoseBg}')` }"></div>
-          <div class="result-content">
-            <div class="result-header" :style="{ position: 'relative', top: resultHeaderTop + 'px', left: resultHeaderLeft + 'px' }">
+          <div class="result-content" :class="{ 'has-unlock': game.isVictory && !!resultUnlockedCard }">
+            <div class="result-header">
               <h1 :class="game.isVictory ? 'win' : 'lose'">{{ game.isVictory ? '胜利' : '失败' }}</h1>
             </div>
-            <div class="result-mid" :style="{ position: 'relative', top: statsPanelTop + 'px', left: statsPanelLeft + 'px' }">
+            <div class="result-mid">
               <div class="stats-panel">
                 <p>对局回合：{{ resultRounds }}</p>
                 <p>对局结果：{{ game.isVictory ? '胜利' : '失败' }}</p>
@@ -195,8 +204,8 @@
                 <p class="unlock-hint">本局没有新的收藏卡</p>
               </div>
             </div>
-            <div class="btn-group" :style="{ position: 'relative', top: hallBtnTop + 'px', left: hallBtnLeft + 'px' }">
-              <el-button type="primary" size="large" @click="$router.push('/game-hall')">返回大厅</el-button>
+            <div class="btn-group">
+              <el-button class="btn-hall" type="primary" @click="$router.push('/game-hall')">返回大厅</el-button>
               <p v-if="!game.isVictory" class="revive-unavailable">复活仅在队友存活时可用，对局已结束无法复活</p>
             </div>
           </div>
@@ -222,8 +231,8 @@
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="showReviveDialog" class="revive-overlay" @click.self="handleReviveClose">
-        <div class="revive-card">
+      <div v-if="showReviveDialog" class="revive-overlay">
+        <div class="revive-card" @click.stop>
           <h2>观看视频广告复活</h2>
           <p v-if="reviveStatusLoading">正在查询复活状态…</p>
           <template v-else>
@@ -237,7 +246,9 @@
             class="revive-video"
             controls
             playsinline
-            @play="onReviveVideoPlay"
+            preload="metadata"
+            controlslist="nofullscreen nodownload noremoteplayback"
+            disablepictureinpicture
             @ended="reviveVideoWatched = true"
             @error="reviveVideoError = '视频加载失败，请检查文件是否存在或文件名是否正确'"
           >
@@ -349,6 +360,7 @@ type BattleCard = {
   shield: number
   imageUrl?: string | null
   requiresPlayerTarget?: boolean
+  zone?: string
 }
 
 type BattlePlayer = {
@@ -452,6 +464,7 @@ const reviveSubmitting = ref(false)
 const reviveVideoWatched = ref(false)
 const reviveVideoError = ref('')
 const reviveVideoRef = ref<HTMLVideoElement | null>(null)
+const reviveDialogDismissed = ref(false)
 const justRevived = ref(false)
 
 const canConfirmRevive = computed(() => {
@@ -508,14 +521,6 @@ const p2RectH = ref(234)
 const p2RectLeft = ref(71)
 const p2RectTop = ref(31)
 
-// 结算弹窗位置调节
-const resultHeaderTop = ref(111)
-const resultHeaderLeft = ref(42)
-const statsPanelTop = ref(113)
-const statsPanelLeft = ref(-5)
-const hallBtnTop = ref(-11)
-const hallBtnLeft = ref(360)
-
 const teammateId = computed(() => {
   const selfId = user.userId
   const teammate = players.value.find(p => p.userId !== selfId)
@@ -546,10 +551,18 @@ const fundsIndicatorStyle = computed(() => ({
   transform: `translate(${px(fundsPos.left)}, ${px(fundsPos.top)})`,
 }))
 const activeFullDeck = computed(() => currentPlayerDetail.value ? players.value[currentUserSeat.value]?.fullDeck || [] : [])
+const revealedDeckCards = computed(() =>
+  activeFullDeck.value.filter((card) => card.zone === 'HAND' || card.zone === 'DISCARD'),
+)
+const hiddenDeckCount = computed(() => {
+  if (!activeFullDeck.value.length) return activeDeckCount.value
+  return activeFullDeck.value.filter((card) => card.zone !== 'HAND' && card.zone !== 'DISCARD').length
+})
 const activeHand = computed(() => {
-  const hand = matchDetail.value?.hand
-  if (Array.isArray(hand)) return hand.map(mapCard)
-  return players.value[currentUserSeat.value]?.hand || []
+  const source = Array.isArray(matchDetail.value?.hand)
+    ? matchDetail.value.hand
+    : (players.value[currentUserSeat.value]?.hand || [])
+  return source.map(mapCard).filter((card) => card.zone !== 'DECK')
 })
 const activeHandCount = computed(() => matchDetail.value?.players?.[currentUserSeat.value]?.handCount ?? players.value[currentUserSeat.value]?.handCount ?? 0)
 const currentPlayerDetail = computed(() => matchDetail.value?.players?.[currentUserSeat.value] ?? null)
@@ -764,6 +777,7 @@ function mapCard(card: any): BattleCard {
     shield: card.shield ?? card.shieldChange ?? card.defense ?? 0,
     imageUrl: card.imageUrl ?? null,
     requiresPlayerTarget: typeof card.requiresPlayerTarget === 'boolean' ? card.requiresPlayerTarget : undefined,
+    zone: card.zone,
   }
 }
 
@@ -881,7 +895,7 @@ async function refreshBattleState() {
   activePlayer.value = activeSeat
 
   // PLAYER_ACTION / 结算中启动轮询兜底，防止 WebSocket 丢包或双方结束回合后卡住
-  if (!game.isGameOver && (detail.phase === 'PLAYER_ACTION' || detail.phase === 'BOSS_ACTION' || detail.phase === 'RECONNECT_WAIT')) {
+  if (!game.isGameOver && (detail.phase === 'PLAYER_ACTION' || detail.phase === 'BOSS_ACTION' || detail.phase === 'RECONNECT_WAIT' || detail.phase === 'REVIVE_WAIT')) {
     startActionPhasePoll()
   } else {
     stopActionPhasePoll()
@@ -897,12 +911,10 @@ async function refreshBattleState() {
   activePlayerState.deckCount = detail.players?.[activeSeat]?.deckCount ?? activePlayerState.deckCount
   activePlayerState.discardCount = detail.players?.[activeSeat]?.discardCount ?? activePlayerState.discardCount
 
-  if (localCurrentHp.value <= 0 && !game.isGameOver) {
-    reviveVideoWatched.value = false
-    reviveVideoError.value = ''
-    reviveStatusLoading.value = true
-    showReviveDialog.value = true
-    loadReviveStatus().finally(() => { reviveStatusLoading.value = false })
+  if (localCurrentHp.value <= 0 && !game.isGameOver && !reviveDialogDismissed.value) {
+    openReviveDialog()
+  } else if (localCurrentHp.value > 0) {
+    reviveDialogDismissed.value = false
   }
 }
 
@@ -1083,6 +1095,7 @@ async function submitRevive() {
     reviveVideoWatched.value = false
     reviveVideoError.value = ''
     showReviveDialog.value = false
+    reviveDialogDismissed.value = false
     justRevived.value = true
     await refreshBattleState()
     justRevived.value = false
@@ -1091,14 +1104,17 @@ async function submitRevive() {
   }
 }
 
-function onReviveVideoPlay() {
-  const video = reviveVideoRef.value
-  if (video && video.requestFullscreen) {
-    video.requestFullscreen().catch(() => {})
-  }
+function openReviveDialog() {
+  if (showReviveDialog.value || game.isGameOver || reviveDialogDismissed.value) return
+  reviveVideoWatched.value = false
+  reviveVideoError.value = ''
+  reviveStatusLoading.value = true
+  showReviveDialog.value = true
+  loadReviveStatus().finally(() => { reviveStatusLoading.value = false })
 }
 
 function handleReviveClose() {
+  reviveDialogDismissed.value = true
   showReviveDialog.value = false
   reviveVideoWatched.value = false
   reviveVideoError.value = ''
@@ -1399,12 +1415,8 @@ async function handleReviveAvailable(data: any) {
   if (eventMatchId && eventMatchId !== activeMatchId.value) return
   await refreshBattleState()
   // 刷新后检查是否需要弹出复活弹窗
-  if (localCurrentHp.value <= 0 && !game.isGameOver && !showReviveDialog.value) {
-    reviveVideoWatched.value = false
-    reviveVideoError.value = ''
-    reviveStatusLoading.value = true
-    showReviveDialog.value = true
-    loadReviveStatus().finally(() => { reviveStatusLoading.value = false })
+  if (localCurrentHp.value <= 0 && !game.isGameOver) {
+    openReviveDialog()
   }
 }
 
@@ -1625,141 +1637,235 @@ onUnmounted(() => {
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-xl);
   text-align: center;
-  max-width: 576px;
-  width: calc(100vw - 48px);
+  width: min(760px, 94vw);
+  height: min(620px, 88vh);
   overflow: hidden;
+  background: #000;
 }
 .result-bg-layer {
   position: absolute;
-  inset: -10px;
-  background: center/cover no-repeat;
+  inset: 0;
+  background: center / cover no-repeat;
   z-index: 0;
 }
 .result-content {
   position: relative;
   z-index: 1;
-  padding: var(--space-10) var(--space-12);
-  transform: scale(0.7);
-  transform-origin: top left;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 10.5% 8% 8.5%;
+  font-family: 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+}
+.result-content.has-unlock {
+  padding-right: 5.5%;
+}
+.result-content.has-unlock .stats-panel {
+  max-width: 40%;
 }
 .result-header {
-  margin-bottom: 0;
+  flex-shrink: 0;
+  margin: 0;
   text-align: left;
+  padding-left: 2%;
 }
 .result-header h1 {
-  font-size: calc(var(--text-2xl) * 2);
-  margin: 0 0 var(--space-1) 0;
-  font-weight: var(--weight-bold);
+  font-size: 40px;
+  line-height: 1.1;
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #1a0e06;
+  text-shadow:
+    0 1px 0 rgba(255, 248, 230, 0.95),
+    0 0 10px rgba(255, 236, 200, 0.45);
 }
-.result-header h1 { color: #4a3020; }
-.stats-panel {
-  background: var(--color-surface-02);
-  border: 1px solid var(--color-border-subtle);
-  padding: var(--space-5) var(--space-10) var(--space-5) var(--space-6);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--space-6);
-  text-align: left;
-  width: fit-content;
-  white-space: nowrap;
-}
-.stats-panel p { margin: var(--space-2) 0; color: #4a3020; font-size: calc(var(--text-base) * 2); }
-.points-reward { color: #5d3a1a; font-weight: var(--weight-bold); font-size: calc(var(--text-xl) * 2); }
 .result-mid {
   display: flex;
   align-items: flex-start;
-  gap: 20px;
-  width: fit-content;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  padding: 10px 0 8px;
+}
+.stats-panel {
+  flex: 0 1 44%;
+  max-width: 46%;
+  background: rgba(247, 236, 214, 0.42);
+  border: 1px solid rgba(90, 58, 28, 0.28);
+  padding: 12px 16px 10px;
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+.stats-panel p {
+  margin: 6px 0;
+  color: #1a0e06;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.65;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 rgba(255, 248, 230, 0.9);
+}
+.points-reward {
+  color: #6b3a0a;
+  font-weight: 800;
+  font-size: 17px;
 }
 .unlock-panel {
-  min-width: 160px;
-  padding: 8px 10px 10px;
-  background: rgba(247, 236, 214, 0.88);
+  flex: 0 0 auto;
+  width: 168px;
+  max-height: 100%;
+  margin-left: auto;
+  margin-right: 0;
+  padding: 8px 8px 10px;
+  background: rgba(247, 236, 214, 0.72);
   border: 1px solid rgba(107, 74, 40, 0.45);
   border-radius: var(--radius-lg);
   text-align: center;
+  transform: translateX(6px);
 }
-.unlock-complete { align-self: center; }
+.unlock-complete {
+  align-self: flex-start;
+  width: auto;
+  min-width: 140px;
+  padding: 12px 14px;
+}
 .unlock-title {
-  margin: 0 0 8px;
-  color: #5d3a1a;
-  font-size: calc(var(--text-base) * 1.6);
-  font-weight: var(--weight-bold);
+  margin: 0 0 6px;
+  color: #1a0e06;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 0 rgba(255, 248, 230, 0.9);
 }
 .unlock-card-wrap {
-  width: 240px;
-  --card-width: 240px;
+  width: 148px;
+  --card-width: 148px;
   pointer-events: none;
   margin: 0 auto;
 }
 .unlock-hint {
-  margin: 8px 0 0;
-  color: #6b4a28;
-  font-size: calc(var(--text-sm) * 1.4);
+  margin: 6px 0 0;
+  color: #2a1810;
+  font-size: 13px;
+  font-weight: 700;
 }
-.dead-tag { color: #8b3a3a; font-size: var(--text-sm); margin-left: var(--space-1); }
-.btn-group { display: flex; gap: var(--space-4); justify-content: center; flex-wrap: wrap; }
-.btn-group .el-button { font-size: calc(var(--text-base) * 2); color: #4a3020; }
+.dead-tag {
+  color: #8b3a3a;
+  font-size: 13px;
+  font-weight: 800;
+  margin-left: var(--space-1);
+}
+.btn-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  width: 100%;
+  margin-top: auto;
+  padding: 4px 0 2px;
+}
+.btn-hall {
+  min-width: 280px;
+  height: 52px;
+  padding: 0 40px;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.16em;
+  color: #1a0e06 !important;
+  background: #f0c84a !important;
+  border: 2px solid #8b5a12 !important;
+  border-radius: 10px;
+  box-shadow: 0 4px 0 #8b5a12, 0 8px 16px rgba(0, 0, 0, 0.28);
+}
+.btn-hall:hover,
+.btn-hall:focus {
+  background: #f6d45c !important;
+  color: #1a0e06 !important;
+  border-color: #8b5a12 !important;
+}
+@media (max-height: 700px) {
+  .result-panel { height: min(560px, 90vh); }
+  .result-header h1 { font-size: 34px; }
+  .unlock-card-wrap { width: 128px; --card-width: 128px; }
+  .unlock-panel { width: 148px; }
+  .btn-hall { min-width: 240px; height: 46px; font-size: 20px !important; }
+}
 
 .revive-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
   animation: fadeIn 0.3s ease;
+  padding: 24px;
 }
 .revive-card {
   background: var(--color-surface-02);
   border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-xl);
-  padding: var(--space-8) var(--space-10);
+  border-radius: 12px;
+  padding: 14px 16px 12px;
   text-align: center;
-  max-width: 480px;
-  width: calc(100vw - 48px);
+  width: min(340px, calc(100vw - 48px));
+  max-height: min(78vh, 520px);
+  overflow: auto;
   color: var(--color-text-primary);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 .revive-card h2 {
-  font-size: var(--text-2xl);
-  margin: 0 0 var(--space-4) 0;
+  font-size: 18px;
+  margin: 0 0 8px;
   color: var(--color-accent);
 }
 .revive-card p {
-  margin: var(--space-2) 0;
-  font-size: var(--text-md);
+  margin: 4px 0;
+  font-size: 13px;
 }
 .revive-video {
+  display: block;
   width: 100%;
-  max-width: 360px;
-  border-radius: var(--radius-md);
-  margin: var(--space-4) 0;
+  max-width: 260px;
+  max-height: 146px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin: 8px auto;
   background: #000;
 }
 .revive-error {
   color: #f56c6c;
-  font-size: var(--text-sm);
-  margin-top: var(--space-2);
+  font-size: 12px;
+  margin-top: 4px;
 }
 .revive-hint {
   color: var(--color-text-tertiary);
-  font-size: var(--text-sm);
+  font-size: 12px;
 }
 .revive-actions {
   display: flex;
-  gap: var(--space-4);
+  gap: 10px;
   justify-content: center;
-  margin-top: var(--space-4);
+  margin-top: 10px;
 }
 .revive-actions .el-button {
-  font-size: var(--text-lg);
-  padding: var(--space-3) var(--space-8);
+  font-size: 13px;
+  padding: 6px 14px;
 }
 
 .revive-unavailable {
-  color: var(--color-text-tertiary);
-  font-size: var(--text-sm);
-  margin-top: var(--space-2);
+  color: #3a2414;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+  text-shadow: 0 1px 0 rgba(255, 248, 230, 0.85);
 }
 
 .pos-adjuster {
@@ -1930,6 +2036,39 @@ onUnmounted(() => {
   overflow-y: auto;
   padding: var(--space-2);
   justify-items: center;
+}
+.deck-privacy-hint {
+  margin: 0 0 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+.deck-backs {
+  margin-top: 16px;
+}
+.deck-backs-title {
+  margin: 0 0 10px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  text-align: center;
+}
+.deck-back-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.deck-card-back {
+  width: 56px;
+  height: 80px;
+  border-radius: 8px;
+  border: 1px solid rgba(196, 169, 98, 0.45);
+  background:
+    linear-gradient(160deg, rgba(196, 169, 98, 0.35), rgba(40, 28, 16, 0.95)),
+    repeating-linear-gradient(45deg, rgba(196, 169, 98, 0.18) 0 6px, transparent 6px 12px);
+  box-shadow: inset 0 0 0 3px rgba(90, 58, 28, 0.45);
 }
 .deck-grid :deep(.card-item) {
   pointer-events: none;
