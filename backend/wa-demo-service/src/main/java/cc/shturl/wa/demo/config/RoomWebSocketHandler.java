@@ -44,6 +44,7 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
         }
         session.getAttributes().put("authenticatedUserId", userId);
         sessionService.bind(userId, session);
+        cleanupService.handleUserConnected(userId);
         session.sendMessage(new TextMessage("{\"type\":\"ws.connected\",\"message\":\"connected\",\"heartbeatIntervalSeconds\":20,\"onlineTimeoutSeconds\":60}"));
         presenceService.broadcastPresence(userId);
     }

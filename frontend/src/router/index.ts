@@ -106,12 +106,23 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   document.title = (to.meta.title as string) || 'Help-Ing Hand'
 
+  const token = localStorage.getItem('token')
+  const matchId = sessionStorage.getItem('activeMatchId')
+  const resumeBattle = Boolean(token && matchId)
+    && to.name !== 'BattlePage'
+    && to.name !== 'ResultPage'
+    && (to.meta.noAuth || to.name === 'GameHall')
+
+  if (resumeBattle) {
+    next(`/battle/${matchId}`)
+    return
+  }
+
   if (to.meta.noAuth) {
     next()
     return
   }
 
-  const token = localStorage.getItem('token')
   if (!token) {
     next('/login')
     return

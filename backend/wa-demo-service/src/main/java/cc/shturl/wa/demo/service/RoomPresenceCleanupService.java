@@ -1,6 +1,7 @@
 package cc.shturl.wa.demo.service;
 
 public interface RoomPresenceCleanupService {
+    void handleUserConnected(Long userId);
     void handleUserDisconnected(Long userId, String reason);
     void cleanupExpiredRoomMembers();
     /** 只清已结束/已关闭房间残留 */

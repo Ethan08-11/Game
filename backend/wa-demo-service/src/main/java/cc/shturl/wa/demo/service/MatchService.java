@@ -15,6 +15,7 @@ public interface MatchService {
     MatchStateResp reconnect(Long currentUserId, Long matchId);
     void abandon(Long currentUserId, Long matchId);
     void markPlayerDisconnected(Long userId);
+    void timeoutReconnectMatches();
     MatchActionResp playCard(Long currentUserId, Long matchId, PlayCardReq request);
     EndTurnResp endTurn(Long currentUserId, Long matchId, EndTurnReq request);
     MatchReviveStatusResp getReviveStatus(Long currentUserId, Long matchId);

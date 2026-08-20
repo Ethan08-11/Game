@@ -59,7 +59,7 @@
     <footer class="battle-footer">
       <div class="footer-row">
         <div class="draw-pile card-area-highlight" @click="showDeckModal = true">
-          <img class="pile-back" :src="cardBackImg" alt="" />
+          <div class="pile-back" :style="cardBackStyle" aria-hidden="true" />
           <span class="pile-count">{{ activeDeckCount }}</span>
           <span class="pile-label">牌库</span>
         </div>
@@ -92,12 +92,11 @@
               <div v-if="activeHandCount === 0" class="hand-empty">当前回合手牌已用完</div>
             </template>
             <template v-else>
-              <img
+              <div
                 v-for="n in hiddenHandCount"
                 :key="`hand-back-${n}`"
                 class="hand-card-back"
-                :src="cardBackImg"
-                alt=""
+                :style="cardBackStyle"
                 aria-hidden="true"
               />
               <div class="hand-wait-hint">等待自己的回合</div>
@@ -226,12 +225,12 @@
       <div v-if="showDisconnectDialog" class="disconnect-overlay">
         <div class="disconnect-modal">
           <h2 class="disconnect-title">好友已掉线</h2>
-          <p class="disconnect-desc">是否等待好友重新连接？</p>
-          <p class="disconnect-countdown">{{ disconnectCountdown }} 秒后自动结束对局</p>
+          <p class="disconnect-desc">是否等待好友重新连接？刷新页面不会判负。</p>
+          <p class="disconnect-countdown">最多等待 {{ disconnectCountdown }} 秒</p>
           <div class="disconnect-actions">
             <el-button size="large" @click="endMatchDueToDisconnect">结束对局</el-button>
-            <el-button type="primary" size="large" @click="showDisconnectDialog = false">
-              等待重连（后台计时）
+            <el-button type="primary" size="large" @click="dismissDisconnectDialog">
+              继续等待
             </el-button>
           </div>
         </div>
@@ -355,7 +354,7 @@ import salesImg from '@/assets/battle/sales.webp'
 import reviveAdVideo from '@/assets/revive-ad.mp4'
 import resultLoseBg from '@/assets/result-lose-bg.webp'
 import resultWinBg from '@/assets/result-win-bg.webp'
-import cardBackImg from '@/assets/cards/Card_Back.webp'
+import bundledCardBack from '@/assets/cards/Card_Back.webp'
 
 import BackButton from '@/components/BackButton.vue'
 import PlayerInfo from '@/components/PlayerInfo.vue'
@@ -395,6 +394,14 @@ type BattlePlayer = {
 
 const bgList = [bg1, bg2, bg3, bg4, bg5, bg6]
 const bgImage = ref('')
+const cardBackFallback = getImageUrl('/images/cards/Card_Back.webp') || '/images/cards/Card_Back.webp'
+const cardBackImg = bundledCardBack || cardBackFallback
+const cardBackStyle = {
+  backgroundImage: [cardBackImg, cardBackFallback]
+    .filter((url, index, list) => url && list.indexOf(url) === index)
+    .map((url) => `url("${url}")`)
+    .join(', '),
+}
 const router = useRouter()
 const route = useRoute()
 const game = useGameStore()
@@ -930,6 +937,10 @@ async function refreshBattleState() {
   syncRoomPlayers(detail)
 
   if (room.currentUserId) {
+    const host = (detail.players ?? []).find((item: any) => Number(item.seatNo) === 1)
+    if (host?.userId != null) {
+      room.hostUserId = String(host.userId)
+    }
     room.isHost = String(room.hostUserId || '') === String(room.currentUserId)
   }
 
@@ -1401,19 +1412,21 @@ async function endMatchDueToDisconnect() {
 
 function startWaitForReconnect() {
   showDisconnectDialog.value = true
-  disconnectCountdown.value = 30
+  disconnectCountdown.value = 60
   stopDisconnectTimers()
 
   disconnectTimer = setInterval(() => {
-    disconnectCountdown.value--
+    if (disconnectCountdown.value > 0) {
+      disconnectCountdown.value--
+    }
     if (disconnectCountdown.value <= 0) {
-      endMatchDueToDisconnect()
+      stopDisconnectTimers()
     }
   }, 1000)
+}
 
-  disconnectTimeout = setTimeout(() => {
-    endMatchDueToDisconnect()
-  }, 30_000)
+function dismissDisconnectDialog() {
+  showDisconnectDialog.value = false
 }
 
 function handleTeammatePresence(data: any) {
@@ -1421,11 +1434,7 @@ function handleTeammatePresence(data: any) {
   if (userId !== teammateId.value) return
 
   const presenceStatus = data?.presenceStatus ?? data?.data?.presenceStatus
-  if (presenceStatus === 'OFFLINE') {
-    if (!showDisconnectDialog.value) {
-      startWaitForReconnect()
-    }
-  } else if (presenceStatus && presenceStatus !== 'OFFLINE') {
+  if (presenceStatus && presenceStatus !== 'OFFLINE') {
     if (showDisconnectDialog.value) {
       stopDisconnectTimers()
       showDisconnectDialog.value = false
@@ -1433,6 +1442,28 @@ function handleTeammatePresence(data: any) {
       refreshBattleState()
     }
   }
+}
+
+function handleMatchReconnecting(data: any) {
+  const payload = unwrapMatchEvent(data)
+  const uid = String(payload?.userId ?? data?.userId ?? '')
+  if (uid && sameBattleUserId(uid, selfUserId())) {
+    void handleMatchEvent(data)
+    return
+  }
+  if (uid && sameBattleUserId(uid, teammateId.value) && !showDisconnectDialog.value) {
+    startWaitForReconnect()
+  }
+  void handleMatchEvent(data)
+}
+
+function handleMatchRecovered(data: any) {
+  if (showDisconnectDialog.value) {
+    stopDisconnectTimers()
+    showDisconnectDialog.value = false
+    ElMessage.success('好友已重新连接，继续对战')
+  }
+  void handleMatchEvent(data)
 }
 
 function normalizeActorId(v: unknown) {
@@ -1596,8 +1627,8 @@ onMounted(async () => {
     subscribeRoomEvent('player.turn.ended', makeMatchHandler('player.turn.ended')),
     subscribeRoomEvent('boss.attack.resolved', makeMatchHandler('boss.attack.resolved')),
     subscribeRoomEvent('round.started', makeMatchHandler('round.started')),
-    subscribeRoomEvent('match.reconnecting', handleMatchEvent),
-    subscribeRoomEvent('match.recovered', handleMatchEvent),
+    subscribeRoomEvent('match.reconnecting', handleMatchReconnecting),
+    subscribeRoomEvent('match.recovered', handleMatchRecovered),
     subscribeRoomEvent('match.revive.success', (data: any) => {
       const d = data?.data ?? data
       const revivedUserId = String(d?.userId ?? d?.revivedUserId ?? '')
@@ -2095,11 +2126,13 @@ onUnmounted(() => {
 .pile-back {
   width: 52px;
   aspect-ratio: 441 / 800;
-  object-fit: cover;
   border-radius: 6px;
   border: 1px solid rgba(196, 169, 98, 0.55);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
-  background: #e6d4a8;
+  background-color: #e6d4a8;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 .pile-count { font-size: var(--text-2xl); font-weight: var(--weight-bold); }
 .pile-label { font-size: var(--text-xs); color: rgba(255,255,255,0.7); }
@@ -2193,12 +2226,14 @@ onUnmounted(() => {
   width: calc(var(--card-width) * 0.88);
   aspect-ratio: 441 / 800;
   flex: 0 0 auto;
-  object-fit: cover;
   border-radius: var(--radius-md);
   border: 1px solid rgba(196, 169, 98, 0.45);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
   pointer-events: none;
-  background: #e6d4a8;
+  background-color: #e6d4a8;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 .hand-wait-hint {
   position: absolute;
@@ -2275,6 +2310,8 @@ onUnmounted(() => {
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  overflow: hidden;
+  clip-path: inset(0 0 240px 0);
 }
 .pos-rect {
   position: absolute;

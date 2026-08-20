@@ -263,6 +263,61 @@ public class MatchServiceImpl implements MatchService {
 
     @Override
     @Scheduled(
+            fixedDelayString = "${app.match.reconnect-timeout-check-ms:5000}",
+            initialDelayString = "${app.match.reconnect-timeout-initial-delay-ms:15000}")
+    public void timeoutReconnectMatches() {
+        List<MatchPlayers> reconnecting = matchPlayersMapper.selectList(Wrappers.<MatchPlayers>lambdaQuery()
+                .eq(MatchPlayers::getPlayerStatus, "RECONNECTING"));
+        LocalDateTime now = LocalDateTime.now();
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        for (MatchPlayers player : reconnecting) {
+            if (player.getMatchId() == null || player.getUserId() == null) {
+                continue;
+            }
+            if (player.getUpdatedAt() != null
+                    && java.time.Duration.between(player.getUpdatedAt(), now).toMillis() < RECONNECT_TIMEOUT_MILLIS) {
+                continue;
+            }
+            try {
+                template.executeWithoutResult(status -> settleExpiredReconnect(player.getMatchId(), player.getUserId()));
+            } catch (Exception e) {
+                logger.warn("Reconnect timeout settlement failed matchId={} userId={}: {}",
+                        player.getMatchId(), player.getUserId(), e.getMessage());
+            }
+        }
+    }
+
+    private void settleExpiredReconnect(Long matchId, Long userId) {
+        Matches match = matchesMapper.selectById(matchId);
+        if (match == null || value(match.getStatus()) != 1 || "FINISHED".equals(match.getPhase()) || "REVIVE_WAIT".equals(match.getPhase())) {
+            return;
+        }
+        MatchPlayers player = matchPlayersMapper.selectOne(Wrappers.<MatchPlayers>lambdaQuery()
+                .eq(MatchPlayers::getMatchId, matchId)
+                .eq(MatchPlayers::getUserId, userId)
+                .eq(MatchPlayers::getPlayerStatus, "RECONNECTING")
+                .last("LIMIT 1"));
+        if (player == null) {
+            return;
+        }
+        if (player.getUpdatedAt() != null
+                && java.time.Duration.between(player.getUpdatedAt(), LocalDateTime.now()).toMillis() < RECONNECT_TIMEOUT_MILLIS) {
+            return;
+        }
+        player.setPlayerStatus("LEFT");
+        player.setResultType(2);
+        matchPlayersMapper.updateById(player);
+        finishMatch(match, 2, false);
+        notifyPlayers(match.getId(), "match.ended", Map.of(
+                "matchId", match.getId(),
+                "winnerType", 2,
+                "reason", "reconnect_timeout"
+        ));
+        userPresenceService.broadcastPresence(userId);
+    }
+
+    @Override
+    @Scheduled(
             fixedDelayString = "${app.match.revive-timeout-check-ms:5000}",
             initialDelayString = "${app.match.revive-timeout-initial-delay-ms:15000}")
     public void timeoutReviveMatches() {
@@ -1024,19 +1079,26 @@ public class MatchServiceImpl implements MatchService {
         MatchPlayers player = matchPlayersMapper.selectOne(Wrappers.<MatchPlayers>lambdaQuery()
                 .eq(MatchPlayers::getMatchId, match.getId())
                 .eq(MatchPlayers::getUserId, userId));
-        if (player != null && !"DEAD".equals(player.getPlayerStatus()) && !"LEFT".equals(player.getPlayerStatus())) {
-            player.setPlayerStatus("RECONNECTING");
-            matchPlayersMapper.updateById(player);
-            if (!KEEP_PHASE_ON_DISCONNECT.contains(match.getPhase())) {
-                match.setPhase("RECONNECT_WAIT");
-                matchesMapper.updateById(match);
-            }
-            notifyPlayers(match.getId(), "match.reconnecting", Map.of(
-                    "matchId", match.getId(),
-                    "userId", userId,
-                    "timeoutSeconds", RECONNECT_TIMEOUT_MILLIS / 1000
-            ));
+        if (player == null || "DEAD".equals(player.getPlayerStatus()) || "LEFT".equals(player.getPlayerStatus())) {
+            return;
         }
+        if ("RECONNECTING".equals(player.getPlayerStatus())) {
+            return;
+        }
+        LocalDateTime disconnectedAt = LocalDateTime.now();
+        matchPlayersMapper.update(null, Wrappers.<MatchPlayers>lambdaUpdate()
+                .eq(MatchPlayers::getId, player.getId())
+                .set(MatchPlayers::getPlayerStatus, "RECONNECTING")
+                .set(MatchPlayers::getUpdatedAt, disconnectedAt));
+        if (!KEEP_PHASE_ON_DISCONNECT.contains(match.getPhase())) {
+            match.setPhase("RECONNECT_WAIT");
+            matchesMapper.updateById(match);
+        }
+        notifyPlayers(match.getId(), "match.reconnecting", Map.of(
+                "matchId", match.getId(),
+                "userId", userId,
+                "timeoutSeconds", RECONNECT_TIMEOUT_MILLIS / 1000
+        ));
     }
 
     @Override
@@ -1107,25 +1169,13 @@ public class MatchServiceImpl implements MatchService {
     public void markPlayerDisconnected(Long userId) {
         List<MatchPlayers> activePlayers = matchPlayersMapper.selectList(Wrappers.<MatchPlayers>lambdaQuery()
                 .eq(MatchPlayers::getUserId, userId)
-                .in(MatchPlayers::getPlayerStatus, java.util.List.of("ACTIVE", "RECONNECTING")));
-        LocalDateTime now = LocalDateTime.now();
+                .eq(MatchPlayers::getPlayerStatus, "ACTIVE"));
         for (MatchPlayers player : activePlayers) {
             Matches match = requireMatch(player.getMatchId());
             if (value(match.getStatus()) != 1 || "FINISHED".equals(match.getPhase())) {
                 continue;
             }
             markReconnecting(match, userId);
-            if (player.getUpdatedAt() != null && java.time.Duration.between(player.getUpdatedAt(), now).toMillis() > RECONNECT_TIMEOUT_MILLIS) {
-                player.setPlayerStatus("LEFT");
-                player.setResultType(2);
-                matchPlayersMapper.updateById(player);
-                finishMatch(match, 2, false);
-                notifyPlayers(match.getId(), "match.ended", Map.of(
-                        "matchId", match.getId(),
-                        "winnerType", 2,
-                        "reason", "reconnect_timeout"
-                ));
-            }
         }
     }
 

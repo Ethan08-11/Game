@@ -332,12 +332,7 @@ function handleAuthExpired() {
   router.push('/login')
 }
 
-function handleBeforeUnload() {
-  disconnectRoomSocket()
-}
-
 onMounted(() => {
-  window.addEventListener('beforeunload', handleBeforeUnload)
   window.addEventListener('auth:token-refreshed', handleTokenRefreshed)
   window.addEventListener('auth:expired', handleAuthExpired)
   // 清掉旧版写在 localStorage 里的对局缓存，不影响当前 sessionStorage
@@ -371,7 +366,6 @@ watch(() => route.fullPath, () => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('beforeunload', handleBeforeUnload)
   window.removeEventListener('auth:token-refreshed', handleTokenRefreshed)
   window.removeEventListener('auth:expired', handleAuthExpired)
   stopFriendsFallbackRefresh()

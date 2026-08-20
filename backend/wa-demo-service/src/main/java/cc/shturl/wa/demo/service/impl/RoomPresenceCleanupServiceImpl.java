@@ -20,11 +20,17 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 public class RoomPresenceCleanupServiceImpl implements RoomPresenceCleanupService {
     private static final long HEARTBEAT_TIMEOUT_MILLIS = 60_000L;
+    private static final long DISCONNECT_GRACE_MILLIS = 8_000L;
 
     private final RoomMembersMapper roomMembersMapper;
     private final GameRoomsMapper gameRoomsMapper;
@@ -33,17 +39,48 @@ public class RoomPresenceCleanupServiceImpl implements RoomPresenceCleanupServic
     private final UserPresenceService userPresenceService;
     private final MatchService matchService;
     private final RoomNotificationService notificationService;
+    private final ConcurrentHashMap<Long, ScheduledFuture<?>> pendingDisconnects = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService disconnectGraceExecutor = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "ws-disconnect-grace");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     @Override
-    @Transactional
+    public void handleUserConnected(Long userId) {
+        cancelPendingDisconnect(userId);
+        userPresenceService.broadcastPresence(userId);
+    }
+
+    @Override
     public void handleUserDisconnected(Long userId, String reason) {
-        // 刷新/重连会先建新连接再关旧连接，不能立刻踢出组队房间
+        // 刷新页面会先关旧连接再开新连接，给几秒宽限，避免被当成掉线判负
         if (sessionService.isOnline(userId)) {
+            cancelPendingDisconnect(userId);
             userPresenceService.broadcastPresence(userId);
             return;
         }
-        matchService.markPlayerDisconnected(userId);
-        userPresenceService.broadcastPresence(userId);
+        pendingDisconnects.compute(userId, (ignored, previous) -> {
+            if (previous != null && !previous.isDone()) {
+                return previous;
+            }
+            return disconnectGraceExecutor.schedule(() -> {
+                pendingDisconnects.remove(userId);
+                if (sessionService.isOnline(userId)) {
+                    userPresenceService.broadcastPresence(userId);
+                    return;
+                }
+                matchService.markPlayerDisconnected(userId);
+                userPresenceService.broadcastPresence(userId);
+            }, DISCONNECT_GRACE_MILLIS, TimeUnit.MILLISECONDS);
+        });
+    }
+
+    private void cancelPendingDisconnect(Long userId) {
+        ScheduledFuture<?> future = pendingDisconnects.remove(userId);
+        if (future != null) {
+            future.cancel(false);
+        }
     }
 
     @Override

@@ -169,37 +169,20 @@ async function checkActiveMatch() {
   const savedMatchId = sessionStorage.getItem('activeMatchId')
   if (!savedMatchId) return
 
-  let matchEnded = false
   try {
     const detail = await getMatchDetail(savedMatchId)
     if (detail.phase === 'FINISHED' || detail.status === 2) {
-      matchEnded = true
+      sessionStorage.removeItem('activeMatchId')
+      room.resetMatchMaking()
+      clearMatchCache()
+      return
     }
+    router.replace(`/battle/${savedMatchId}`)
   } catch {
-    matchEnded = true
-  }
-
-  if (matchEnded) {
     sessionStorage.removeItem('activeMatchId')
     room.resetMatchMaking()
     clearMatchCache()
-    return
   }
-
-  reconnectMatchId.value = savedMatchId
-  reconnectCountdown.value = 30
-  reconnectDialogVisible.value = true
-
-  reconnectTimer = setInterval(() => {
-    reconnectCountdown.value--
-    if (reconnectCountdown.value <= 0) {
-      doAbandonMatch()
-    }
-  }, 1000)
-
-  reconnectTimeout = setTimeout(() => {
-    doAbandonMatch()
-  }, 30_000)
 }
 
 async function startGame() {
