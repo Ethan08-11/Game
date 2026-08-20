@@ -1385,15 +1385,15 @@ public class MatchServiceImpl implements MatchService {
                 countZone(actorCards, "DECK"), countZone(actorCards, "DISCARD"));
         notifyAfterCommit(() -> {
             notifyPlayers(matchId, "player.turn.ended", response);
-            if (attackResolved) {
+            if (response.bossAttackResolved()) {
                 notifyPlayers(matchId, "boss.attack.resolved", response);
             }
-            if (matchEnded) {
+            if (response.matchEnded()) {
                 notifyPlayers(matchId, "match.ended", response);
                 for (MatchPlayers player : players) {
                     userPresenceService.broadcastPresence(player.getUserId());
                 }
-            } else if (allEnded && PLAYER_ACTION.equals(match.getPhase())) {
+            } else if (response.allPlayersEnded() && PLAYER_ACTION.equals(match.getPhase())) {
                 notifyPlayers(matchId, "round.started", response);
             }
         });
