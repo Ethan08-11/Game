@@ -26,10 +26,11 @@
               <BullyCard />
             </div>
           </div>
-          <div v-if="actionLog.length" class="action-log-panel">
+          <div class="action-log-panel">
             <div class="action-log-title">战斗记录</div>
-            <div class="action-log-list">
-              <div v-for="(msg, i) in actionLog" :key="i" class="action-log-item">{{ msg }}</div>
+            <div ref="actionLogListRef" class="action-log-list">
+              <div v-if="actionLog.length === 0" class="action-log-empty">等待行动…</div>
+              <div v-for="entry in actionLog" :key="entry.key" class="action-log-item">{{ entry.text }}</div>
             </div>
           </div>
 
@@ -58,7 +59,7 @@
     <footer class="battle-footer">
       <div class="footer-row">
         <div class="draw-pile card-area-highlight" @click="showDeckModal = true">
-          <el-icon :size="20"><Box /></el-icon>
+          <img class="pile-back" :src="cardBackImg" alt="" />
           <span class="pile-count">{{ activeDeckCount }}</span>
           <span class="pile-label">牌库</span>
         </div>
@@ -91,10 +92,12 @@
               <div v-if="activeHandCount === 0" class="hand-empty">当前回合手牌已用完</div>
             </template>
             <template v-else>
-              <div
+              <img
                 v-for="n in hiddenHandCount"
                 :key="`hand-back-${n}`"
                 class="hand-card-back"
+                :src="cardBackImg"
+                alt=""
                 aria-hidden="true"
               />
               <div class="hand-wait-hint">等待自己的回合</div>
@@ -173,8 +176,8 @@
     <!-- 游戏结束结算弹窗 -->
     <Teleport to="body">
       <div v-if="game.isGameOver" class="result-overlay">
-        <div class="result-panel">
-          <div class="result-bg-layer" :style="{ backgroundImage: `url('${game.isVictory ? resultWinBg : resultLoseBg}')` }"></div>
+        <div class="result-panel" :class="game.isVictory ? 'is-win' : 'is-lose'">
+          <img class="result-bg-img" :src="game.isVictory ? resultWinBg : resultLoseBg" alt="" />
           <div class="result-content" :class="{ 'has-unlock': game.isVictory && !!resultUnlockedCard }">
             <div class="result-header">
               <h1 :class="game.isVictory ? 'win' : 'lose'">{{ game.isVictory ? '胜利' : '失败' }}</h1>
@@ -284,7 +287,7 @@
             :username="resolvePlayerName(players[0].userId)"
             :stamina="players[0].hp"
             :max-stamina="players[0].maxHp"
-            :is-self="players[0]?.userId === user.userId"
+            :is-self="sameBattleUserId(players[0]?.userId, user.userId)"
             :defense="players[0].defense"
           />
         </div>
@@ -301,7 +304,7 @@
             :username="resolvePlayerName(players[1].userId)"
             :stamina="players[1].hp"
             :max-stamina="players[1].maxHp"
-            :is-self="players[1]?.userId === user.userId"
+            :is-self="sameBattleUserId(players[1]?.userId, user.userId)"
             :defense="players[1].defense"
           />
         </div>
@@ -318,10 +321,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Box, Delete } from '@element-plus/icons-vue'
+import { Delete } from '@element-plus/icons-vue'
 import { useGameStore } from '@/store/game'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
@@ -350,6 +353,7 @@ import salesImg from '@/assets/battle/sales.webp'
 import reviveAdVideo from '@/assets/revive-ad.mp4'
 import resultLoseBg from '@/assets/result-lose-bg.webp'
 import resultWinBg from '@/assets/result-win-bg.webp'
+import cardBackImg from '@/assets/cards/Card_Back.webp'
 
 import BackButton from '@/components/BackButton.vue'
 import PlayerInfo from '@/components/PlayerInfo.vue'
@@ -415,11 +419,29 @@ const fireflies = Array.from({ length: 8 }, (_, i) => {
 })
 
 const turnNumber = ref(1)
-const actionLog = ref<string[]>([])
-function addAction(msg: string) {
-  actionLog.value.push(msg)
-  // 保留最近 20 条记录
-  if (actionLog.value.length > 20) actionLog.value.shift()
+type ActionLogEntry = { key: string; text: string }
+const actionLog = ref<ActionLogEntry[]>([])
+const actionLogListRef = ref<HTMLElement | null>(null)
+const loggedActionKeys = new Set<string>()
+
+function scrollActionLogToLatest() {
+  void nextTick(() => {
+    const el = actionLogListRef.value
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  })
+}
+
+function addAction(msg: string, key?: string) {
+  const id = String(key || msg)
+  if (!id || loggedActionKeys.has(id)) return
+  loggedActionKeys.add(id)
+  actionLog.value.push({ key: id, text: msg })
+  if (actionLog.value.length > 30) {
+    const removed = actionLog.value.shift()
+    if (removed) loggedActionKeys.delete(removed.key)
+  }
+  scrollActionLogToLatest()
 }
 const showDeckModal = ref(false)
 const activePlayer = ref<0 | 1>(0)
@@ -566,20 +588,32 @@ const activeHand = computed(() => {
     : (players.value[currentUserSeat.value]?.hand || [])
   return (source as unknown[]).map(mapCard).filter((card: BattleCard) => card.zone !== 'DECK')
 })
-const activeHandCount = computed(() => matchDetail.value?.players?.[currentUserSeat.value]?.handCount ?? players.value[currentUserSeat.value]?.handCount ?? 0)
-const currentPlayerDetail = computed(() => matchDetail.value?.players?.[currentUserSeat.value] ?? null)
+const currentPlayerDetail = computed(() => findDetailPlayer(selfUserId()) ?? matchDetail.value?.players?.[currentUserSeat.value] ?? null)
+const activeHandCount = computed(() => {
+  const fromDetail = Number(currentPlayerDetail.value?.handCount)
+  const fromSeat = Number(players.value[currentUserSeat.value]?.handCount)
+  const fromDeck = (players.value[currentUserSeat.value]?.fullDeck || []).filter((card: BattleCard) => card.zone === 'HAND').length
+  const fromHand = activeHand.value.length
+  return Math.max(
+    Number.isFinite(fromDetail) ? fromDetail : 0,
+    Number.isFinite(fromSeat) ? fromSeat : 0,
+    fromDeck,
+    fromHand,
+    0,
+  )
+})
 const activeDeckCount = computed(() => currentPlayerDetail.value?.deckCount ?? players.value[currentUserSeat.value]?.deckCount ?? 0)
 const activeDiscardCount = computed(() => currentPlayerDetail.value?.discardCount ?? players.value[currentUserSeat.value]?.discardCount ?? 0)
 const currentFunds = computed(() => currentPlayerDetail.value?.actionPoints ?? 0)
 const fundsCap = computed(() => Math.max(3, currentFunds.value))
 const targetablePlayers = computed(() => players.value.filter((player) => player.userId))
 const isSelectingFirstPlayer = computed(() => activePhase.value === 'SELECT_FIRST_PLAYER')
-const localCurrentHp = computed(() => matchDetail.value?.players?.[currentUserSeat.value]?.currentHp ?? players.value[currentUserSeat.value]?.hp ?? 0)
+const localCurrentHp = computed(() => currentPlayerDetail.value?.currentHp ?? players.value[currentUserSeat.value]?.hp ?? 0)
 const canShowRevive = computed(() => Boolean(reviveStatus.value?.reviveEnabled && reviveStatus.value?.canRevive && localCurrentHp.value <= 0 && !game.isGameOver))
 const canChooseFirstPlayer = computed(() => activePhase.value === 'SELECT_FIRST_PLAYER' && room.isHost && !choosingFirstPlayer.value)
 const firstPlayerStatusText = computed(() => {
   const first = matchDetail.value?.firstPlayerUserId ?? firstPlayerUserId.value
-  const firstDept = players.value.find((player) => player.userId === String(first))?.dept || '玩家'
+  const firstDept = players.value.find((player) => sameBattleUserId(player.userId, first))?.dept || '玩家'
   if (activePhase.value === 'SELECT_FIRST_PLAYER') {
     return first ? `已选中：${firstDept}` : '等待房主选择先手'
   }
@@ -588,64 +622,64 @@ const firstPlayerStatusText = computed(() => {
   }
   return first ? `已选中：${firstDept}` : '未选择'
 })
+function sameBattleUserId(a: unknown, b: unknown) {
+  const left = String(a ?? '').trim()
+  const right = String(b ?? '').trim()
+  if (!left || !right || left === 'undefined' || left === 'null') return false
+  return left === right
+}
+
+function selfUserId() {
+  return String(user.userId || room.currentUserId || localStorage.getItem('userId') || '').trim()
+}
+
+function findDetailPlayer(userId: unknown) {
+  const list = matchDetail.value?.players ?? []
+  return list.find((item: any) => sameBattleUserId(item.userId, userId)) ?? null
+}
+
+function playerHasEndedTurn(player: { userId?: string; seatNo?: 0 | 1 } | null | undefined) {
+  if (!player) return false
+  const fromDetail = findDetailPlayer(player.userId)?.endedTurn
+  const raw = fromDetail ?? matchDetail.value?.players?.[player.seatNo === 1 ? 1 : 0]?.endedTurn ?? turnEnded.value[player.seatNo === 1 ? 1 : 0]
+  return Number(raw) === 1 || raw === true
+}
+
 const currentUserSeat = computed<0 | 1>(() => {
-  const normalizeId = (value: unknown) => {
-    const id = String(value ?? '').trim()
-    if (!id || id === 'undefined' || id === 'null') return ''
-    return id
-  }
-  const currentUserId = normalizeId(room.currentUserId || user.userId)
-  const seat = players.value.findIndex((player) => normalizeId(player.userId) === currentUserId)
+  const seat = players.value.findIndex((player) => sameBattleUserId(player.userId, selfUserId()))
   return seat === 1 ? 1 : 0
 })
 const currentUserPlayer = computed(() => players.value[currentUserSeat.value])
 const currentTurnPlayer = computed(() => {
-  const normalizeId = (value: unknown) => {
-    const id = String(value ?? '').trim()
-    if (!id || id === 'undefined' || id === 'null') return ''
-    return id
-  }
-  // 根据服务器的 endedTurn 状态判断当前是谁的回合
-
-  // 找到先手玩家
-  let firstId = normalizeId(matchDetail.value?.firstPlayerUserId ?? firstPlayerUserId.value)
+  let firstId = String(matchDetail.value?.firstPlayerUserId ?? firstPlayerUserId.value ?? '').trim()
   let firstPlayer: (typeof players.value)[number] | undefined
 
   if (firstId) {
-    firstPlayer = players.value.find((player) => normalizeId(player.userId) === firstId)
+    firstPlayer = players.value.find((player) => sameBattleUserId(player.userId, firstId))
   }
 
-  // 兜底：先手未设置时从后手玩家反推，或根据 endedTurn 推断
-    if (!firstPlayer) {
-      const secondId = normalizeId(matchDetail.value?.secondPlayerUserId ?? secondPlayerUserId.value)
-      if (secondId) {
-        firstPlayer = players.value.find((player) => normalizeId(player.userId) && normalizeId(player.userId) !== secondId)
-      }
-      if (!firstPlayer) {
-        if (!turnEnded.value[0] && turnEnded.value[1]) return players.value[0] || null
-        if (turnEnded.value[0] && !turnEnded.value[1]) return players.value[1] || null
-        if (turnEnded.value[0] && turnEnded.value[1]) return null
-        return players.value[0] || null
-      }
+  if (!firstPlayer) {
+    const secondId = String(matchDetail.value?.secondPlayerUserId ?? secondPlayerUserId.value ?? '').trim()
+    if (secondId) {
+      firstPlayer = players.value.find((player) => player.userId && !sameBattleUserId(player.userId, secondId))
     }
+    if (!firstPlayer) {
+      if (!turnEnded.value[0] && turnEnded.value[1]) return players.value[0] || null
+      if (turnEnded.value[0] && !turnEnded.value[1]) return players.value[1] || null
+      if (turnEnded.value[0] && turnEnded.value[1]) return null
+      return players.value[0] || null
+    }
+  }
 
-  // 先手玩家未结束回合 → 先手玩家的回合
-  const firstEnded = Boolean(matchDetail.value?.players?.[firstPlayer.seatNo]?.endedTurn ?? turnEnded.value[firstPlayer.seatNo])
-  if (!firstEnded) return firstPlayer
+  if (!playerHasEndedTurn(firstPlayer)) return firstPlayer
 
-  // 先手已结束，找后手玩家
-  const secondPlayer = players.value.find((player) => normalizeId(player.userId) && normalizeId(player.userId) !== normalizeId(firstPlayer.userId))
+  const secondPlayer = players.value.find((player) => player.userId && !sameBattleUserId(player.userId, firstPlayer.userId))
   if (!secondPlayer) return firstPlayer
-
-  // 后手玩家未结束回合 → 后手玩家的回合
-  const secondEnded = Boolean(matchDetail.value?.players?.[secondPlayer.seatNo]?.endedTurn ?? turnEnded.value[secondPlayer.seatNo])
-  if (!secondEnded) return secondPlayer
-
-  // 双方都结束 → 等待回合结算（boss 攻击阶段）
+  if (!playerHasEndedTurn(secondPlayer)) return secondPlayer
   return null
 })
-const isPlayer1Turn = computed(() => currentTurnPlayer.value?.userId === players.value[0]?.userId)
-const isPlayer2Turn = computed(() => currentTurnPlayer.value?.userId === players.value[1]?.userId)
+const isPlayer1Turn = computed(() => sameBattleUserId(currentTurnPlayer.value?.userId, players.value[0]?.userId))
+const isPlayer2Turn = computed(() => sameBattleUserId(currentTurnPlayer.value?.userId, players.value[1]?.userId))
 const player1Img = computed(() => {
   const dept = players.value[0]?.dept
   if (dept === '采购部') return purchaseImg
@@ -663,14 +697,11 @@ const customerImage = computed(() => {
   console.log('[调试] customerImage employerTrait?.imageUrl:', game.employerTrait?.imageUrl, '→ 最终URL:', url, '→ 兜底:', url || customerImg)
   return url || customerImg
 })
-const isCurrentUserEnded = computed(() => Boolean(matchDetail.value?.players?.[currentUserSeat.value]?.endedTurn ?? turnEnded.value[currentUserSeat.value]))
+const isCurrentUserEnded = computed(() => playerHasEndedTurn(currentUserPlayer.value))
 const isCurrentUserActiveTurnPlayer = computed(() => {
-  const normalizeId = (value: unknown) => {
-    const id = String(value ?? '').trim()
-    if (!id || id === 'undefined' || id === 'null') return ''
-    return id
-  }
-  return !currentTurnPlayer.value || normalizeId(currentUserPlayer.value?.userId) === normalizeId(currentTurnPlayer.value.userId)
+  if (!currentTurnPlayer.value) return false
+  return sameBattleUserId(selfUserId(), currentTurnPlayer.value.userId)
+    || sameBattleUserId(currentUserPlayer.value?.userId, currentTurnPlayer.value.userId)
 })
 const canActWithActivePlayer = computed(() => {
   if (game.isGameOver || isSelectingFirstPlayer.value || isCurrentUserEnded.value) return false
@@ -683,11 +714,7 @@ const canRevealHand = computed(() => {
   if (activePhase.value !== 'PLAYER_ACTION') return false
   return isCurrentUserActiveTurnPlayer.value && !isCurrentUserEnded.value
 })
-const hiddenHandCount = computed(() => {
-  const fromHand = activeHand.value.length
-  const fromCount = activeHandCount.value
-  return Math.max(fromHand, fromCount, 0)
-})
+const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 5))
 const customerStatusText = computed(() => {
   if (customerTriggered.value === null) return '顾客机制：等待判定'
   if (!customerTriggered.value) return '顾客机制：本回合未触发'
@@ -901,9 +928,8 @@ async function refreshBattleState() {
     room.isHost = String(room.hostUserId || '') === String(room.currentUserId)
   }
 
-  const myUserId = String(room.currentUserId || user.userId || '')
-  const normalizedMyUserId = myUserId && myUserId !== 'undefined' && myUserId !== 'null' ? myUserId : ''
-  const mySeat = players.value.findIndex((item) => String(item.userId) === normalizedMyUserId)
+  const myUserId = selfUserId()
+  const mySeat = players.value.findIndex((item) => sameBattleUserId(item.userId, myUserId))
   const activeSeat = mySeat === -1 ? 0 : mySeat as 0 | 1
   activePlayer.value = activeSeat
 
@@ -916,13 +942,14 @@ async function refreshBattleState() {
 
   const activePlayerState = players.value[activeSeat]
   if (!activePlayerState) return
+  const myState = (detail.players ?? []).find((item: any) => sameBattleUserId(item.userId, myUserId))
   activePlayerState.fullDeck = (deck.cards ?? []).map(mapCard)
   activePlayerState.hand = (detail.hand ?? []).map(mapCard)
   activePlayerState.discardPile = []
-  activePlayerState.currentFunds = detail.players?.[activeSeat]?.actionPoints ?? activePlayerState.currentFunds
-  activePlayerState.handCount = detail.players?.[activeSeat]?.handCount ?? activePlayerState.hand.length
-  activePlayerState.deckCount = detail.players?.[activeSeat]?.deckCount ?? activePlayerState.deckCount
-  activePlayerState.discardCount = detail.players?.[activeSeat]?.discardCount ?? activePlayerState.discardCount
+  activePlayerState.currentFunds = myState?.actionPoints ?? detail.players?.[activeSeat]?.actionPoints ?? activePlayerState.currentFunds
+  activePlayerState.handCount = myState?.handCount ?? detail.players?.[activeSeat]?.handCount ?? activePlayerState.hand.length
+  activePlayerState.deckCount = myState?.deckCount ?? detail.players?.[activeSeat]?.deckCount ?? activePlayerState.deckCount
+  activePlayerState.discardCount = myState?.discardCount ?? detail.players?.[activeSeat]?.discardCount ?? activePlayerState.discardCount
 
   if (localCurrentHp.value <= 0 && !game.isGameOver && !reviveDialogDismissed.value) {
     openReviveDialog()
@@ -988,6 +1015,7 @@ async function playCard(card: BattleCard) {
       const res = await playMatchCard(activeMatchId.value, payload)
       console.log(`[调试] play-card 响应:`, JSON.stringify(res, null, 2))
       console.log(`[调试] boss HP 变化 → beforeValue: ${res.beforeValue}, afterValue: ${res.afterValue}, effects:`, JSON.stringify(res.effects ?? []))
+      logMatchEvent('card.played', res)
       notifyPlayCardEffects(res)
       if (res.matchEnded) {
         await loadSettlement()
@@ -1026,6 +1054,7 @@ async function endTurn() {
     console.log(`[调试] 调用 POST /api/matches/${activeMatchId.value}/actions/end-turn，参数:`, JSON.stringify(payload, null, 2))
     const res = await endMatchTurn(activeMatchId.value, payload)
     console.log(`[调试] end-turn 响应:`, JSON.stringify(res, null, 2))
+    logMatchEvent('player.turn.ended', res)
     if (res.matchEnded) {
       await loadSettlement()
       return
@@ -1058,6 +1087,7 @@ async function confirmTarget(targetUserId: string) {
     pendingTargetUserId.value = targetUserId
     pendingTargetCard.value = null
     notifyPlayCardEffects(res)
+    logMatchEvent('card.played', res)
     if (res.matchEnded) {
       await loadSettlement()
       return
@@ -1375,35 +1405,56 @@ function playerLabel(userId: unknown) {
   return seat >= 0 ? `P${seat + 1}` : '玩家'
 }
 
-function logMatchEvent(type: string, data: any) {
-  const d = data?.data ?? data
+function unwrapMatchEvent(data: any, message?: any) {
+  if (data && typeof data === 'object' && (data.actorUserId != null || data.cardName != null || data.userId != null || data.currentRound != null || data.actionId != null)) {
+    return data
+  }
+  if (data?.data && typeof data.data === 'object') return data.data
+  if (message?.data?.data && typeof message.data.data === 'object') return message.data.data
+  return data?.data ?? data
+}
+
+function eventBelongsToCurrentMatch(data: any, message?: any) {
+  const payload = unwrapMatchEvent(data, message)
+  const eventMatchId = String(payload?.matchId ?? data?.matchId ?? message?.data?.matchId ?? '')
+  if (!eventMatchId || eventMatchId === 'undefined' || eventMatchId === 'null') return true
+  return eventMatchId === String(activeMatchId.value)
+}
+
+function logMatchEvent(type: string, data: any, message?: any) {
+  const d = unwrapMatchEvent(data, message)
   switch (type) {
-    case 'card.played':
-      addAction(`${playerLabel(d?.actorUserId)} 打出「${d?.cardName ?? '未知卡牌'}」`)
+    case 'card.played': {
+      const actor = d?.actorUserId ?? d?.actor_user_id ?? d?.userId
+      const name = d?.cardName ?? d?.card_name ?? '未知卡牌'
+      const key = `play:${d?.actionId ?? d?.clientActionId ?? `${actor}:${name}:${d?.version ?? Date.now()}`}`
+      addAction(`${playerLabel(actor)} 打出「${name}」`, key)
       break
-    case 'player.turn.ended':
-      addAction(`${playerLabel(d?.userId)} 已结束本回合攻击`)
+    }
+    case 'player.turn.ended': {
+      const actor = d?.userId ?? d?.actorUserId
+      addAction(`${playerLabel(actor)} 已结束本回合攻击`, `end:${d?.version ?? ''}:${actor}:${d?.resolvedRound ?? d?.currentRound ?? ''}`)
       break
+    }
     case 'round.started': {
       const r = d?.roundNo ?? d?.round ?? d?.currentRound ?? '?'
-      addAction(`—— 第 ${r} 回合 ——`)
+      addAction(`—— 第 ${r} 回合 ——`, `round:${r}`)
       break
     }
     case 'boss.attack.resolved':
-      addAction('Boss 发动攻击')
+      addAction('Boss 发动攻击', `boss:${d?.resolvedRound ?? d?.currentRound ?? d?.version ?? Date.now()}`)
       break
     case 'match.ended':
-      addAction(game.isVictory ? '击败霸凌者！雇主安全了！' : `${fallenDeptLabel.value}倒下，保护失败`)
+      addAction(game.isVictory ? '击败霸凌者！雇主安全了！' : `${fallenDeptLabel.value}倒下，保护失败`, `ended:${d?.winnerType ?? ''}:${d?.version ?? ''}`)
       break
   }
 }
 
 function makeMatchHandler(eventType: string) {
-  return async (data: any) => {
-    const eventMatchId = String(data?.matchId ?? data?.data?.matchId ?? '')
-    if (eventMatchId && eventMatchId !== activeMatchId.value) return
+  return (data: any, message?: any) => {
+    if (!eventBelongsToCurrentMatch(data, message)) return
     if (eventType === 'match.ended') {
-      const d = data?.data ?? data
+      const d = unwrapMatchEvent(data, message)
       applyGameOver({
         winnerType: d?.winnerType,
         currentRound: d?.currentRound ?? resultRounds.value,
@@ -1412,8 +1463,8 @@ function makeMatchHandler(eventType: string) {
         players: d?.players ?? players.value,
       })
     }
-    logMatchEvent(eventType, data)
-    await refreshBattleState()
+    logMatchEvent(eventType, data, message)
+    void refreshBattleState().catch(() => {})
   }
 }
 
@@ -1622,7 +1673,15 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  max-height: 144px;
+  max-height: 176px;
+  pointer-events: auto;
+  scrollbar-width: thin;
+}
+.action-log-empty {
+  font-size: var(--text-sm);
+  color: rgba(62, 39, 35, 0.55);
+  line-height: 1.5;
+  padding: var(--space-1) 0;
 }
 .action-log-item {
   font-size: var(--text-sm);
@@ -1648,18 +1707,26 @@ onUnmounted(() => {
 .result-panel {
   position: relative;
   border: none;
-  border-radius: 18px;
+  border-radius: 10px;
   text-align: center;
-  width: min(760px, 94vw);
-  height: min(620px, 88vh);
+  width: min(920px, 92vw, calc(86vh * 1.55));
+  aspect-ratio: 1026 / 643;
+  height: auto;
   overflow: hidden;
-  background: transparent;
+  background: #e6d4a8;
 }
-.result-bg-layer {
+.result-panel.is-lose {
+  aspect-ratio: 1560 / 1031;
+}
+.result-bg-img {
   position: absolute;
-  inset: -24% -14%;
-  background: center / cover no-repeat;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
   z-index: 0;
+  pointer-events: none;
 }
 .result-content {
   position: relative;
@@ -1804,7 +1871,6 @@ onUnmounted(() => {
   border-color: #8b5a12 !important;
 }
 @media (max-height: 700px) {
-  .result-panel { height: min(560px, 90vh); }
   .result-header h1 { font-size: 34px; }
   .unlock-card-wrap { width: 128px; --card-width: 128px; }
   .unlock-panel { width: 148px; }
@@ -1968,6 +2034,15 @@ onUnmounted(() => {
   cursor: pointer;
   margin-bottom: var(--space-2);
 }
+.pile-back {
+  width: 52px;
+  aspect-ratio: 441 / 800;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid rgba(196, 169, 98, 0.55);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  background: #e6d4a8;
+}
 .pile-count { font-size: var(--text-2xl); font-weight: var(--weight-bold); }
 .pile-label { font-size: var(--text-xs); color: rgba(255,255,255,0.7); }
 .center-stack {
@@ -2060,12 +2135,12 @@ onUnmounted(() => {
   width: calc(var(--card-width) * 0.88);
   aspect-ratio: 441 / 800;
   flex: 0 0 auto;
+  object-fit: cover;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(196, 169, 98, 0.5);
-  background:
-    linear-gradient(160deg, rgba(196, 169, 98, 0.38), rgba(40, 28, 16, 0.96)),
-    repeating-linear-gradient(45deg, rgba(196, 169, 98, 0.18) 0 8px, transparent 8px 16px);
-  box-shadow: inset 0 0 0 4px rgba(90, 58, 28, 0.45), 0 8px 18px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(196, 169, 98, 0.45);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  background: #e6d4a8;
 }
 .hand-wait-hint {
   position: absolute;
@@ -2122,10 +2197,8 @@ onUnmounted(() => {
   height: 80px;
   border-radius: 8px;
   border: 1px solid rgba(196, 169, 98, 0.45);
-  background:
-    linear-gradient(160deg, rgba(196, 169, 98, 0.35), rgba(40, 28, 16, 0.95)),
-    repeating-linear-gradient(45deg, rgba(196, 169, 98, 0.18) 0 6px, transparent 6px 12px);
-  box-shadow: inset 0 0 0 3px rgba(90, 58, 28, 0.45);
+  background: #e6d4a8 url('@/assets/cards/Card_Back.webp') center / cover no-repeat;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
 }
 .deck-grid :deep(.card-item) {
   pointer-events: none;

@@ -59,6 +59,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -195,10 +197,8 @@ public class MatchServiceImpl implements MatchService {
                 .sorted(Comparator.comparing(MatchPlayers::getSeatNo))
                 .map(player -> toPlayerState(player, cardsByUser.getOrDefault(player.getUserId(), List.of())))
                 .toList();
-        int currentRoundNo = value(match.getCurrentRound());
         List<MatchCardResp> hand = toCardResponses(allCards.stream()
                 .filter(card -> Objects.equals(currentUserId, card.getUserId()) && "HAND".equals(card.getZone()))
-                .filter(card -> card.getDrawnRound() == null || value(card.getDrawnRound()) == currentRoundNo)
                 .toList());
         MatchPlayers firstPlayer = players.stream().filter(player -> value(player.getEndedTurn()) == 0)
                 .sorted(Comparator.comparing(MatchPlayers::getSeatNo)).findFirst().orElse(null);
@@ -545,10 +545,12 @@ public class MatchServiceImpl implements MatchService {
                 target == null ? null : target.getUserId(),
                 actor.getActionPoints(), multiplier, effectResults,
                 match.getVersion(), matchEnded, match.getWinnerType());
-        notifyCardPlayed(matchId, response);
-        if (matchEnded) {
-            notifyMatchEnded(match, response);
-        }
+        notifyAfterCommit(() -> {
+            notifyCardPlayed(matchId, response);
+            if (matchEnded) {
+                notifyMatchEnded(match, response);
+            }
+        });
         return response;
     }
 
@@ -1381,18 +1383,20 @@ public class MatchServiceImpl implements MatchService {
                 allEnded, attackResolved, resolvedRound, targets, matchEnded, match.getWinnerType(),
                 match.getCurrentRound(), match.getPhase(), match.getVersion(), countZone(actorCards, "HAND"),
                 countZone(actorCards, "DECK"), countZone(actorCards, "DISCARD"));
-        notifyPlayers(matchId, "player.turn.ended", response);
-        if (attackResolved) {
-            notifyPlayers(matchId, "boss.attack.resolved", response);
-        }
-        if (matchEnded) {
-            notifyPlayers(matchId, "match.ended", response);
-            for (MatchPlayers player : players) {
-                userPresenceService.broadcastPresence(player.getUserId());
+        notifyAfterCommit(() -> {
+            notifyPlayers(matchId, "player.turn.ended", response);
+            if (attackResolved) {
+                notifyPlayers(matchId, "boss.attack.resolved", response);
             }
-        } else if (allEnded && PLAYER_ACTION.equals(match.getPhase())) {
-            notifyPlayers(matchId, "round.started", response);
-        }
+            if (matchEnded) {
+                notifyPlayers(matchId, "match.ended", response);
+                for (MatchPlayers player : players) {
+                    userPresenceService.broadcastPresence(player.getUserId());
+                }
+            } else if (allEnded && PLAYER_ACTION.equals(match.getPhase())) {
+                notifyPlayers(matchId, "round.started", response);
+            }
+        });
         return response;
     }
 
@@ -1925,6 +1929,19 @@ public class MatchServiceImpl implements MatchService {
     private List<MatchPlayers> listPlayers(Long matchId) {
         return matchPlayersMapper.selectList(Wrappers.<MatchPlayers>lambdaQuery()
                 .eq(MatchPlayers::getMatchId, matchId).orderByAsc(MatchPlayers::getSeatNo));
+    }
+
+    private void notifyAfterCommit(Runnable task) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
     }
 
     private void notifyPlayers(Long matchId, String type, Object data) {
