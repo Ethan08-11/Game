@@ -247,7 +247,8 @@
             class="revive-video"
             controls
             playsinline
-            preload="metadata"
+            autoplay
+            preload="auto"
             controlslist="nofullscreen nodownload noremoteplayback"
             disablepictureinpicture
             @ended="reviveVideoWatched = true"
@@ -263,6 +264,7 @@
               <p>当前可复活次数：{{ reviveStatus?.reviveCount ?? 0 }}/{{ reviveStatus?.reviveLimit ?? 1 }}</p>
               <p>当前血量：{{ reviveStatus?.currentHp ?? 0 }}/{{ reviveStatus?.maxHp ?? 0 }}</p>
               <p v-if="reviveStatus && !reviveStatus.canRevive" class="revive-hint">{{ reviveStatus.message || '当前无法复活' }}</p>
+              <p v-else-if="reviveRemainingSeconds != null" class="revive-hint">请看完视频后确认复活，剩余 {{ reviveRemainingSeconds }} 秒</p>
             </template>
             <p v-if="reviveVideoError" class="revive-error">{{ reviveVideoError }}</p>
           </div>
@@ -329,7 +331,7 @@ import { useGameStore } from '@/store/game'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 //import { abandonMatch, endMatchTurn, getMatchDeck, getMatchDetail, playMatchCard, reconnectMatch } from '@/api'
-import { abandonMatch, chooseFirstPlayer, endMatchTurn, findSettlementPlayer, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive, unlockedCardFromSettlement } from '@/api'
+import { abandonMatch, chooseFirstPlayer, declineMatchRevive, endMatchTurn, findSettlementPlayer, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive, unlockedCardFromSettlement } from '@/api'
 import type { PlayCardPayload, UnlockedCollectibleCard } from '@/api'
 import { subscribeRoomEvent } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
@@ -496,6 +498,9 @@ const reviveVideoError = ref('')
 const reviveVideoRef = ref<HTMLVideoElement | null>(null)
 const reviveDialogDismissed = ref(false)
 const justRevived = ref(false)
+const reviveRemainingSeconds = ref<number | null>(null)
+let reviveWatchHeartbeatTimer: ReturnType<typeof setInterval> | null = null
+let reviveCountdownTimer: ReturnType<typeof setInterval> | null = null
 
 const canConfirmRevive = computed(() => {
   if (reviveStatusLoading.value) return false
@@ -1118,7 +1123,35 @@ function switchPlayer() {
 async function loadReviveStatus() {
   if (!activeMatchId.value || !user.userId) return
   reviveStatus.value = await getMatchReviveStatus(activeMatchId.value, user.userId)
+  const remaining = Number(reviveStatus.value?.remainingSeconds)
+  reviveRemainingSeconds.value = Number.isFinite(remaining) ? remaining : null
   return reviveStatus.value
+}
+
+function stopReviveWatchHeartbeat() {
+  if (reviveWatchHeartbeatTimer) {
+    clearInterval(reviveWatchHeartbeatTimer)
+    reviveWatchHeartbeatTimer = null
+  }
+  if (reviveCountdownTimer) {
+    clearInterval(reviveCountdownTimer)
+    reviveCountdownTimer = null
+  }
+}
+
+function startReviveWatchHeartbeat() {
+  stopReviveWatchHeartbeat()
+  reviveWatchHeartbeatTimer = setInterval(() => {
+    if (!showReviveDialog.value || game.isGameOver) {
+      stopReviveWatchHeartbeat()
+      return
+    }
+    void loadReviveStatus().catch(() => {})
+  }, 8000)
+  reviveCountdownTimer = setInterval(() => {
+    if (reviveRemainingSeconds.value == null) return
+    reviveRemainingSeconds.value = Math.max(0, reviveRemainingSeconds.value - 1)
+  }, 1000)
 }
 
 async function submitRevive() {
@@ -1140,6 +1173,7 @@ async function submitRevive() {
     showReviveDialog.value = false
     reviveDialogDismissed.value = false
     justRevived.value = true
+    stopReviveWatchHeartbeat()
     await refreshBattleState()
     justRevived.value = false
   } finally {
@@ -1151,19 +1185,27 @@ function openReviveDialog() {
   if (showReviveDialog.value || game.isGameOver || reviveDialogDismissed.value) return
   reviveVideoWatched.value = false
   reviveVideoError.value = ''
+  reviveRemainingSeconds.value = null
   reviveStatusLoading.value = true
   showReviveDialog.value = true
+  startReviveWatchHeartbeat()
   loadReviveStatus().finally(() => { reviveStatusLoading.value = false })
 }
 
 function handleReviveClose() {
+  const alreadyOver = game.isGameOver
   reviveDialogDismissed.value = true
   showReviveDialog.value = false
   reviveVideoWatched.value = false
   reviveVideoError.value = ''
+  reviveRemainingSeconds.value = null
+  stopReviveWatchHeartbeat()
   if (reviveVideoRef.value) {
     reviveVideoRef.value.pause()
     reviveVideoRef.value.currentTime = 0
+  }
+  if (!alreadyOver && activeMatchId.value) {
+    void declineMatchRevive(activeMatchId.value).catch(() => {})
   }
 }
 
@@ -1495,6 +1537,16 @@ async function refreshFirstPlayerState() {
   }
 }
 
+watch(canShowRevive, async (ok) => {
+  if (!ok) return
+  await nextTick()
+  try {
+    await reviveVideoRef.value?.play()
+  } catch {
+    // 浏览器拦截自动播放时，玩家手动点播放即可
+  }
+})
+
 // 对局结束时自动关闭复活弹窗，防止与结算弹窗重叠
 watch(() => game.isGameOver, (over) => {
   if (over && showReviveDialog.value) {
@@ -1568,6 +1620,7 @@ onUnmounted(() => {
   stopDisconnectTimers()
   stopFirstPlayerPoll()
   stopActionPhasePoll()
+  stopReviveWatchHeartbeat()
   unsubscribeFns.splice(0).forEach((unsubscribe) => unsubscribe())
   // 离开对局页时重置游戏状态，确保下一局不会残留旧数据
   if (game.isGameOver) {

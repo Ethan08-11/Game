@@ -302,6 +302,10 @@ export async function requestMatchRevive(matchId: string | number, payload: Matc
   return apiCall(`/matches/${matchId}/revive/request`, { method: 'POST', body: payload })
 }
 
+export async function declineMatchRevive(matchId: string | number): Promise<void> {
+  return apiCall(`/matches/${matchId}/revive/decline`, { method: 'POST' })
+}
+
 export async function getMatchSettlement(matchId: string | number): Promise<MatchSettlementResp> {
   return apiCall(`/matches/${matchId}/settlement`)
 }

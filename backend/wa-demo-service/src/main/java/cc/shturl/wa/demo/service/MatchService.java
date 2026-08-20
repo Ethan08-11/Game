@@ -19,5 +19,6 @@ public interface MatchService {
     EndTurnResp endTurn(Long currentUserId, Long matchId, EndTurnReq request);
     MatchReviveStatusResp getReviveStatus(Long currentUserId, Long matchId);
     MatchReviveResp requestRevive(Long currentUserId, Long matchId, MatchReviveReq request);
+    void declineRevive(Long currentUserId, Long matchId);
     void timeoutReviveMatches();
 }

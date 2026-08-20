@@ -36,7 +36,7 @@ export type { ApiCard, CustomerApiItem } from './game'
 export type { GameConfig, GameResultPayload, GameResultResponse } from './game'
 
 // match
-export { getMatchDetail, getMatchDeck, playMatchCard, endMatchTurn, reconnectMatch, abandonMatch, chooseFirstPlayer, getMatchSettlement, getMatchReviveStatus, requestMatchRevive, findSettlementPlayer, unlockedCardFromSettlement } from './match'
+export { getMatchDetail, getMatchDeck, playMatchCard, endMatchTurn, reconnectMatch, abandonMatch, chooseFirstPlayer, getMatchSettlement, getMatchReviveStatus, requestMatchRevive, declineMatchRevive, findSettlementPlayer, unlockedCardFromSettlement } from './match'
 export type { MatchDetailResp, MatchDeckResp, MatchPlayerResp, MatchCustomerResp, MatchHandCardResp, MatchDeckCardResp, MatchSettlementResp, MatchSettlementPlayer, UnlockedCollectibleCard, MatchReviveStatusResp, MatchReviveRequestPayload, MatchReviveRequestResp, PlayCardPayload, PlayCardResponse, EndTurnPayload, EndTurnResponse } from './match'
 
 // social

@@ -39,4 +39,12 @@ public class MatchReviveController {
         Long currentUserId = authTokenSupport.requireUserIdFromAccessToken(authorization);
         return Result.ok(matchService.requestRevive(currentUserId, matchId, request));
     }
+
+    @PostMapping("/{matchId}/revive/decline")
+    public Result<Void> declineRevive(@RequestHeader("Authorization") String authorization,
+                                      @PathVariable("matchId") Long matchId) {
+        Long currentUserId = authTokenSupport.requireUserIdFromAccessToken(authorization);
+        matchService.declineRevive(currentUserId, matchId);
+        return Result.ok();
+    }
 }

@@ -97,7 +97,8 @@ public class MatchServiceImpl implements MatchService {
     private static final long VICTORY_MONEY = 50L;
     private static final long DEFEAT_MONEY = 10L;
     private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
-    private static final long REVIVE_TIMEOUT_MILLIS = 30_000L;
+    private static final long REVIVE_TIMEOUT_MILLIS = 90_000L;
+    private static final long REVIVE_MAX_WAIT_MILLIS = 180_000L;
     private static final Set<String> KEEP_PHASE_ON_DISCONNECT = Set.of(
             "SELECT_FIRST_PLAYER", "BOSS_ACTION", "REVIVE_WAIT", "FINISHED");
 
@@ -226,7 +227,7 @@ public class MatchServiceImpl implements MatchService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public MatchReviveStatusResp getReviveStatus(Long currentUserId, Long matchId) {
         Matches match = requireMatch(matchId);
         MatchPlayers player = requirePlayer(currentUserId, matchId);
@@ -245,8 +246,19 @@ public class MatchServiceImpl implements MatchService {
         } else {
             message = "可以观看广告复活";
         }
+        Integer remainingSeconds = null;
+        if (canRevive && "REVIVE_WAIT".equals(match.getPhase())) {
+            LocalDateTime heartbeatAt = LocalDateTime.now();
+            matchPlayersMapper.update(null, Wrappers.<MatchPlayers>lambdaUpdate()
+                    .eq(MatchPlayers::getId, player.getId())
+                    .eq(MatchPlayers::getMatchId, matchId)
+                    .set(MatchPlayers::getReviveStatus, 1)
+                    .set(MatchPlayers::getUpdatedAt, heartbeatAt));
+            player.setUpdatedAt(heartbeatAt);
+            remainingSeconds = remainingReviveSeconds(match, player, heartbeatAt);
+        }
         return new MatchReviveStatusResp(matchId, currentUserId, reviveEnabled, canRevive, value(player.getReviveCount()),
-                value(player.getReviveLimit()), value(player.getCurrentHp()), value(player.getMaxHp()), null, player.getLastReviveAt(),
+                value(player.getReviveLimit()), value(player.getCurrentHp()), value(player.getMaxHp()), remainingSeconds, player.getLastReviveAt(),
                 player.getReviveStatus(), message);
     }
 
@@ -274,15 +286,68 @@ public class MatchServiceImpl implements MatchService {
             return;
         }
         List<MatchPlayers> players = listPlayers(match.getId());
-        boolean hasExpired = players.stream().filter(player -> value(player.getCurrentHp()) <= 0)
-                .anyMatch(player -> player.getUpdatedAt() == null
-                        || java.time.Duration.between(player.getUpdatedAt(), now).toMillis() >= REVIVE_TIMEOUT_MILLIS);
-        if (!hasExpired) {
+        if (players.stream().noneMatch(player -> value(player.getCurrentHp()) <= 0)) {
+            return;
+        }
+        List<MatchPlayers> waiting = players.stream()
+                .filter(player -> value(player.getCurrentHp()) <= 0)
+                .filter(player -> value(player.getReviveCount()) < value(player.getReviveLimit()))
+                .toList();
+        boolean timedOut = revivePhaseMaxExceeded(match, now)
+                || waiting.isEmpty()
+                || waiting.stream().noneMatch(player -> !reviveWaitExpired(player, now));
+        if (!timedOut) {
             return;
         }
         finishMatch(match, 2);
         notifyPlayers(match.getId(), "match.ended", Map.of(
                 "matchId", match.getId(), "winnerType", 2, "reason", "revive_timeout"));
+    }
+
+    private boolean reviveWaitExpired(MatchPlayers player, LocalDateTime now) {
+        if (player.getUpdatedAt() == null) {
+            return false;
+        }
+        return java.time.Duration.between(player.getUpdatedAt(), now).toMillis() >= REVIVE_TIMEOUT_MILLIS;
+    }
+
+    private boolean revivePhaseMaxExceeded(Matches match, LocalDateTime now) {
+        if (match.getUpdatedAt() == null) {
+            return false;
+        }
+        return java.time.Duration.between(match.getUpdatedAt(), now).toMillis() >= REVIVE_MAX_WAIT_MILLIS;
+    }
+
+    private int remainingReviveSeconds(Matches match, MatchPlayers player, LocalDateTime now) {
+        long idleElapsed = player.getUpdatedAt() == null
+                ? 0L
+                : Math.max(java.time.Duration.between(player.getUpdatedAt(), now).toMillis(), 0L);
+        long maxElapsed = match.getUpdatedAt() == null
+                ? 0L
+                : Math.max(java.time.Duration.between(match.getUpdatedAt(), now).toMillis(), 0L);
+        long idleLeft = Math.max(REVIVE_TIMEOUT_MILLIS - idleElapsed, 0L);
+        long maxLeft = Math.max(REVIVE_MAX_WAIT_MILLIS - maxElapsed, 0L);
+        return (int) (Math.min(idleLeft, maxLeft) / 1000L);
+    }
+
+    @Override
+    @Transactional
+    public void declineRevive(Long currentUserId, Long matchId) {
+        Matches match = requireMatch(matchId);
+        if (value(match.getStatus()) != 1) {
+            return;
+        }
+        MatchPlayers player = requirePlayer(currentUserId, matchId);
+        if (value(player.getCurrentHp()) > 0) {
+            return;
+        }
+        player.setReviveStatus(0);
+        matchPlayersMapper.updateById(player);
+        if (listPlayers(matchId).stream().anyMatch(item -> value(item.getCurrentHp()) <= 0)) {
+            finishMatch(match, 2);
+            notifyPlayers(matchId, "match.ended", Map.of(
+                    "matchId", matchId, "winnerType", 2, "reason", "revive_declined"));
+        }
     }
 
     @Override
@@ -957,11 +1022,11 @@ public class MatchServiceImpl implements MatchService {
     public MatchStateResp reconnect(Long currentUserId, Long matchId) {
         Matches match = requireMatch(matchId);
         if (value(match.getStatus()) == 2) {
-            throw new BusinessException("对局已经结束，无法重连");
+            return getMatchState(currentUserId, matchId);
         }
         MatchPlayers player = requirePlayer(currentUserId, matchId);
-        if ("DEAD".equals(player.getPlayerStatus())) {
-            throw new BusinessException("当前玩家已死亡，无法重连");
+        if ("DEAD".equals(player.getPlayerStatus()) || value(player.getCurrentHp()) <= 0) {
+            return getMatchState(currentUserId, matchId);
         }
         player.setPlayerStatus("ACTIVE");
         matchPlayersMapper.updateById(player);
@@ -1833,6 +1898,21 @@ public class MatchServiceImpl implements MatchService {
     private record RoundSettleResult(boolean attackResolved, boolean matchEnded, List<BossAttackTargetResp> targets) {
     }
 
+    private void enterReviveWait(Matches match, List<MatchPlayers> players) {
+        LocalDateTime now = LocalDateTime.now();
+        match.setPhase("REVIVE_WAIT");
+        match.setVersion(nextVersion(match.getVersion()));
+        match.setUpdatedAt(now);
+        matchesMapper.updateById(match);
+        for (MatchPlayers player : players) {
+            if (value(player.getCurrentHp()) <= 0 && value(player.getReviveCount()) < value(player.getReviveLimit())) {
+                player.setReviveStatus(1);
+                player.setUpdatedAt(now);
+                matchPlayersMapper.updateById(player);
+            }
+        }
+    }
+
     private boolean isLivingPlayer(MatchPlayers player) {
         return value(player.getCurrentHp()) > 0
                 && !"DEAD".equals(player.getPlayerStatus())
@@ -1912,9 +1992,7 @@ public class MatchServiceImpl implements MatchService {
             return;
         }
         if (anyDead) {
-            match.setPhase("REVIVE_WAIT");
-            match.setVersion(nextVersion(match.getVersion()));
-            matchesMapper.updateById(match);
+            enterReviveWait(match, players);
             notifyPlayers(match.getId(), "match.revive.required", Map.of(
                     "matchId", match.getId(), "phase", "REVIVE_WAIT", "timeoutSeconds", REVIVE_TIMEOUT_MILLIS / 1000));
             return;
@@ -1952,8 +2030,7 @@ public class MatchServiceImpl implements MatchService {
             return new RoundSettleResult(true, true, targets);
         }
         if (anyDead) {
-            match.setPhase("REVIVE_WAIT");
-            matchesMapper.updateById(match);
+            enterReviveWait(match, players);
             notifyPlayers(match.getId(), "match.revive.required", Map.of(
                     "matchId", match.getId(), "phase", "REVIVE_WAIT", "timeoutSeconds", REVIVE_TIMEOUT_MILLIS / 1000));
             return new RoundSettleResult(true, false, targets);
