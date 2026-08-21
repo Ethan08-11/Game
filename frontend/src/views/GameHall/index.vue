@@ -1,6 +1,8 @@
 <template>
-  <div class="hall-page" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
-    <header class="hall-header">
+  <div class="hall-fit">
+    <div class="hall-frame" :style="frameStyle">
+      <div class="hall-page" :style="pageStyle">
+        <header class="hall-header">
       <span class="mode-tag">{{ modeText }}</span>
       <div class="top-nav">
         <button class="achievement-btn" @click="$router.push('/achievements')">
@@ -64,6 +66,8 @@
     <footer class="hall-footer">
       <AnnouncementBar />
     </footer>
+      </div>
+    </div>
 
     <!-- 重连弹窗 -->
     <Teleport to="body">
@@ -90,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, onActivated, ref } from 'vue'
+import { computed, onMounted, onUnmounted, onActivated, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
@@ -116,6 +120,50 @@ import achievementBtnImg from '@/assets/achievement-btn-icon.webp'
 const router = useRouter()
 const user = useUserStore()
 const room = useRoomStore()
+
+const DESIGN_W = 1280
+const DESIGN_H = 800
+const stageScale = ref(1)
+const fitToStage = ref(false)
+
+const frameStyle = computed(() => {
+  if (!fitToStage.value) return { width: '100%', height: '100%' }
+  return {
+    width: `${Math.round(DESIGN_W * stageScale.value)}px`,
+    height: `${Math.round(DESIGN_H * stageScale.value)}px`,
+  }
+})
+
+const pageStyle = computed(() => {
+  const style: Record<string, string> = {
+    '--hall-bg': bgImage.value ? `url(${bgImage.value})` : '',
+  }
+  if (fitToStage.value) {
+    style.width = `${DESIGN_W}px`
+    style.height = `${DESIGN_H}px`
+    style.transform = `scale(${stageScale.value})`
+  }
+  return style
+})
+
+function viewportSize() {
+  const view = window.visualViewport
+  return {
+    width: Math.round(view?.width ?? window.innerWidth),
+    height: Math.round(view?.height ?? window.innerHeight),
+  }
+}
+
+function updateStageScale() {
+  const { width, height } = viewportSize()
+  if (width >= DESIGN_W && height >= DESIGN_H) {
+    fitToStage.value = false
+    stageScale.value = 1
+    return
+  }
+  fitToStage.value = true
+  stageScale.value = Math.min(width / DESIGN_W, height / DESIGN_H)
+}
 
 const bgImage = ref('')
 const bgDay = bg2
@@ -228,6 +276,9 @@ async function loadQuestBadge() {
 }
 
 onMounted(async () => {
+  updateStageScale()
+  window.addEventListener('resize', updateStageScale)
+  window.visualViewport?.addEventListener('resize', updateStageScale)
   const hour = new Date().getHours()
   bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
   ElMessage.closeAll()
@@ -248,6 +299,8 @@ onActivated(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateStageScale)
+  window.visualViewport?.removeEventListener('resize', updateStageScale)
   stopReconnectTimers()
 })
 
@@ -264,9 +317,25 @@ async function handleLogout() {
 </script>
 
 <style scoped>
+.hall-fit {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #16100a;
+}
+.hall-frame {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
 .hall-page {
   display: flex; flex-direction: column; height: 100%; color: var(--color-text-primary);
   position: relative; isolation: isolate;
+  transform-origin: 0 0;
+  min-height: 0;
 }
 .hall-page::before {
   content: '';
@@ -456,7 +525,7 @@ async function handleLogout() {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
-.hall-body { display: flex; flex: 1; overflow-x: hidden; overflow-y: auto; position: relative; }
+.hall-body { display: flex; flex: 1; overflow-x: hidden; overflow-y: auto; position: relative; min-height: 0; }
 
 .hall-sidebar {
   width: var(--sidebar-width);
@@ -469,6 +538,7 @@ async function handleLogout() {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   position: relative;
   isolation: isolate;
 }
@@ -613,6 +683,7 @@ async function handleLogout() {
   background: transparent;
   border: none;
   box-shadow: none;
+  flex-shrink: 0;
 }
 
 @media (max-width: 767px) {
