@@ -1,6 +1,6 @@
 <template>
   <div class="hall-fit">
-    <div class="hall-frame" :style="frameStyle">
+    <div class="hall-frame">
       <div class="hall-page" :style="pageStyle">
         <header class="hall-header">
       <span class="mode-tag">{{ modeText }}</span>
@@ -123,46 +123,28 @@ const room = useRoomStore()
 
 const DESIGN_W = 1280
 const DESIGN_H = 800
-const stageScale = ref(1)
-const fitToStage = ref(false)
+const stageScaleX = ref(1)
+const stageScaleY = ref(1)
 
-const frameStyle = computed(() => {
-  if (!fitToStage.value) return { width: '100%', height: '100%' }
-  return {
-    width: `${Math.round(DESIGN_W * stageScale.value)}px`,
-    height: `${Math.round(DESIGN_H * stageScale.value)}px`,
-  }
-})
-
-const pageStyle = computed(() => {
-  const style: Record<string, string> = {
-    '--hall-bg': bgImage.value ? `url(${bgImage.value})` : '',
-  }
-  if (fitToStage.value) {
-    style.width = `${DESIGN_W}px`
-    style.height = `${DESIGN_H}px`
-    style.transform = `scale(${stageScale.value})`
-  }
-  return style
-})
+const pageStyle = computed(() => ({
+  '--hall-bg': bgImage.value ? `url(${bgImage.value})` : '',
+  width: `${DESIGN_W}px`,
+  height: `${DESIGN_H}px`,
+  transform: `scale(${stageScaleX.value}, ${stageScaleY.value})`,
+}))
 
 function viewportSize() {
   const view = window.visualViewport
   return {
-    width: Math.round(view?.width ?? window.innerWidth),
-    height: Math.round(view?.height ?? window.innerHeight),
+    width: view?.width ?? window.innerWidth,
+    height: view?.height ?? window.innerHeight,
   }
 }
 
 function updateStageScale() {
   const { width, height } = viewportSize()
-  if (width >= DESIGN_W && height >= DESIGN_H) {
-    fitToStage.value = false
-    stageScale.value = 1
-    return
-  }
-  fitToStage.value = true
-  stageScale.value = Math.min(width / DESIGN_W, height / DESIGN_H)
+  stageScaleX.value = width / DESIGN_W
+  stageScaleY.value = height / DESIGN_H
 }
 
 const bgImage = ref('')
@@ -320,16 +302,14 @@ async function handleLogout() {
 .hall-fit {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
-  background: #16100a;
+  background: transparent;
 }
 .hall-frame {
   position: relative;
   overflow: hidden;
-  flex-shrink: 0;
+  width: 100%;
+  height: 100%;
 }
 .hall-page {
   display: flex; flex-direction: column; height: 100%; color: var(--color-text-primary);
