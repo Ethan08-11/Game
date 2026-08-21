@@ -85,7 +85,7 @@ import type { ApiTask } from './social'
 export const mockApiTasks: ApiTask[] = [
   { id: 1, taskCode: 'T-LOGIN-001', taskName: '每日登录', taskType: 'daily', description: '每日登录一次即可完成', conditionType: 'login_count', conditionValue: '{"days": 1}', rewardType: 'money', rewardValue: '{"amount": 100}', targetCount: 1, sortNo: 1, status: 1 },
   { id: 2, taskCode: 'T-BATTLE-001', taskName: '完成一场对局', taskType: 'daily', description: '完成任意一场对局', conditionType: 'match_count', conditionValue: '{"count": 1}', rewardType: 'exp', rewardValue: '{"amount": 50}', targetCount: 1, sortNo: 2, status: 1 },
-  { id: 3, taskCode: 'T-CARD-001', taskName: '使用卡牌', taskType: 'growth', description: '累计使用 10 张卡牌', conditionType: 'card_play_count', conditionValue: '{"count": 10}', rewardType: 'money', rewardValue: '{"amount": 200}', targetCount: 10, sortNo: 3, status: 1 },
+  { id: 3, taskCode: 'T-CARD-001', taskName: '使用卡牌', taskType: 'growth', description: '累计使用 200 张卡牌', conditionType: 'card_play_count', conditionValue: '{"count": 200}', rewardType: 'money', rewardValue: '{"amount": 200}', targetCount: 200, sortNo: 3, status: 1 },
   { id: 4, taskCode: 'T-FRIEND-001', taskName: '添加好友', taskType: 'event', description: '成功添加 1 位好友', conditionType: 'friend_count', conditionValue: '{"count": 1}', rewardType: 'item', rewardValue: '{"count": 1, "itemCode": "FRIEND_COIN"}', targetCount: 1, sortNo: 4, status: 1 },
 ]
 

@@ -138,7 +138,7 @@ const KIND_BY_CODE: Record<string, string> = {
   'T-DAILY-MATCH-1': 'sword',
   'T-DAILY-MATCH-2': 'shield',
   'T-DAILY-MATCH-3': 'castle',
-  'T-DAILY-DUO': 'helms',
+  'T-CARD-001': 'sword',
   'T-DAILY-ROTATE-0': 'scales',
   'T-DAILY-ROTATE-1': 'crate',
   'T-DAILY-ROTATE-2': 'axe',

@@ -231,7 +231,7 @@ CREATE TABLE `customer_types` (
 
 LOCK TABLES `customer_types` WRITE;
 /*!40000 ALTER TABLE `customer_types` DISABLE KEYS */;
-INSERT INTO `customer_types` VALUES (1,'CUSTOMER_KIND','善良稳重顾客','情绪稳定、愿意配合，能削弱霸凌者的攻击性。','/images/customer/p1.png','bully_attack_down',-2,40,40,1,1,'2026-07-22 13:04:31','2026-07-31 18:27:41'),(2,'CUSTOMER_TIMID','胆小怕事顾客','容易紧张，需要额外保护，能提升霸凌者血量。','/images/customer/p2.png','bully_hp_up',1,55,35,1,2,'2026-07-22 13:04:31','2026-07-31 18:27:41'),(3,'CUSTOMER_ANXIOUS','焦虑难安顾客','情绪波动较大，会加剧现场冲突，提升霸凌者攻击。','/images/customer/p3.png','bully_attack_up',1,50,25,1,3,'2026-07-22 13:04:31','2026-07-31 18:27:41');
+INSERT INTO `customer_types` VALUES (1,'CUSTOMER_KIND','善良稳重顾客','情绪稳定、愿意配合，能削弱霸凌者的攻击性。','/images/customer/p1.png','bully_attack_down',-1,30,32,1,1,'2026-07-22 13:04:31','2026-07-31 18:27:41'),(2,'CUSTOMER_TIMID','胆小怕事顾客','容易紧张，需要额外保护，能提升霸凌者血量。','/images/customer/p2.png','bully_hp_up',2,65,38,1,2,'2026-07-22 13:04:31','2026-07-31 18:27:41'),(3,'CUSTOMER_ANXIOUS','焦虑难安顾客','情绪波动较大，会加剧现场冲突，提升霸凌者攻击。','/images/customer/p3.png','bully_attack_up',2,60,30,1,3,'2026-07-22 13:04:31','2026-07-31 18:27:41');
 /*!40000 ALTER TABLE `customer_types` ENABLE KEYS */;
 UNLOCK TABLES;
 

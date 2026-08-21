@@ -35,6 +35,7 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
             "T-DAILY-ROTATE-4",
             "T-DAILY-ROTATE-5",
             "T-DAILY-ROTATE-6",
+            "T-CARD-001",
             "T-STREAK-3",
             "T-STREAK-7"
     );
@@ -54,6 +55,8 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
         ensureLoginStreakColumns();
         upsertDailyCatalog();
         disableLegacyDailyTasks();
+        migrateLegacyCardPlayTask();
+        syncGrowthCardPlayProgress();
         activateTodayRotate();
         log.info("Task catalog ready.");
     }
@@ -108,6 +111,9 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
         upsert("T-DAILY-ROTATE-6", "持续输出", "daily", "DAILY", "DAY", "DAMAGE_DEALT",
                 "今天对霸凌者造成 20 点伤害", "damage_dealt", "{}", "money", "{\"amount\":30}", 20, 50, 0);
 
+        upsert("T-CARD-001", "使用卡牌", "growth", "NONE", "ALL", "CARD_PLAY_COUNT",
+                "累计使用 200 张卡牌", "card_play_count", "{\"count\":200}", "money", "{\"amount\":200}", 200, 70, 1);
+
         upsert("T-STREAK-3", "连续登录 3 天", "growth", "NONE", "ALL", "LOGIN_STREAK",
                 "连续登录 3 天，断一天重新算", "login_streak", "{}", "money", "{\"amount\":80}", 3, 80, 1);
         upsert("T-STREAK-7", "连续登录 7 天", "growth", "NONE", "ALL", "LOGIN_STREAK",
@@ -154,6 +160,58 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
                 WHERE task_name LIKE '%输1局%'
                    OR task_name LIKE '%首3局%'
                    OR description LIKE '%故意%'
+                """);
+    }
+
+    private void migrateLegacyCardPlayTask() {
+        jdbcTemplate.update("""
+                UPDATE tasks
+                SET task_name = '使用卡牌',
+                    task_type = 'growth',
+                    reset_type = 'NONE',
+                    period_scope = 'ALL',
+                    progress_type = 'CARD_PLAY_COUNT',
+                    description = '累计使用 200 张卡牌',
+                    condition_type = 'card_play_count',
+                    condition_value = CAST('{"count":200}' AS JSON),
+                    reward_type = 'money',
+                    reward_value = CAST('{"amount":200}' AS JSON),
+                    target_count = 200,
+                    status = 1
+                WHERE status = 1
+                  AND (
+                    task_code = 'T-CARD-001'
+                    OR task_name = '使用卡牌'
+                    OR (
+                      task_type = 'growth'
+                      AND condition_type IN ('card_play_count', 'play_card', 'CARD_PLAY_COUNT')
+                    )
+                  )
+                """);
+    }
+
+    private void syncGrowthCardPlayProgress() {
+        if (!tableExists("user_tasks")) {
+            return;
+        }
+        jdbcTemplate.update("""
+                UPDATE user_tasks ut
+                INNER JOIN tasks t ON t.id = ut.task_id
+                SET ut.target_value = t.target_count,
+                    ut.status = CASE
+                        WHEN ut.status = 3 THEN 3
+                        WHEN ut.progress_value >= t.target_count THEN 2
+                        WHEN ut.progress_value > 0 THEN 1
+                        ELSE 0
+                    END,
+                    ut.completed_at = CASE
+                        WHEN ut.status = 3 THEN ut.completed_at
+                        WHEN ut.progress_value >= t.target_count THEN COALESCE(ut.completed_at, NOW())
+                        ELSE NULL
+                    END
+                WHERE t.task_type = 'growth'
+                  AND t.progress_type = 'CARD_PLAY_COUNT'
+                  AND ut.period_key = 'ALL'
                 """);
     }
 

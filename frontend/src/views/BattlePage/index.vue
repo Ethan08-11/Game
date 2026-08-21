@@ -1,5 +1,5 @@
 <template>
-  <div class="battle-page" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '', '--check-player-bg': `url(${checkPlayerBtnBg})` }">
+  <div class="battle-page" :class="{ 'is-impact': bullyImpact }" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '', '--check-player-bg': `url(${checkPlayerBtnBg})` }">
     <BackButton to="" text="放弃对战" @click="handleLeave" />
 
     <div class="battle-main">
@@ -8,14 +8,13 @@
           <div class="turn-info">回合 {{ turnNumber }}</div>
           <div class="battle-status-row">
             <div class="status-col">
-              <span>{{ customerStatusText }}</span>
-              <span>{{ actionOrderText }}</span>
+              <span class="status-pill">{{ customerStatusText }}</span>
+              <span class="status-pill">{{ actionOrderText }}</span>
             </div>
-            <span v-if="activePhase === 'REVIVE_WAIT'" class="revive-wait-tag">等待复活中…</span>
-            <span v-if="bullyDefense > 0">霸凌者防御：{{ bullyDefense }}</span>
-            <span v-if="bullyActionText">{{ bullyActionText }}</span>
-            <span>房主识别：{{ room.isHost ? '正确' : '异常' }}</span>
-            <span v-if="isSelectingFirstPlayer">先手状态：{{ firstPlayerStatusText }}</span>
+            <span v-if="activePhase === 'REVIVE_WAIT'" class="status-pill revive-wait-tag">等待复活中…</span>
+            <span v-if="bullyDefense > 0" class="status-pill">霸凌者防御：{{ bullyDefense }}</span>
+            <span v-if="bullyActionText" class="status-pill">{{ bullyActionText }}</span>
+            <span v-if="isSelectingFirstPlayer" class="status-pill">先手状态：{{ firstPlayerStatusText }}</span>
           </div>
           <div class="entity-row">
             <div class="entity-outline entity-outline-customer" :style="customerBoxStyle">
@@ -70,10 +69,11 @@
           </div>
           <div class="hand-actions-row">
             <button class="switch-player-btn" type="button" :disabled="game.isGameOver" @click="switchPlayer" :aria-label="`查看玩家 P${activePlayer + 1}`" />
-            <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer" @click="endTurn" aria-label="结束回合" />
+            <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying" @click="endTurn" aria-label="结束回合" />
           </div>
 
-          <div class="hand-cards" :style="{ '--card-width': cardWidth + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }">
+          <p v-if="!canRevealHand" class="hand-wait-hint">等待自己的回合</p>
+          <div class="hand-cards" :style="{ '--card-width': handCardWidth + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }">
             <template v-if="canRevealHand">
               <CardItem
                 v-for="card in activeHand"
@@ -99,7 +99,6 @@
                 :style="cardBackStyle"
                 aria-hidden="true"
               />
-              <div class="hand-wait-hint">等待自己的回合</div>
             </template>
           </div>
         </div>
@@ -144,27 +143,28 @@
 
     <Teleport to="body">
       <div v-if="showTargetDialog" class="target-overlay" @click.self="cancelTargetDialog">
-        <div class="target-dialog target-dialog-highlight" :style="{ '--choose-player-bg': `url(${choosePlayerBg})`, '--p1-btn-bg': `url(${p1BtnBg})`, '--p2-btn-bg': `url(${p2BtnBg})`, '--frame-w': frameW + 'px', '--frame-h': frameH + 'px', '--bg-w': bgW + 'px', '--bg-h': bgH + 'px' }">
-          <div class="target-dialog-title">
-            <span class="target-title-box target-title-main" :style="{ position: 'relative', top: titleTop + 'px', left: titleLeft + 'px' }">{{ pendingTargetCard?.type === 'defend' ? '选择防御目标' : pendingTargetCard?.type === 'support' ? '选择辅助目标' : '选择加血目标' }}</span>
-          </div>
-          <div class="target-dialog-desc">
-            <span class="target-title-box target-title-sub" :style="{ position: 'relative', top: descTop + 'px', left: descLeft + 'px' }">请选择本次{{ pendingTargetCard?.type === 'defend' ? '防御' : pendingTargetCard?.type === 'support' ? '辅助' : '加血' }}对象</span>
-          </div>
+        <div
+          class="target-dialog target-dialog-highlight"
+          :style="{ '--choose-player-bg': `url(${choosePlayerBg})`, '--p1-btn-bg': `url(${p1BtnBg})`, '--p2-btn-bg': `url(${p2BtnBg})` }"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="targetDialogTitle"
+        >
+          <h2 class="target-dialog-title">{{ targetDialogTitle }}</h2>
+          <p class="target-dialog-desc">{{ targetDialogHint }}</p>
           <div class="target-dialog-list">
-            <div v-for="player in targetablePlayers" :key="player.userId" class="target-player-wrapper">
-              <div class="target-player-label" :style="{ position: 'relative', top: (player.seatNo === 0 ? p1LabelTop : p2LabelTop) + 'px', left: (player.seatNo === 0 ? p1LabelLeft : p2LabelLeft) + 'px' }">
-                {{ player.dept || '玩家' }}<span class="target-player-role">（{{ player.userId === user.userId ? '自己' : '队友' }}）</span>
-              </div>
-              <button
-                class="target-player-btn"
-                type="button"
-                :class="player.seatNo === 0 ? 'target-player-btn-p1' : 'target-player-btn-p2'"
-                :disabled="pendingTargetUserId === player.userId"
-                :style="{ position: 'relative', top: (player.seatNo === 0 ? p1BtnTop : p2BtnTop) + 'px', left: (player.seatNo === 0 ? p1BtnLeft : p2BtnLeft) + 'px' }"
-                @click="confirmTarget(player.userId)"
-              />
-            </div>
+            <button
+              v-for="player in targetablePlayers"
+              :key="player.userId"
+              class="target-player-btn"
+              type="button"
+              :class="player.seatNo === 0 ? 'target-player-btn-p1' : 'target-player-btn-p2'"
+              :disabled="pendingTargetUserId === player.userId"
+              @click="confirmTarget(player.userId)"
+            >
+              <span class="target-player-name">{{ player.dept || '玩家' }}</span>
+              <span class="target-player-role">{{ player.userId === user.userId ? '自己' : '队友' }}</span>
+            </button>
           </div>
           <button class="target-dialog-close" type="button" @click="cancelTargetDialog" aria-label="取消">×</button>
         </div>
@@ -248,8 +248,14 @@
             playsinline
             autoplay
             preload="auto"
-            controlslist="nofullscreen nodownload noremoteplayback"
+            controlslist="nodownload nofullscreen noremoteplayback noplaybackrate"
             disablepictureinpicture
+            disableremoteplayback
+            @timeupdate="onReviveTimeUpdate"
+            @seeking="lockReviveSeek"
+            @seeked="lockReviveSeek"
+            @ratechange="lockRevivePlaybackRate"
+            @contextmenu.prevent
             @ended="reviveVideoWatched = true"
             @error="reviveVideoError = '视频加载失败，请检查文件是否存在或文件名是否正确'"
           >
@@ -279,9 +285,9 @@
       <div class="pos-rect pos-rect-customer" :style="{ width: '188px', height: '289px', left: '50%', top: '58%' }">
         <img :src="customerImage" alt="顾客" />
       </div>
-      <div class="pos-rect pos-rect-player1" :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }">
+      <div class="pos-rect pos-rect-player1" ref="player1RectRef" :class="{ 'is-struck': struckSeats.includes(0) }" :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }">
         <img class="player-img" :src="player1Img" alt="玩家1" />
-        <div class="player-hp-hud">
+        <div class="player-hp-hud" :class="{ 'is-flash': flashSeats.includes(0) }">
           <PlayerInfo
             v-if="players[0]"
             :dept="players[0].dept"
@@ -296,9 +302,9 @@
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
       </div>
-      <div class="pos-rect pos-rect-player2" :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }">
+      <div class="pos-rect pos-rect-player2" ref="player2RectRef" :class="{ 'is-struck': struckSeats.includes(1) }" :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }">
         <img class="player-img" :src="player2Img" alt="玩家2" />
-        <div class="player-hp-hud">
+        <div class="player-hp-hud" :class="{ 'is-flash': flashSeats.includes(1) }">
           <PlayerInfo
             v-if="players[1]"
             :dept="players[1].dept"
@@ -313,9 +319,20 @@
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
       </div>
-      <div class="pos-rect pos-rect-bully" :style="{ width: '188px', height: '289px', left: '51%', top: '16%' }">
+      <div class="pos-rect pos-rect-bully" ref="bullyRectRef" :class="{ 'is-charging': bullyCharging }" :style="{ width: '188px', height: '289px', left: '51%', top: '16%' }">
         <img :src="bullyImg" alt="霸凌者" />
       </div>
+    </div>
+
+    <div class="bully-fx-layer" aria-hidden="true">
+      <div v-if="bullySlash" class="bully-slash" :class="{ blocked: bullySlash.blocked }" :style="bullySlash.style" />
+      <div
+        v-for="hit in bullyFloats"
+        :key="hit.id"
+        class="bully-float"
+        :class="{ blocked: hit.blocked }"
+        :style="hit.style"
+      >{{ hit.text }}</div>
     </div>
 
   </div>
@@ -432,6 +449,19 @@ type ActionLogEntry = { key: string; text: string }
 const actionLog = ref<ActionLogEntry[]>([])
 const actionLogListRef = ref<HTMLElement | null>(null)
 const loggedActionKeys = new Set<string>()
+const bullyRectRef = ref<HTMLElement | null>(null)
+const player1RectRef = ref<HTMLElement | null>(null)
+const player2RectRef = ref<HTMLElement | null>(null)
+const bullyCharging = ref(false)
+const bullyImpact = ref(false)
+const bullySlash = ref<{ style: Record<string, string>; blocked: boolean } | null>(null)
+const bullyFloats = ref<Array<{ id: number; text: string; blocked: boolean; style: Record<string, string> }>>([])
+const struckSeats = ref<number[]>([])
+const flashSeats = ref<number[]>([])
+const bullyFxPlaying = ref(false)
+const pendingReviveAfterFx = ref(false)
+let lastBullyFxRound: number | string | null = null
+let bullyFloatSeq = 0
 
 function scrollActionLogToLatest() {
   void nextTick(() => {
@@ -503,6 +533,8 @@ const reviveSubmitting = ref(false)
 const reviveVideoWatched = ref(false)
 const reviveVideoError = ref('')
 const reviveVideoRef = ref<HTMLVideoElement | null>(null)
+const reviveLastTime = ref(0)
+let reviveSeekLocking = false
 const reviveDialogDismissed = ref(false)
 const justRevived = ref(false)
 const reviveRemainingSeconds = ref<number | null>(null)
@@ -515,6 +547,17 @@ const canConfirmRevive = computed(() => {
   if (!reviveVideoWatched.value) return false
   if (reviveSubmitting.value) return false
   return true
+})
+const targetDialogTitle = computed(() => {
+  const type = pendingTargetCard.value?.type
+  if (type === 'defend') return '选择防御目标'
+  if (type === 'support') return '选择辅助目标'
+  return '选择加血目标'
+})
+const targetDialogHint = computed(() => {
+  const type = pendingTargetCard.value?.type
+  const kind = type === 'defend' ? '防御' : type === 'support' ? '辅助' : '加血'
+  return `请选择本次${kind}对象`
 })
 const showTargetDialog = ref(false)
 const pendingTargetCard = ref<BattleCard | null>(null)
@@ -726,7 +769,29 @@ const canRevealHand = computed(() => {
   if (activePhase.value !== 'PLAYER_ACTION') return false
   return isCurrentUserActiveTurnPlayer.value && !isCurrentUserEnded.value
 })
-const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 5))
+const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 0))
+const CARD_ASPECT = 441 / 800
+const HAND_GAP = 4
+const HAND_REF_COUNT = 5
+const HAND_MAX_HEIGHT = 236
+const viewportH = ref(typeof window !== 'undefined' ? window.innerHeight : 800)
+const viewportW = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
+
+function updateBattleViewport() {
+  const view = window.visualViewport
+  viewportH.value = view?.height ?? window.innerHeight
+  viewportW.value = view?.width ?? window.innerWidth
+}
+
+const handCardWidth = computed(() => {
+  const maxH = Math.min(HAND_MAX_HEIGHT, Math.round(viewportH.value * 0.28))
+  const fromHeight = maxH * CARD_ASPECT
+  const available = Math.max(280, viewportW.value - 280)
+  const shown = canRevealHand.value ? activeHand.value.length : hiddenHandCount.value
+  const count = Math.max(shown, HAND_REF_COUNT)
+  const fromWidth = (available - HAND_GAP * Math.max(count - 1, 0)) / count
+  return Math.round(Math.max(96, Math.min(cardWidth.value, fromHeight, fromWidth)))
+})
 const customerStatusText = computed(() => {
   if (customerTriggered.value === null) return '顾客机制：等待判定'
   if (!customerTriggered.value) return '顾客机制：本回合未触发'
@@ -968,7 +1033,11 @@ async function refreshBattleState() {
   activePlayerState.discardCount = myState?.discardCount ?? detail.players?.[activeSeat]?.discardCount ?? activePlayerState.discardCount
 
   if (localCurrentHp.value <= 0 && !game.isGameOver && !reviveDialogDismissed.value) {
-    openReviveDialog()
+    if (bullyFxPlaying.value) {
+      pendingReviveAfterFx.value = true
+    } else {
+      openReviveDialog()
+    }
   } else if (localCurrentHp.value > 0) {
     reviveDialogDismissed.value = false
   }
@@ -1060,6 +1129,120 @@ async function playCard(card: BattleCard) {
   showTargetDialog.value = true
 }
 
+function waitFx(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+function extractBossAttack(payload: any) {
+  const data = unwrapMatchEvent(payload) ?? payload ?? {}
+  const targets = data.bossAttackTargets ?? data.targets ?? []
+  return {
+    targets: Array.isArray(targets) ? targets : [],
+    round: data.resolvedRound ?? data.currentRound ?? data.version ?? null,
+  }
+}
+
+function playerRectBySeat(seat: number) {
+  return seat === 1 ? player2RectRef.value : player1RectRef.value
+}
+
+function slashStyle(fromEl: HTMLElement, toEl: HTMLElement) {
+  const from = fromEl.getBoundingClientRect()
+  const to = toEl.getBoundingClientRect()
+  const x1 = from.left + from.width * 0.5
+  const y1 = from.top + from.height * 0.62
+  const x2 = to.left + to.width * 0.5
+  const y2 = to.top + to.height * 0.4
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len = Math.max(90, Math.hypot(dx, dy))
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI
+  return {
+    left: `${x1}px`,
+    top: `${y1}px`,
+    width: `${len}px`,
+    transform: `rotate(${angle}deg)`,
+  }
+}
+
+function floatStyle(targetEl: HTMLElement) {
+  const box = targetEl.getBoundingClientRect()
+  return {
+    left: `${box.left + box.width * 0.5}px`,
+    top: `${box.top + box.height * 0.28}px`,
+  }
+}
+
+async function strikeSeat(seat: number, target: any) {
+  const toEl = playerRectBySeat(seat)
+  const fromEl = bullyRectRef.value
+  if (!fromEl || !toEl) return
+  const hpDamage = Math.max(0, Number(target?.hpDamage ?? 0))
+  const absorbed = Math.max(0, Number(target?.absorbedDamage ?? 0))
+  const blocked = hpDamage <= 0 && absorbed > 0
+  bullySlash.value = { style: slashStyle(fromEl, toEl), blocked }
+  bullyImpact.value = true
+  struckSeats.value = [...new Set([...struckSeats.value, seat])]
+  flashSeats.value = [...new Set([...flashSeats.value, seat])]
+  bullyFloatSeq += 1
+  bullyFloats.value = [
+    ...bullyFloats.value,
+    {
+      id: bullyFloatSeq,
+      text: blocked ? '格挡' : `-${hpDamage || Number(target?.attack ?? 0)}`,
+      blocked,
+      style: floatStyle(toEl),
+    },
+  ]
+  const floatId = bullyFloatSeq
+  window.setTimeout(() => {
+    bullyFloats.value = bullyFloats.value.filter((item) => item.id !== floatId)
+  }, 900)
+  await waitFx(240)
+  bullySlash.value = null
+  bullyImpact.value = false
+  window.setTimeout(() => {
+    struckSeats.value = struckSeats.value.filter((item) => item !== seat)
+    flashSeats.value = flashSeats.value.filter((item) => item !== seat)
+  }, 420)
+}
+
+async function playBullyAttackFx(rawTargets: any[], round: number | string | null) {
+  if (!rawTargets.length) return
+  if (round != null && String(round) === String(lastBullyFxRound)) return
+  if (bullyFxPlaying.value) return
+  lastBullyFxRound = round
+  bullyFxPlaying.value = true
+  try {
+    await nextTick()
+    const ordered = [...rawTargets].sort((a, b) => {
+      const seatA = players.value.findIndex((item) => sameBattleUserId(item.userId, a?.userId))
+      const seatB = players.value.findIndex((item) => sameBattleUserId(item.userId, b?.userId))
+      return seatA - seatB
+    })
+    bullyCharging.value = true
+    await waitFx(280)
+    for (const target of ordered) {
+      const seat = players.value.findIndex((item) => sameBattleUserId(item.userId, target?.userId))
+      if (seat < 0) continue
+      await strikeSeat(seat, target)
+      await waitFx(80)
+    }
+    await waitFx(360)
+  } finally {
+    bullyCharging.value = false
+    bullySlash.value = null
+    bullyImpact.value = false
+    bullyFxPlaying.value = false
+    if (pendingReviveAfterFx.value && localCurrentHp.value <= 0 && !game.isGameOver) {
+      pendingReviveAfterFx.value = false
+      openReviveDialog()
+    }
+  }
+}
+
 async function endTurn() {
   if (!activeMatchId.value || !canActWithActivePlayer.value) return
   try {
@@ -1071,6 +1254,10 @@ async function endTurn() {
     const res = await endMatchTurn(activeMatchId.value, payload)
     console.log(`[调试] end-turn 响应:`, JSON.stringify(res, null, 2))
     logMatchEvent('player.turn.ended', res)
+    const attack = extractBossAttack(res)
+    if (attack.targets.length) {
+      await playBullyAttackFx(attack.targets, attack.round)
+    }
     if (res.matchEnded) {
       await loadSettlement()
       return
@@ -1165,6 +1352,28 @@ function startReviveWatchHeartbeat() {
   }, 1000)
 }
 
+function onReviveTimeUpdate() {
+  const video = reviveVideoRef.value
+  if (!video || video.seeking || reviveSeekLocking) return
+  reviveLastTime.value = video.currentTime
+}
+
+function lockReviveSeek() {
+  const video = reviveVideoRef.value
+  if (!video || reviveSeekLocking) return
+  if (Math.abs(video.currentTime - reviveLastTime.value) <= 0.35) return
+  reviveSeekLocking = true
+  video.currentTime = reviveLastTime.value
+  window.setTimeout(() => { reviveSeekLocking = false }, 0)
+}
+
+function lockRevivePlaybackRate() {
+  const video = reviveVideoRef.value
+  if (video && video.playbackRate !== 1) {
+    video.playbackRate = 1
+  }
+}
+
 async function submitRevive() {
   if (!activeMatchId.value || !user.userId || reviveSubmitting.value || !reviveVideoWatched.value) return
   reviveSubmitting.value = true
@@ -1196,6 +1405,8 @@ function openReviveDialog() {
   if (showReviveDialog.value || game.isGameOver || reviveDialogDismissed.value) return
   reviveVideoWatched.value = false
   reviveVideoError.value = ''
+  reviveLastTime.value = 0
+  reviveSeekLocking = false
   reviveRemainingSeconds.value = null
   reviveStatusLoading.value = true
   showReviveDialog.value = true
@@ -1209,6 +1420,8 @@ function handleReviveClose() {
   showReviveDialog.value = false
   reviveVideoWatched.value = false
   reviveVideoError.value = ''
+  reviveLastTime.value = 0
+  reviveSeekLocking = false
   reviveRemainingSeconds.value = null
   stopReviveWatchHeartbeat()
   if (reviveVideoRef.value) {
@@ -1514,9 +1727,22 @@ function logMatchEvent(type: string, data: any, message?: any) {
       addAction(`—— 第 ${r} 回合 ——`, `round:${r}`)
       break
     }
-    case 'boss.attack.resolved':
-      addAction('Boss 发动攻击', `boss:${d?.resolvedRound ?? d?.currentRound ?? d?.version ?? Date.now()}`)
+    case 'boss.attack.resolved': {
+      const hits = extractBossAttack(d).targets
+      if (hits.length) {
+        const parts = hits.map((item: any) => {
+          const dmg = Number(item.hpDamage ?? 0)
+          const absorbed = Number(item.absorbedDamage ?? 0)
+          if (dmg > 0) return `${playerLabel(item.userId)} -${dmg}`
+          if (absorbed > 0) return `${playerLabel(item.userId)} 格挡`
+          return `${playerLabel(item.userId)} 未受伤`
+        })
+        addAction(`霸凌者发动攻击：${parts.join('，')}`, `boss:${d?.resolvedRound ?? d?.currentRound ?? d?.version ?? Date.now()}`)
+      } else {
+        addAction('霸凌者发动攻击', `boss:${d?.resolvedRound ?? d?.currentRound ?? d?.version ?? Date.now()}`)
+      }
       break
+    }
     case 'match.ended': {
       const won = resolveIsVictory(d) || game.isVictory
       addAction(
@@ -1556,9 +1782,12 @@ async function handleReviveAvailable(data: any) {
   const eventMatchId = String(data?.matchId ?? data?.data?.matchId ?? '')
   if (eventMatchId && eventMatchId !== activeMatchId.value) return
   await refreshBattleState()
-  // 刷新后检查是否需要弹出复活弹窗
   if (localCurrentHp.value <= 0 && !game.isGameOver) {
-    openReviveDialog()
+    if (bullyFxPlaying.value) {
+      pendingReviveAfterFx.value = true
+    } else {
+      openReviveDialog()
+    }
   }
 }
 
@@ -1591,6 +1820,9 @@ watch(() => game.isGameOver, (over) => {
 })
 
 onMounted(async () => {
+  updateBattleViewport()
+  window.addEventListener('resize', updateBattleViewport)
+  window.visualViewport?.addEventListener('resize', updateBattleViewport)
   const hour = new Date().getHours()
   bgImage.value = bgList[hour % bgList.length]
   console.log('[BattlePage onMounted] route.matchId =', route.params.matchId)
@@ -1624,8 +1856,24 @@ onMounted(async () => {
     subscribeRoomEvent('match.started', handleMatchEvent),
     subscribeRoomEvent('match.first_player.chosen', handleMatchEvent),
     subscribeRoomEvent('card.played', makeMatchHandler('card.played')),
-    subscribeRoomEvent('player.turn.ended', makeMatchHandler('player.turn.ended')),
-    subscribeRoomEvent('boss.attack.resolved', makeMatchHandler('boss.attack.resolved')),
+    subscribeRoomEvent('player.turn.ended', async (data: any, message?: any) => {
+      if (!eventBelongsToCurrentMatch(data, message)) return
+      logMatchEvent('player.turn.ended', data, message)
+      const attack = extractBossAttack(data)
+      if (attack.targets.length) {
+        await playBullyAttackFx(attack.targets, attack.round)
+      }
+      await refreshBattleState().catch(() => {})
+    }),
+    subscribeRoomEvent('boss.attack.resolved', async (data: any, message?: any) => {
+      if (!eventBelongsToCurrentMatch(data, message)) return
+      logMatchEvent('boss.attack.resolved', data, message)
+      const attack = extractBossAttack(data)
+      if (attack.targets.length) {
+        await playBullyAttackFx(attack.targets, attack.round)
+      }
+      await refreshBattleState().catch(() => {})
+    }),
     subscribeRoomEvent('round.started', makeMatchHandler('round.started')),
     subscribeRoomEvent('match.reconnecting', handleMatchReconnecting),
     subscribeRoomEvent('match.recovered', handleMatchRecovered),
@@ -1653,6 +1901,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateBattleViewport)
+  window.visualViewport?.removeEventListener('resize', updateBattleViewport)
   stopDisconnectTimers()
   stopFirstPlayerPoll()
   stopActionPhasePoll()
@@ -1703,26 +1953,41 @@ onUnmounted(() => {
   position: absolute;
   top: 92px;
   left: var(--space-4);
+  z-index: 6;
   display: flex;
-  gap: var(--space-4);
+  gap: 10px;
   flex-wrap: wrap;
-  color: rgba(255,255,255,0.82);
-  font-size: var(--text-sm);
+  align-items: flex-start;
+  pointer-events: none;
 }
 .status-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
-.battle-status-row span {
-  padding: 4px 10px;
-  border: 1px solid rgba(255,255,255,0.16);
-  border-radius: var(--radius-full);
-  background: rgba(0,0,0,0.22);
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 360px;
+  padding: 7px 14px 6px;
+  border: 1px solid rgba(255, 224, 160, 0.42);
+  border-radius: 999px;
+  background: rgba(16, 10, 5, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff4dc;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 232, 180, 0.16);
+  white-space: nowrap;
 }
 .revive-wait-tag {
-  color: #f0c040;
-  border-color: rgba(240, 192, 64, 0.5) !important;
+  color: #ffe08a;
+  border-color: rgba(240, 192, 64, 0.7);
   animation: revivePulse 1.5s ease-in-out infinite;
 }
 .entity-row { display: flex; align-items: center; justify-content: center; gap: var(--space-6); overflow: visible; }
@@ -2019,6 +2284,14 @@ onUnmounted(() => {
   border-radius: 0;
   margin: 0;
 }
+.revive-video::-webkit-media-controls-timeline,
+.revive-video::-webkit-media-controls-current-time-display,
+.revive-video::-webkit-media-controls-time-remaining-display,
+.revive-video::-webkit-media-controls-seek-back-button,
+.revive-video::-webkit-media-controls-seek-forward-button {
+  display: none !important;
+  pointer-events: none !important;
+}
 .revive-video-placeholder {
   background: #000;
 }
@@ -2206,16 +2479,31 @@ onUnmounted(() => {
   gap: 4px;
   justify-content: center;
   align-items: flex-end;
-  min-height: 280px;
+  height: calc(var(--card-width) * 800 / 441);
+  min-height: calc(var(--card-width) * 800 / 441);
   padding-top: 0;
   margin-top: 0;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: visible;
   position: relative;
   z-index: 3;
 }
+.hand-cards :deep(.card-item),
+.hand-card-back {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: var(--card-width);
+  height: calc(var(--card-width) * 800 / 441);
+  aspect-ratio: 441 / 800;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
 .hand-cards :deep(.card-item) {
-  transform: scale(0.88);
+  transform: none;
   transform-origin: bottom center;
+}
+.hand-cards :deep(.card-item:hover:not(.disabled)) {
+  transform: translateY(-10px);
 }
 .hand-empty {
   color: rgba(255,255,255,0.7);
@@ -2223,29 +2511,21 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .hand-card-back {
-  width: calc(var(--card-width) * 0.88);
-  aspect-ratio: 441 / 800;
-  flex: 0 0 auto;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(196, 169, 98, 0.45);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--color-border-subtle);
   pointer-events: none;
   background-color: #e6d4a8;
   background-position: center;
-  background-size: cover;
+  background-size: 100% 100%;
   background-repeat: no-repeat;
 }
 .hand-wait-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 12px;
+  margin: 0 0 6px;
   text-align: center;
-  color: rgba(255, 248, 230, 0.92);
+  color: #fff8e6;
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
   pointer-events: none;
 }
 .finish-btn:disabled {
@@ -2322,8 +2602,92 @@ onUnmounted(() => {
   overflow: hidden;
 }
 .pos-rect-player1,
-.pos-rect-player2 {
+.pos-rect-player2,
+.pos-rect-bully {
   overflow: visible;
+}
+.pos-rect-bully.is-charging img {
+  transform-origin: center bottom;
+  animation: bully-charge 0.32s ease-in forwards;
+  filter: drop-shadow(0 0 18px rgba(255, 64, 32, 0.85));
+}
+@keyframes bully-charge {
+  0% { transform: scale(1) translateY(0) rotate(0deg); }
+  55% { transform: scale(1.1) translateY(6px) rotate(-2deg); }
+  100% { transform: scale(1.06) translateY(10px) rotate(-3deg); }
+}
+.pos-rect-player1.is-struck .player-img,
+.pos-rect-player2.is-struck .player-img {
+  animation: owl-hit 0.4s ease-out;
+}
+@keyframes owl-hit {
+  0% { filter: brightness(2) saturate(0.35); transform: translate(0, 0); }
+  30% { filter: brightness(1.5) sepia(0.45) hue-rotate(-25deg); transform: translate(8px, 5px); }
+  100% { filter: none; transform: translate(0, 0); }
+}
+.player-hp-hud.is-flash {
+  animation: hp-flash 0.45s ease;
+}
+.player-hp-hud.is-flash :deep(.stamina-bar) {
+  filter: brightness(1.8) saturate(1.4);
+}
+@keyframes hp-flash {
+  0%, 100% { filter: none; }
+  40% { filter: drop-shadow(0 0 14px #ff3b2f); }
+}
+.bully-fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  overflow: hidden;
+}
+.bully-slash {
+  position: absolute;
+  height: 12px;
+  transform-origin: 0 50%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, #fff4c8 12%, #ff4a2a 48%, #ffb24a 82%, transparent 100%);
+  box-shadow: 0 0 18px 5px rgba(255, 72, 32, 0.55);
+  animation: slash-strike 0.24s ease-out forwards;
+}
+.bully-slash.blocked {
+  background: linear-gradient(90deg, transparent 0%, #d7f2ff 12%, #6cb8ff 50%, #b8e0ff 82%, transparent 100%);
+  box-shadow: 0 0 16px 4px rgba(90, 170, 255, 0.5);
+}
+@keyframes slash-strike {
+  0% { opacity: 0; clip-path: inset(0 100% 0 0); }
+  30% { opacity: 1; clip-path: inset(0 35% 0 0); }
+  100% { opacity: 0; clip-path: inset(0 0 0 0); }
+}
+.bully-float {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ff5b4a;
+  text-shadow: 0 2px 0 #4a1208, 0 0 12px rgba(255, 72, 40, 0.75);
+  animation: damage-float 0.9s ease-out forwards;
+}
+.bully-float.blocked {
+  font-size: 22px;
+  color: #9ad4ff;
+  text-shadow: 0 2px 0 #16324a, 0 0 10px rgba(90, 170, 255, 0.7);
+}
+@keyframes damage-float {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
+  18% { opacity: 1; transform: translate(-50%, -70%) scale(1.12); }
+  100% { opacity: 0; transform: translate(-50%, -150%) scale(1); }
+}
+.battle-page.is-impact {
+  animation: bully-impact 0.26s linear;
+}
+@keyframes bully-impact {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-3px, 2px); }
+  50% { transform: translate(3px, -2px); }
+  75% { transform: translate(-2px, 1px); }
 }
 .player-hp-hud {
   position: absolute;
@@ -2431,105 +2795,89 @@ onUnmounted(() => {
 <style>
 .target-overlay {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 320px;
+  inset: 0 0 180px;
   display: flex;
+  align-items: center;
   justify-content: center;
   pointer-events: none;
   z-index: 3000;
 }
 .target-dialog {
-  width: var(--frame-w, min(760px, calc(100vw - 32px)));
-  height: var(--frame-h, auto);
-  background: var(--choose-player-bg) center / var(--bg-w, 760px) var(--bg-h, auto) no-repeat;
+  width: min(520px, calc(100vw - 40px));
+  min-height: 300px;
+  background: var(--choose-player-bg) center / 100% 100% no-repeat;
   border: none;
   border-radius: 18px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
-  color: #fff;
-  padding: 92px 40px 42px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  color: #3d2b1f;
+  padding: 58px 42px 28px;
   pointer-events: auto;
   position: relative;
-  overflow: visible;
-}
-.target-dialog::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(11, 19, 27, 0.18);
-  pointer-events: none;
-}
-.target-dialog > * {
-  position: relative;
-  z-index: 1;
-}
-.target-dialog-title {
-  margin-top: -46px;
-  margin-bottom: 6px;
-  text-align: center;
-}
-.target-dialog-desc {
-  margin-bottom: 22px;
-  text-align: center;
-}
-.target-title-main {
-  font-size: 26px;
-  font-weight: 700;
-  color: #3d2b1f;
-}
-.target-title-sub {
-  font-size: 18px;
-  color: #3d2b1f;
-}
-.target-player-wrapper {
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
 }
-.target-player-label {
-  font-size: 16px;
-  font-weight: 700;
-  color: #3d2b1f;
+.target-dialog-title {
+  margin: 0 0 10px;
   text-align: center;
-  white-space: nowrap;
-  z-index: 2;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #3d2b1f;
+  text-shadow: 0 1px 0 rgba(255, 236, 200, 0.45);
 }
-.target-player-role {
-  font-size: 13px;
-  font-weight: 400;
-  color: #5b4a3a;
+.target-dialog-desc {
+  margin: 0 0 22px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #5b4634;
+  letter-spacing: 0.04em;
 }
 .target-dialog-list {
-  position: relative;
+  width: 100%;
+  max-width: 360px;
   display: flex;
-  justify-content: center;
-  gap: 88px;
-  flex-wrap: nowrap;
-  padding-top: 10px;
-  min-height: 200px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
 }
 .target-player-btn {
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  height: 68px;
+  padding: 0 22px 0 108px;
   border: none;
   background-color: transparent;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: contain;
-  width: 190px;
-  height: 240px;
-  padding: 0;
+  background-size: 100% 100%;
   cursor: pointer;
-  flex: 0 0 auto;
-  font-size: 0;
-  color: transparent;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f4ead0;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 2px rgba(20, 12, 6, 0.85);
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+.target-player-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+.target-player-name {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.target-player-btn-p1 {
-  top: 4px;
-}
-.target-player-btn-p2 {
-  top: 10px;
+.target-player-role {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: #d9c9a6;
 }
 .target-player-btn-p1 {
   background-image: var(--p1-btn-bg);
@@ -2544,16 +2892,16 @@ onUnmounted(() => {
 }
 .target-dialog-close {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 14px;
+  right: 14px;
   z-index: 10;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.5);
-  background: rgba(0,0,0,0.6);
-  color: #fff;
-  font-size: 18px;
+  border: 1px solid rgba(255, 224, 160, 0.45);
+  background: rgba(28, 18, 10, 0.72);
+  color: #fff4dc;
+  font-size: 20px;
   line-height: 1;
   cursor: pointer;
   display: flex;
@@ -2562,7 +2910,7 @@ onUnmounted(() => {
   padding: 0;
 }
 .target-dialog-close:hover {
-  background: rgba(200,60,60,0.7);
+  background: rgba(160, 48, 36, 0.82);
   border-color: #fff;
 }
 .disconnect-overlay {

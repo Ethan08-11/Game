@@ -215,9 +215,11 @@ public class TaskServiceImpl implements TaskService {
 
     private void bumpByProgressType(Long userId, String progressType, int delta, String deptType) {
         List<Tasks> tasks = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
-                .eq(Tasks::getStatus, 1)
-                .eq(Tasks::getProgressType, progressType));
+                .eq(Tasks::getStatus, 1));
         for (Tasks task : tasks) {
+            if (!matchesProgressType(task, progressType)) {
+                continue;
+            }
             if ("PLAY_DEPT".equals(progressType) && !deptMatches(task, deptType)) {
                 continue;
             }
@@ -231,6 +233,31 @@ public class TaskServiceImpl implements TaskService {
             int next = (userTask.getProgressValue() == null ? 0 : userTask.getProgressValue()) + delta;
             applyProgress(userTask, task, next);
         }
+    }
+
+    private boolean matchesProgressType(Tasks task, String progressType) {
+        String actual = task.getProgressType();
+        if (progressType.equalsIgnoreCase(actual)) {
+            return true;
+        }
+        String condition = task.getConditionType();
+        if (condition == null || condition.isBlank()) {
+            return false;
+        }
+        if ("CARD_PLAY_COUNT".equals(progressType)) {
+            return "card_play_count".equalsIgnoreCase(condition)
+                    || "play_card".equalsIgnoreCase(condition);
+        }
+        if ("WIN_COUNT".equals(progressType)) {
+            return "win_count".equalsIgnoreCase(condition);
+        }
+        if ("MATCH_COUNT".equals(progressType)) {
+            return "match_count".equalsIgnoreCase(condition);
+        }
+        if ("LOGIN_COUNT".equals(progressType)) {
+            return "login_count".equalsIgnoreCase(condition) || "login_days".equalsIgnoreCase(condition);
+        }
+        return condition.equalsIgnoreCase(progressType);
     }
 
     private void syncLoginStreakProgress(Long userId, int streak) {
