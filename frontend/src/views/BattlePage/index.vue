@@ -1,5 +1,5 @@
 <template>
-  <div class="battle-page" :class="{ 'is-impact': bullyImpact }" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '', '--check-player-bg': `url(${checkPlayerBtnBg})` }">
+  <div class="battle-page" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '', '--check-player-bg': `url(${checkPlayerBtnBg})` }">
     <BackButton to="" text="放弃对战" @click="handleLeave" />
 
     <div class="battle-main">
@@ -72,22 +72,37 @@
             <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying" @click="endTurn" aria-label="结束回合" />
           </div>
 
-          <div class="hand-cards" :style="{ '--card-width': cardWidth + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }">
+          <div
+            class="hand-cards"
+            :class="{ 'is-waiting': !canRevealHand }"
+            :style="{ '--card-width': cardWidth + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }"
+          >
             <template v-if="canRevealHand">
-              <CardItem
-                v-for="card in activeHand"
+              <div
+                v-for="(card, index) in activeHand"
                 :key="card.id"
-                :name="card.name"
-                :dept="card.dept"
-                :cost="card.cost"
-                :type="card.type"
-                :description="card.description"
-                :damage="card.damage || 0"
-                :shield="card.shield || 0"
-                :image-url="card.imageUrl"
-                :disabled="!canActWithActivePlayer"
-                @play="playCard(card)"
-              />
+                class="hand-flip"
+                :class="{ 'is-flipped': handFlipped }"
+                :style="{ '--flip-delay': `${Math.min(index, 6) * 55}ms` }"
+              >
+                <div class="hand-flip-inner">
+                  <div class="hand-flip-face hand-flip-back" :style="cardBackStyle" />
+                  <div class="hand-flip-face hand-flip-front">
+                    <CardItem
+                      :name="card.name"
+                      :dept="card.dept"
+                      :cost="card.cost"
+                      :type="card.type"
+                      :description="card.description"
+                      :damage="card.damage || 0"
+                      :shield="card.shield || 0"
+                      :image-url="card.imageUrl"
+                      :disabled="!canActWithActivePlayer"
+                      @play="playCard(card)"
+                    />
+                  </div>
+                </div>
+              </div>
               <div v-if="activeHandCount === 0" class="hand-empty">当前回合手牌已用完</div>
             </template>
             <template v-else>
@@ -280,7 +295,7 @@
       </div>
     </Teleport>
 
-    <div class="position-rects">
+    <div class="position-rects" :class="{ 'is-impact': bullyImpact }">
       <div class="pos-rect pos-rect-customer" :style="{ width: '188px', height: '289px', left: '50%', top: '58%' }">
         <img :src="customerImage" alt="顾客" />
       </div>
@@ -323,7 +338,7 @@
       </div>
     </div>
 
-    <div class="bully-fx-layer" aria-hidden="true">
+    <div ref="bullyFxLayerRef" class="bully-fx-layer" aria-hidden="true">
       <div v-if="bullySlash" class="bully-slash" :class="{ blocked: bullySlash.blocked }" :style="bullySlash.style" />
       <div
         v-for="hit in bullyFloats"
@@ -451,6 +466,7 @@ const loggedActionKeys = new Set<string>()
 const bullyRectRef = ref<HTMLElement | null>(null)
 const player1RectRef = ref<HTMLElement | null>(null)
 const player2RectRef = ref<HTMLElement | null>(null)
+const bullyFxLayerRef = ref<HTMLElement | null>(null)
 const bullyCharging = ref(false)
 const bullyImpact = ref(false)
 const bullySlash = ref<{ style: Record<string, string>; blocked: boolean } | null>(null)
@@ -459,8 +475,11 @@ const struckSeats = ref<number[]>([])
 const flashSeats = ref<number[]>([])
 const bullyFxPlaying = ref(false)
 const pendingReviveAfterFx = ref(false)
+const pendingGameOverAfterFx = ref(false)
+let pendingGameOverDetail: any = null
 let lastBullyFxRound: number | string | null = null
 let bullyFloatSeq = 0
+let bullyFxChain: Promise<void> = Promise.resolve()
 
 function scrollActionLogToLatest() {
   void nextTick(() => {
@@ -758,6 +777,21 @@ const canRevealHand = computed(() => {
   return isCurrentUserActiveTurnPlayer.value && !isCurrentUserEnded.value
 })
 const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 5))
+const handFlipped = ref(false)
+
+watch(canRevealHand, async (show, wasShow) => {
+  if (show && !wasShow) {
+    handFlipped.value = false
+    await nextTick()
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        handFlipped.value = true
+      })
+    })
+    return
+  }
+  if (!show) handFlipped.value = false
+})
 const customerStatusText = computed(() => {
   if (customerTriggered.value === null) return '顾客机制：等待判定'
   if (!customerTriggered.value) return '顾客机制：本回合未触发'
@@ -954,11 +988,20 @@ async function refreshBattleState() {
     console.log(`[调试] refreshBattleState 跳过 (token ${token} != 当前 ${refreshStateToken.value})`)
     return
   }
+  const prevRound = turnNumber.value
+  const prevPhase = activePhase.value
+  const prevHp = Object.fromEntries(players.value.map((player) => [String(player.userId), { hp: player.hp, defense: player.defense }]))
   syncToStore(detail)
+  const queuedFx = queueBossAttackFromHpDrop(prevRound, prevPhase, prevHp, detail)
 
   // 对局已结束 → 不向 room store 同步 match 数据，避免覆盖 App.vue 已执行的房间清理
   // REVIVE_WAIT 阶段不要当成终局，否则会盖掉复活弹窗
   if ((detail.phase === 'FINISHED' || detail.matchEnded) && detail.phase !== 'REVIVE_WAIT' && !justRevived.value) {
+    if (bullyFxPlaying.value || queuedFx) {
+      pendingGameOverAfterFx.value = true
+      pendingGameOverDetail = detail
+      return
+    }
     applyGameOver(detail)
     stopActionPhasePoll()
     void loadSettlement()
@@ -999,7 +1042,7 @@ async function refreshBattleState() {
   activePlayerState.discardCount = myState?.discardCount ?? detail.players?.[activeSeat]?.discardCount ?? activePlayerState.discardCount
 
   if (localCurrentHp.value <= 0 && !game.isGameOver && !reviveDialogDismissed.value) {
-    if (bullyFxPlaying.value) {
+    if (bullyFxPlaying.value || queuedFx) {
       pendingReviveAfterFx.value = true
     } else {
       openReviveDialog()
@@ -1101,43 +1144,114 @@ function waitFx(ms: number) {
   })
 }
 
-function extractBossAttack(payload: any) {
-  const data = unwrapMatchEvent(payload) ?? payload ?? {}
-  const targets = data.bossAttackTargets ?? data.targets ?? []
+function collectBossAttackTargets(obj: any): any[] {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return []
+  const raw = obj.bossAttackTargets ?? obj.boss_attack_targets ?? obj.targets
+  return Array.isArray(raw) ? raw : []
+}
+
+function extractBossAttack(payload: any, message?: any) {
+  const chain = [
+    unwrapMatchEvent(payload, message),
+    payload,
+    payload?.data,
+    message,
+    message?.data,
+    message?.data?.data,
+  ]
+  for (const item of chain) {
+    const targets = collectBossAttackTargets(item)
+    if (!targets.length) continue
+    return {
+      targets,
+      round: item?.resolvedRound ?? item?.resolved_round ?? item?.currentRound ?? item?.current_round ?? item?.version ?? null,
+    }
+  }
+  const data = unwrapMatchEvent(payload, message) ?? payload ?? {}
   return {
-    targets: Array.isArray(targets) ? targets : [],
+    targets: [],
     round: data.resolvedRound ?? data.currentRound ?? data.version ?? null,
   }
+}
+
+function shouldSkipBossFx(round: number | string | null) {
+  return round != null && lastBullyFxRound != null && String(round) === String(lastBullyFxRound)
+}
+
+function queueBossAttackFx(rawTargets: any[], round: number | string | null) {
+  if (!Array.isArray(rawTargets) || rawTargets.length === 0) return false
+  if (shouldSkipBossFx(round)) return false
+  bullyFxChain = bullyFxChain.then(() => playBullyAttackFx(rawTargets, round)).catch(() => {})
+  return true
+}
+
+function queueBossAttackFromHpDrop(
+  prevRound: number,
+  prevPhase: string,
+  prevHp: Record<string, { hp: number; defense: number }>,
+  detail: any,
+) {
+  const attack = extractBossAttack(detail)
+  if (attack.targets.length) {
+    return queueBossAttackFx(attack.targets, attack.round ?? prevRound)
+  }
+  const targets = players.value.map((player) => {
+    const before = prevHp[String(player.userId)]
+    if (!before) return null
+    const hpDamage = Math.max(0, Number(before.hp) - Number(player.hp))
+    const absorbed = Math.max(0, Number(before.defense) - Number(player.defense))
+    if (hpDamage <= 0 && absorbed <= 0) return null
+    return { userId: player.userId, hpDamage, absorbedDamage: absorbed, attack: hpDamage + absorbed }
+  }).filter(Boolean) as any[]
+  if (!targets.length) return false
+  const roundAdvanced = Number(turnNumber.value) === Number(prevRound) + 1
+  const enteredRevive = activePhase.value === 'REVIVE_WAIT' && prevPhase !== 'REVIVE_WAIT'
+  const enteredBoss = activePhase.value === 'BOSS_ACTION' && prevPhase !== 'BOSS_ACTION'
+  const finishedNow = (detail?.phase === 'FINISHED' || detail?.matchEnded) && prevPhase !== 'FINISHED'
+  if (!roundAdvanced && !enteredRevive && !enteredBoss && !finishedNow) return false
+  return queueBossAttackFx(targets, prevRound || attack.round)
 }
 
 function playerRectBySeat(seat: number) {
   return seat === 1 ? player2RectRef.value : player1RectRef.value
 }
 
+function layerOffset(el: HTMLElement, fx: number, fy: number) {
+  const origin = bullyFxLayerRef.value?.getBoundingClientRect()
+  const box = el.getBoundingClientRect()
+  return {
+    x: box.left + box.width * fx - (origin?.left ?? 0),
+    y: box.top + box.height * fy - (origin?.top ?? 0),
+  }
+}
+
 function slashStyle(fromEl: HTMLElement, toEl: HTMLElement) {
-  const from = fromEl.getBoundingClientRect()
-  const to = toEl.getBoundingClientRect()
-  const x1 = from.left + from.width * 0.5
-  const y1 = from.top + from.height * 0.62
-  const x2 = to.left + to.width * 0.5
-  const y2 = to.top + to.height * 0.4
-  const dx = x2 - x1
-  const dy = y2 - y1
+  const from = layerOffset(fromEl, 0.5, 0.62)
+  const to = layerOffset(toEl, 0.5, 0.4)
+  const dx = to.x - from.x
+  const dy = to.y - from.y
   const len = Math.max(90, Math.hypot(dx, dy))
   const angle = Math.atan2(dy, dx) * 180 / Math.PI
   return {
-    left: `${x1}px`,
-    top: `${y1}px`,
+    left: `${from.x}px`,
+    top: `${from.y}px`,
     width: `${len}px`,
     transform: `rotate(${angle}deg)`,
   }
 }
 
 function floatStyle(targetEl: HTMLElement) {
-  const box = targetEl.getBoundingClientRect()
+  const point = layerOffset(targetEl, 0.5, 0.28)
   return {
-    left: `${box.left + box.width * 0.5}px`,
-    top: `${box.top + box.height * 0.28}px`,
+    left: `${point.x}px`,
+    top: `${point.y}px`,
+  }
+}
+
+async function waitForFxAnchors() {
+  for (let i = 0; i < 12; i++) {
+    if (bullyRectRef.value && (player1RectRef.value || player2RectRef.value) && bullyFxLayerRef.value) return
+    await waitFx(50)
   }
 }
 
@@ -1145,8 +1259,8 @@ async function strikeSeat(seat: number, target: any) {
   const toEl = playerRectBySeat(seat)
   const fromEl = bullyRectRef.value
   if (!fromEl || !toEl) return
-  const hpDamage = Math.max(0, Number(target?.hpDamage ?? 0))
-  const absorbed = Math.max(0, Number(target?.absorbedDamage ?? 0))
+  const hpDamage = Math.max(0, Number(target?.hpDamage ?? target?.hp_damage ?? 0))
+  const absorbed = Math.max(0, Number(target?.absorbedDamage ?? target?.absorbed_damage ?? 0))
   const blocked = hpDamage <= 0 && absorbed > 0
   bullySlash.value = { style: slashStyle(fromEl, toEl), blocked }
   bullyImpact.value = true
@@ -1175,25 +1289,44 @@ async function strikeSeat(seat: number, target: any) {
   }, 420)
 }
 
+function finishPendingAfterBullyFx() {
+  if (pendingReviveAfterFx.value && localCurrentHp.value <= 0 && !game.isGameOver) {
+    pendingReviveAfterFx.value = false
+    openReviveDialog()
+  }
+  if (pendingGameOverAfterFx.value) {
+    pendingGameOverAfterFx.value = false
+    const detail = pendingGameOverDetail
+    pendingGameOverDetail = null
+    if (detail) {
+      applyGameOver(detail)
+      stopActionPhasePoll()
+      void loadSettlement()
+    }
+  }
+}
+
 async function playBullyAttackFx(rawTargets: any[], round: number | string | null) {
   if (!rawTargets.length) return
-  if (round != null && String(round) === String(lastBullyFxRound)) return
+  if (shouldSkipBossFx(round)) return
   if (bullyFxPlaying.value) return
-  lastBullyFxRound = round
   bullyFxPlaying.value = true
   try {
     await nextTick()
-    const ordered = [...rawTargets].sort((a, b) => {
-      const seatA = players.value.findIndex((item) => sameBattleUserId(item.userId, a?.userId))
-      const seatB = players.value.findIndex((item) => sameBattleUserId(item.userId, b?.userId))
-      return seatA - seatB
-    })
+    await waitForFxAnchors()
+    const ordered = [...rawTargets]
+      .map((target) => ({
+        target,
+        seat: players.value.findIndex((item) => sameBattleUserId(item.userId, target?.userId ?? target?.user_id)),
+      }))
+      .filter((item) => item.seat >= 0)
+      .sort((a, b) => a.seat - b.seat)
+    if (!ordered.length || !bullyRectRef.value) return
+    lastBullyFxRound = round
     bullyCharging.value = true
     await waitFx(280)
-    for (const target of ordered) {
-      const seat = players.value.findIndex((item) => sameBattleUserId(item.userId, target?.userId))
-      if (seat < 0) continue
-      await strikeSeat(seat, target)
+    for (const item of ordered) {
+      await strikeSeat(item.seat, item.target)
       await waitFx(80)
     }
     await waitFx(360)
@@ -1202,11 +1335,15 @@ async function playBullyAttackFx(rawTargets: any[], round: number | string | nul
     bullySlash.value = null
     bullyImpact.value = false
     bullyFxPlaying.value = false
-    if (pendingReviveAfterFx.value && localCurrentHp.value <= 0 && !game.isGameOver) {
-      pendingReviveAfterFx.value = false
-      openReviveDialog()
-    }
+    finishPendingAfterBullyFx()
   }
+}
+
+async function handleBossAttackEvent(data: any, message?: any) {
+  const attack = extractBossAttack(data, message)
+  if (!attack.targets.length) return
+  queueBossAttackFx(attack.targets, attack.round)
+  await bullyFxChain
 }
 
 async function endTurn() {
@@ -1222,7 +1359,8 @@ async function endTurn() {
     logMatchEvent('player.turn.ended', res)
     const attack = extractBossAttack(res)
     if (attack.targets.length) {
-      await playBullyAttackFx(attack.targets, attack.round)
+      queueBossAttackFx(attack.targets, attack.round)
+      await bullyFxChain
     }
     if (res.matchEnded) {
       await loadSettlement()
@@ -1822,22 +1960,21 @@ onMounted(async () => {
     subscribeRoomEvent('player.turn.ended', async (data: any, message?: any) => {
       if (!eventBelongsToCurrentMatch(data, message)) return
       logMatchEvent('player.turn.ended', data, message)
-      const attack = extractBossAttack(data)
-      if (attack.targets.length) {
-        await playBullyAttackFx(attack.targets, attack.round)
-      }
+      await handleBossAttackEvent(data, message)
       await refreshBattleState().catch(() => {})
     }),
     subscribeRoomEvent('boss.attack.resolved', async (data: any, message?: any) => {
       if (!eventBelongsToCurrentMatch(data, message)) return
       logMatchEvent('boss.attack.resolved', data, message)
-      const attack = extractBossAttack(data)
-      if (attack.targets.length) {
-        await playBullyAttackFx(attack.targets, attack.round)
-      }
+      await handleBossAttackEvent(data, message)
       await refreshBattleState().catch(() => {})
     }),
-    subscribeRoomEvent('round.started', makeMatchHandler('round.started')),
+    subscribeRoomEvent('round.started', async (data: any, message?: any) => {
+      if (!eventBelongsToCurrentMatch(data, message)) return
+      logMatchEvent('round.started', data, message)
+      await handleBossAttackEvent(data, message)
+      await refreshBattleState().catch(() => {})
+    }),
     subscribeRoomEvent('match.reconnecting', handleMatchReconnecting),
     subscribeRoomEvent('match.recovered', handleMatchRecovered),
     subscribeRoomEvent('match.revive.success', (data: any) => {
@@ -1853,11 +1990,12 @@ onMounted(async () => {
     }),
     subscribeRoomEvent('match.revive.available', handleReviveAvailable),
     subscribeRoomEvent('match.revive.failed', handleMatchEvent),
-    subscribeRoomEvent('match.ended', async (data: any) => {
+    subscribeRoomEvent('match.ended', async (data: any, message?: any) => {
       // match.ended 不做 matchId 过滤，确保放弃/掉线等通知不会因 ID 不匹配被静默丢弃
-      const d = data?.data ?? data
+      const d = unwrapMatchEvent(data, message) ?? data?.data ?? data
       if (d?.winnerType != null) pendingWinnerType = Number(d.winnerType)
-      logMatchEvent('match.ended', data)
+      logMatchEvent('match.ended', data, message)
+      await handleBossAttackEvent(data, message)
       await refreshBattleState()
     }),
   )
@@ -2446,37 +2584,92 @@ onUnmounted(() => {
   overflow: visible;
   position: relative;
   z-index: 3;
+  perspective: 1400px;
+}
+.hand-cards.is-waiting {
+  min-height: 128px;
+  margin-bottom: 8px;
 }
 .hand-cards :deep(.card-item) {
   transform: scale(0.88);
   transform-origin: bottom center;
+}
+.hand-cards :deep(.card-item:hover:not(.disabled)) {
+  transform: scale(0.88) translateY(-8px);
 }
 .hand-empty {
   color: rgba(255,255,255,0.7);
   padding: var(--space-4);
   white-space: nowrap;
 }
-.hand-card-back {
-  width: calc(var(--card-width) * 0.88);
-  aspect-ratio: 441 / 800;
-  flex: 0 0 auto;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(196, 169, 98, 0.45);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
-  pointer-events: none;
+.hand-card-back,
+.hand-flip-back {
   background-color: #e6d4a8;
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
+  border: 1px solid rgba(196, 169, 98, 0.45);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+.hand-card-back {
+  width: 90px;
+  aspect-ratio: 441 / 800;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+.hand-flip {
+  width: 90px;
+  aspect-ratio: 441 / 800;
+  flex: 0 0 auto;
+  position: relative;
+  transform-origin: center bottom;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--flip-delay, 0ms);
+}
+.hand-flip.is-flipped {
+  width: var(--card-width);
+}
+.hand-flip-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transform: rotateY(180deg);
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--flip-delay, 0ms);
+}
+.hand-flip.is-flipped .hand-flip-inner {
+  transform: rotateY(0deg);
+}
+.hand-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: var(--radius-md);
+}
+.hand-flip-back {
+  transform: rotateY(180deg);
+  overflow: hidden;
+  pointer-events: none;
+}
+.hand-flip-front {
+  transform: rotateY(0deg);
+  overflow: visible;
+}
+.hand-flip-front :deep(.card-item) {
+  width: 100%;
+  height: 100%;
 }
 .hand-wait-hint {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 12px;
+  bottom: 8px;
   text-align: center;
   color: rgba(255, 248, 230, 0.92);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
@@ -2590,10 +2783,10 @@ onUnmounted(() => {
   40% { filter: drop-shadow(0 0 14px #ff3b2f); }
 }
 .bully-fx-layer {
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 40;
+  z-index: 45;
   overflow: hidden;
 }
 .bully-slash {
@@ -2634,7 +2827,7 @@ onUnmounted(() => {
   18% { opacity: 1; transform: translate(-50%, -70%) scale(1.12); }
   100% { opacity: 0; transform: translate(-50%, -150%) scale(1); }
 }
-.battle-page.is-impact {
+.position-rects.is-impact {
   animation: bully-impact 0.26s linear;
 }
 @keyframes bully-impact {

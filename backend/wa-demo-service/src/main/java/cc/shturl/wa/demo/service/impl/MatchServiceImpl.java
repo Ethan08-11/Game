@@ -1556,7 +1556,14 @@ public class MatchServiceImpl implements MatchService {
         notifyAfterCommit(() -> {
             notifyPlayers(matchId, "player.turn.ended", response);
             if (response.bossAttackResolved()) {
-                notifyPlayers(matchId, "boss.attack.resolved", response);
+                Map<String, Object> attackPayload = new LinkedHashMap<>();
+                attackPayload.put("matchId", matchId);
+                attackPayload.put("userId", currentUserId);
+                attackPayload.put("resolvedRound", resolvedRound);
+                attackPayload.put("currentRound", match.getCurrentRound());
+                attackPayload.put("bossAttackResolved", true);
+                attackPayload.put("bossAttackTargets", targets);
+                notifyPlayers(matchId, "boss.attack.resolved", attackPayload);
             }
             if (response.matchEnded()) {
                 notifyPlayers(matchId, "match.ended", response);
