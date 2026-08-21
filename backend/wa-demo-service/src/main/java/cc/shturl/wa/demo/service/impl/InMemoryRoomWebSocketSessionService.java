@@ -2,10 +2,14 @@ package cc.shturl.wa.demo.service.impl;
 
 import cc.shturl.wa.common.constant.RedisKeyConstants;
 import cc.shturl.wa.demo.service.RoomWebSocketSessionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator.OverflowStrategy;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -15,9 +19,15 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSessionService {
+    private static final Logger log = LoggerFactory.getLogger(InMemoryRoomWebSocketSessionService.class);
     private static final long ONLINE_TIMEOUT_MILLIS = 60_000L;
+    private static final int SEND_TIME_LIMIT_MS = 5_000;
+    private static final int SEND_BUFFER_LIMIT = 512 * 1024;
+    private static final String ATTR_OUTBOUND = "outboundSession";
+
     private final Map<Long, Map<String, WebSocketSession>> sessions = new ConcurrentHashMap<>();
     private final Map<Long, Long> lastHeartbeatAt = new ConcurrentHashMap<>();
+    private final Map<String, Object> sendLocks = new ConcurrentHashMap<>();
     private final RedisTemplate<String, Object> redisTemplate;
 
     public InMemoryRoomWebSocketSessionService(RedisTemplate<String, Object> redisTemplate) {
@@ -28,7 +38,8 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
     public void bind(Long userId, WebSocketSession session) {
         String connectionId = UUID.randomUUID().toString();
         session.getAttributes().put("presenceConnectionId", connectionId);
-        sessions.computeIfAbsent(userId, ignored -> new ConcurrentHashMap<>()).put(connectionId, session);
+        WebSocketSession outbound = wrapOutbound(session);
+        sessions.computeIfAbsent(userId, ignored -> new ConcurrentHashMap<>()).put(connectionId, outbound);
         heartbeat(userId, session);
     }
 
@@ -43,6 +54,7 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
                 lastHeartbeatAt.remove(userId);
             }
         }
+        sendLocks.remove(session.getId());
         redisTemplate.opsForZSet().remove(RedisKeyConstants.ONLINE_CONNECTIONS, member(userId, connectionId));
         redisTemplate.delete(userConnectionKey(userId, connectionId));
     }
@@ -53,7 +65,7 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
         if (connectionId == null || "null".equals(connectionId)) {
             connectionId = UUID.randomUUID().toString();
             session.getAttributes().put("presenceConnectionId", connectionId);
-            sessions.computeIfAbsent(userId, ignored -> new ConcurrentHashMap<>()).put(connectionId, session);
+            sessions.computeIfAbsent(userId, ignored -> new ConcurrentHashMap<>()).put(connectionId, wrapOutbound(session));
         }
         long now = System.currentTimeMillis();
         String member = member(userId, connectionId);
@@ -84,34 +96,60 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
     }
 
     @Override
-    public void sendToUser(Long userId, String message) throws IOException {
+    public void sendToUser(Long userId, String message) {
         Map<String, WebSocketSession> userSessions = sessions.get(userId);
         if (userSessions == null) {
             return;
         }
         TextMessage payload = new TextMessage(message);
-        IOException lastError = null;
         for (WebSocketSession session : userSessions.values()) {
-            try {
-                sendSafely(session, payload);
-            } catch (IOException exception) {
-                lastError = exception;
-            }
-        }
-        if (lastError != null) {
-            throw lastError;
+            sendSafely(session, payload);
         }
     }
 
-    private void sendSafely(WebSocketSession session, TextMessage payload) throws IOException {
+    @Override
+    public void sendText(WebSocketSession session, String message) {
+        sendSafely(resolveOutbound(session), new TextMessage(message));
+    }
+
+    private WebSocketSession wrapOutbound(WebSocketSession session) {
+        Object existing = session.getAttributes().get(ATTR_OUTBOUND);
+        if (existing instanceof WebSocketSession outbound) {
+            return outbound;
+        }
+        ConcurrentWebSocketSessionDecorator outbound = new ConcurrentWebSocketSessionDecorator(
+                session, SEND_TIME_LIMIT_MS, SEND_BUFFER_LIMIT, OverflowStrategy.DROP);
+        session.getAttributes().put(ATTR_OUTBOUND, outbound);
+        return outbound;
+    }
+
+    private WebSocketSession resolveOutbound(WebSocketSession session) {
+        if (session == null) {
+            return null;
+        }
+        Object outbound = session.getAttributes().get(ATTR_OUTBOUND);
+        if (outbound instanceof WebSocketSession wrapped) {
+            return wrapped;
+        }
+        return wrapOutbound(session);
+    }
+
+    private void sendSafely(WebSocketSession session, TextMessage payload) {
         if (session == null || !session.isOpen()) {
             return;
         }
-        synchronized (session) {
+        Object lock = sendLocks.computeIfAbsent(session.getId(), id -> new Object());
+        synchronized (lock) {
             if (!session.isOpen()) {
                 return;
             }
-            session.sendMessage(payload);
+            try {
+                session.sendMessage(payload);
+            } catch (IllegalStateException | IOException e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Skip websocket send sessionId={}: {}", session.getId(), e.getMessage());
+                }
+            }
         }
     }
 

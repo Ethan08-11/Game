@@ -20,8 +20,6 @@ import java.time.LocalDate;
 public class LeaderboardSchemaBootstrap implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(LeaderboardSchemaBootstrap.class);
-    private static final long VICTORY_MONEY = 50L;
-    private static final long DEFEAT_MONEY = 10L;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -35,11 +33,10 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
             log.info("user_profiles missing; skip weekly leaderboard schema.");
             return;
         }
-        boolean addedColumn = ensureWeeklyMoneyColumn();
+        ensureWeeklyMoneyColumn();
         ensureWeekStateTable();
-        if (addedColumn) {
-            backfillCurrentWeek();
-        }
+        ensureAlignedFlagColumn();
+        alignWeeklyToTotalOnce();
         log.info("Weekly leaderboard schema ready, week starting {}.", LeaderboardServiceImpl.currentWeekStart());
     }
 
@@ -62,6 +59,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
                 CREATE TABLE IF NOT EXISTS leaderboard_week (
                   id tinyint NOT NULL,
                   week_start date NOT NULL,
+                  aligned_to_total tinyint NOT NULL DEFAULT 0,
                   PRIMARY KEY (id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='周榜当前周起始日（周一）'
                 """);
@@ -72,32 +70,34 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
         }
     }
 
-    private void backfillCurrentWeek() {
-        if (!tableExists("matches") || !tableExists("match_players")) {
+    private void ensureAlignedFlagColumn() {
+        if (columnExists("leaderboard_week", "aligned_to_total")) {
             return;
         }
+        jdbcTemplate.execute("""
+                ALTER TABLE `leaderboard_week`
+                ADD COLUMN `aligned_to_total` tinyint NOT NULL DEFAULT 0
+                COMMENT '是否已用总榜金币对齐周榜，只执行一次'
+                """);
+        log.info("Added leaderboard_week.aligned_to_total column.");
+    }
+
+    /**
+     * 一次性把周榜金币对齐总榜，本周两边数字一致；下周一 0 点再按原逻辑清零周榜。
+     */
+    private void alignWeeklyToTotalOnce() {
+        Integer aligned = jdbcTemplate.queryForObject(
+                "SELECT aligned_to_total FROM leaderboard_week WHERE id = 1", Integer.class);
+        if (aligned != null && aligned == 1) {
+            return;
+        }
+        int updated = jdbcTemplate.update("UPDATE user_profiles SET weekly_money = IFNULL(money, 0)");
         LocalDate weekStart = LeaderboardServiceImpl.currentWeekStart();
-        int updated = jdbcTemplate.update("""
-                UPDATE user_profiles p
-                LEFT JOIN (
-                    SELECT mp.user_id,
-                           SUM(CASE
-                               WHEN m.winner_type = 1 THEN ?
-                               WHEN m.winner_type = 2 THEN ?
-                               ELSE 0
-                           END) AS weekly_money
-                    FROM match_players mp
-                    INNER JOIN matches m ON m.id = mp.match_id
-                    WHERE m.status = 2
-                      AND m.winner_type IN (1, 2)
-                      AND IFNULL(m.ended_at, m.updated_at) >= ?
-                    GROUP BY mp.user_id
-                ) s ON s.user_id = p.user_id
-                SET p.weekly_money = IFNULL(s.weekly_money, 0)
-                """,
-                VICTORY_MONEY, DEFEAT_MONEY, Date.valueOf(weekStart));
-        jdbcTemplate.update("UPDATE leaderboard_week SET week_start = ? WHERE id = 1", Date.valueOf(weekStart));
-        log.info("Backfilled weekly_money for {} profiles from matches since {}.", updated, weekStart);
+        jdbcTemplate.update(
+                "UPDATE leaderboard_week SET week_start = ?, aligned_to_total = 1 WHERE id = 1",
+                Date.valueOf(weekStart));
+        log.info("Aligned weekly_money to total money for {} profiles; next reset is Monday after {}.",
+                updated, weekStart);
     }
 
     private boolean tableExists(String tableName) {

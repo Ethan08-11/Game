@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, onActivated, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
@@ -211,12 +211,12 @@ async function clearLocalCache() {
 async function loadQuestBadge() {
   try {
     const board = await fetchMyTaskBoard()
-    if (board.claimableCount > 0) {
-      questBadgeText.value = String(board.claimableCount)
-      questBadgeTitle.value = `有 ${board.claimableCount} 个任务可领`
-    } else if (board.firstWinIncomplete) {
-      questBadgeText.value = '!'
-      questBadgeTitle.value = '今日首胜未完成'
+    const claimable = (board.tasks || []).filter((task) =>
+      String(task.taskType || '').toLowerCase() === 'daily' && Number(task.status) === 2,
+    ).length
+    if (claimable > 0) {
+      questBadgeText.value = String(claimable)
+      questBadgeTitle.value = `有 ${claimable} 个任务可领`
     } else {
       questBadgeText.value = ''
       questBadgeTitle.value = ''
@@ -241,6 +241,10 @@ onMounted(async () => {
     clearMatchCache()
   }
   checkActiveMatch()
+})
+
+onActivated(() => {
+  loadQuestBadge()
 })
 
 onUnmounted(() => {
@@ -281,11 +285,9 @@ async function handleLogout() {
   justify-content: space-between;
   align-items: center;
   padding: var(--space-2) var(--space-5);
-  background: rgba(28, 18, 10, 0.42);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(255, 232, 196, 0.16);
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.28);
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
   height: 64px;
 }
 .mode-tag {

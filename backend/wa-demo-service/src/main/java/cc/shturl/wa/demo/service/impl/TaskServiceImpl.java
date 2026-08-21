@@ -81,7 +81,7 @@ public class TaskServiceImpl implements TaskService {
             if (status < 3 && "daily".equalsIgnoreCase(item.taskType()) && "money".equalsIgnoreCase(item.rewardType())) {
                 remainingMoney += rewardAmount(item.rewardValue());
             }
-            if (status == 2) {
+            if (status == 2 && "daily".equalsIgnoreCase(item.taskType())) {
                 claimable++;
             }
             if (FIRST_WIN_CODE.equals(item.taskCode()) && status < 2) {

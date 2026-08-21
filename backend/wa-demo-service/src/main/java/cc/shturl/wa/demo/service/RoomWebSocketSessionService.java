@@ -10,5 +10,6 @@ public interface RoomWebSocketSessionService {
     void heartbeat(Long userId, WebSocketSession session);
     boolean isOnline(Long userId);
     boolean isStale(Long userId, long timeoutMillis);
-    void sendToUser(Long userId, String message) throws IOException;
+    void sendToUser(Long userId, String message);
+    void sendText(WebSocketSession session, String message);
 }

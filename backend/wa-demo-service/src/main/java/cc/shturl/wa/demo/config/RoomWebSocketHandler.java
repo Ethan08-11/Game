@@ -6,12 +6,13 @@ import cc.shturl.wa.demo.service.RoomWebSocketSessionService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-
-import org.springframework.stereotype.Component;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +20,8 @@ import java.util.Optional;
 
 @Component
 public class RoomWebSocketHandler extends TextWebSocketHandler {
+    private static final Logger log = LoggerFactory.getLogger(RoomWebSocketHandler.class);
+
     private final RoomWebSocketSessionService sessionService;
     private final AuthTokenSupport authTokenSupport;
     private final UserPresenceService presenceService;
@@ -36,31 +39,36 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+    public void afterConnectionEstablished(WebSocketSession session) {
         Long userId = resolveAuthenticatedUserId(session);
         if (userId == null) {
-            session.close(CloseStatus.POLICY_VIOLATION.withReason("invalid access token"));
+            closeQuietly(session, CloseStatus.POLICY_VIOLATION.withReason("invalid access token"));
             return;
         }
         session.getAttributes().put("authenticatedUserId", userId);
         sessionService.bind(userId, session);
         cleanupService.handleUserConnected(userId);
-        session.sendMessage(new TextMessage("{\"type\":\"ws.connected\",\"message\":\"connected\",\"heartbeatIntervalSeconds\":20,\"onlineTimeoutSeconds\":60}"));
+        sessionService.sendText(session,
+                "{\"type\":\"ws.connected\",\"message\":\"connected\",\"heartbeatIntervalSeconds\":20,\"onlineTimeoutSeconds\":60}");
         presenceService.broadcastPresence(userId);
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         Long userId = authenticatedUserId(session);
         if (userId == null) {
-            session.close(CloseStatus.POLICY_VIOLATION);
+            closeQuietly(session, CloseStatus.POLICY_VIOLATION);
             return;
         }
-        JsonNode payload = objectMapper.readTree(message.getPayload());
-        if ("ws.heartbeat".equals(payload.path("type").asText())) {
-            sessionService.heartbeat(userId, session);
-            session.sendMessage(new TextMessage("{\"type\":\"ws.heartbeat.ack\",\"timestamp\":"
-                    + System.currentTimeMillis() + "}"));
+        try {
+            JsonNode payload = objectMapper.readTree(message.getPayload());
+            if ("ws.heartbeat".equals(payload.path("type").asText())) {
+                sessionService.heartbeat(userId, session);
+                sessionService.sendText(session,
+                        "{\"type\":\"ws.heartbeat.ack\",\"timestamp\":" + System.currentTimeMillis() + "}");
+            }
+        } catch (Exception e) {
+            log.debug("Ignore websocket text from user {}: {}", userId, e.getMessage());
         }
     }
 
@@ -74,14 +82,35 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
+    public void handleTransportError(WebSocketSession session, Throwable exception) {
+        if (isBenignTransportError(exception)) {
+            log.debug("Websocket closed during send: {}", exception.getMessage());
+        } else {
+            log.warn("Websocket transport error: {}", exception.getMessage());
+        }
         Long userId = authenticatedUserId(session);
         if (userId != null) {
             sessionService.unbind(userId, session);
             cleanupService.handleUserDisconnected(userId, "websocket_error");
         }
-        if (session.isOpen()) {
-            session.close(CloseStatus.SERVER_ERROR);
+        closeQuietly(session, CloseStatus.SERVER_ERROR);
+    }
+
+    private static boolean isBenignTransportError(Throwable exception) {
+        String message = exception == null || exception.getMessage() == null ? "" : exception.getMessage();
+        return message.contains("TEXT_PARTIAL_WRITING")
+                || message.contains("has been closed")
+                || message.contains("Broken pipe")
+                || message.contains("Connection reset");
+    }
+
+    private void closeQuietly(WebSocketSession session, CloseStatus status) {
+        if (session == null || !session.isOpen()) {
+            return;
+        }
+        try {
+            session.close(status);
+        } catch (Exception ignored) {
         }
     }
 

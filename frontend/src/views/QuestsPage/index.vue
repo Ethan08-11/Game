@@ -28,6 +28,7 @@
             :class="{ 'card-hero': entry.task.taskCode === 'T-DAILY-FIRST-WIN' }"
             :style="{ animationDelay: `${idx * 0.08}s` }"
           >
+            <QuestTaskIcon class="task-medal" :code="entry.task.taskCode" />
             <div class="card-info">
               <div class="task-name">{{ entry.task.taskName }}</div>
               <div class="task-desc">{{ entry.task.description }}</div>
@@ -111,6 +112,7 @@ import { fetchMyTaskBoard, claimTask } from '@/api'
 import type { UserTask } from '@/api'
 import { useUserStore } from '@/store/user'
 import BackButton from '@/components/BackButton.vue'
+import QuestTaskIcon from '@/components/QuestTaskIcon.vue'
 import hallBgDay from '@/assets/hall-bg2.webp'
 import hallBgNight from '@/assets/hall-bg.webp'
 import panelBg from '@/assets/quest-panel-bg.webp'
@@ -390,6 +392,7 @@ function rewardText(task: UserTask): string {
 }
 
 .card {
+  position: relative;
   display: flex; align-items: center; gap: var(--space-4);
   padding: 32px var(--space-5); margin-bottom: var(--space-1);
   background: var(--list-bg) center/100% 100% no-repeat;
@@ -399,6 +402,16 @@ function rewardText(task: UserTask): string {
   overflow: visible;
   transition: filter var(--transition-fast);
   animation: bounceIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.task-medal {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  width: 86px;
+  height: 86px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 1;
 }
 .card:hover { filter: brightness(1.1); }
 

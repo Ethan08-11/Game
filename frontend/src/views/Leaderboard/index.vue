@@ -6,7 +6,7 @@
       <button :class="{ active: tab === 'total' }" @click="tab = 'total'">总榜</button>
       <button :class="{ active: tab === 'weekly' }" @click="tab = 'weekly'">周榜</button>
     </div>
-    <p v-if="tab === 'weekly'" class="week-hint">本周获得金币 · 每周一 0:00 刷新</p>
+    <p v-if="tab === 'weekly'" class="week-hint">本周金币 · 下周一 0:00 重置后重新累计</p>
     <div ref="listRef" class="list" :key="tab">
       <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${Math.min(idx * 0.03, 0.4)}s` }">
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
