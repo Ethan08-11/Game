@@ -40,8 +40,8 @@ export { getMatchDetail, getMatchDeck, playMatchCard, endMatchTurn, reconnectMat
 export type { MatchDetailResp, MatchDeckResp, MatchPlayerResp, MatchCustomerResp, MatchHandCardResp, MatchDeckCardResp, MatchSettlementResp, MatchSettlementPlayer, UnlockedCollectibleCard, MatchReviveStatusResp, MatchReviveRequestPayload, MatchReviveRequestResp, PlayCardPayload, PlayCardResponse, EndTurnPayload, EndTurnResponse } from './match'
 
 // social
-export { getSkins, purchaseSkin, getQuests, claimQuestReward, fetchTasks } from './social'
-export type { Skin, Quest, ApiTask } from './social'
+export { getSkins, purchaseSkin, getQuests, claimQuestReward, fetchTasks, fetchMyTaskBoard, claimTask } from './social'
+export type { Skin, Quest, ApiTask, UserTask, MyTaskBoard, TaskClaimResult } from './social'
 
 // room
 export { sendRoomInvite, acceptRoomInvite, rejectRoomInvite, getPendingRoomInvites, getRoomDetail, getCurrentRoom, releaseIdleRoom, setRoomDepartment, setRoomReady, setRoomFirstPlayer, leaveRoom, extractRoomId } from './room'

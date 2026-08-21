@@ -20,8 +20,55 @@ export interface ApiTask {
   status: number
 }
 
+export interface UserTask {
+  id: number
+  taskId: number
+  taskCode: string
+  taskName: string
+  taskType: 'daily' | 'growth' | 'event'
+  resetType?: string
+  periodScope?: string
+  progressType?: string
+  description: string
+  conditionType?: string
+  conditionValue?: string
+  rewardType: 'money' | 'exp' | 'item'
+  rewardValue: string
+  targetCount: number
+  progressValue: number
+  status: number
+  periodKey?: string
+}
+
+export interface MyTaskBoard {
+  tasks: UserTask[]
+  remainingMoney: number
+  claimableCount: number
+  firstWinIncomplete: boolean
+  resetInSeconds: number
+}
+
+export interface TaskClaimResult {
+  userTaskId: number
+  taskId: number
+  progressValue: number
+  targetValue: number
+  status: number
+  message: string
+  moneyAwarded: number
+  expAwarded: number
+}
+
 export async function fetchTasks(): Promise<ApiTask[]> {
   return apiCall('/tasks')
+}
+
+export async function fetchMyTaskBoard(): Promise<MyTaskBoard> {
+  return apiCall('/tasks/me')
+}
+
+export async function claimTask(userTaskId: number): Promise<TaskClaimResult> {
+  return apiCall(`/tasks/${userTaskId}/claim`, { method: 'POST' })
 }
 
 // ---------- 皮肤 ----------

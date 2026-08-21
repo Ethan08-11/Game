@@ -15,6 +15,7 @@ import cc.shturl.wa.demo.mapper.FriendshipsMapper;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.AuthService;
+import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.TokenService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class AuthServiceImpl implements AuthService {
     private final FriendshipsMapper friendshipsMapper;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
+    private final TaskService taskService;
 
     @Override
     @Transactional
@@ -58,6 +60,7 @@ public class AuthServiceImpl implements AuthService {
         profile.setLoseCount(0);
         profile.setDrawCount(0);
         profile.setMoney(0L);
+        profile.setWeeklyMoney(0L);
         profileMapper.insert(profile);
         linkExistingFriends(user.getId());
         return response(user, profile);
@@ -78,6 +81,11 @@ public class AuthServiceImpl implements AuthService {
         }
         user.setLastLoginAt(LocalDateTime.now());
         userMapper.updateById(user);
+        try {
+            taskService.recordLogin(user.getId());
+        } catch (Exception ignored) {
+            // 登录任务失败不影响进游戏
+        }
         UserProfile profile = profileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery().eq(UserProfile::getUserId, user.getId()));
         return response(user, profile);
     }

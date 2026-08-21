@@ -49,6 +49,7 @@ import cc.shturl.wa.demo.mapper.RoomMembersMapper;
 import cc.shturl.wa.demo.mapper.UserCardPoolsMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.CardCollectionService;
+import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
@@ -122,6 +123,7 @@ public class MatchServiceImpl implements MatchService {
     private final cc.shturl.wa.demo.service.TaskService taskService;
     private final CardCollectionService cardCollectionService;
     private final PlatformTransactionManager transactionManager;
+    private final LeaderboardService leaderboardService;
 
     @Override
     @Transactional
@@ -646,6 +648,17 @@ public class MatchServiceImpl implements MatchService {
             matchPendingEffectsMapper.updateById(multiplierEffect);
         }
         matchPlayersMapper.updateById(actor);
+        int damageDealt = 0;
+        for (CardEffectResp effect : effectResults) {
+            if ("DAMAGE_BOSS".equals(effect.effectType()) && !effect.scheduled() && effect.actualValue() != null) {
+                damageDealt += Math.max(effect.actualValue(), 0);
+            }
+        }
+        try {
+            taskService.recordBattleAction(currentUserId, card.getDeptType(), 1, damageDealt);
+        } catch (Exception e) {
+            logger.warn("Skip battle task progress userId={} matchId={}: {}", currentUserId, matchId, e.getMessage());
+        }
         instance.setZone("DISCARD");
         instance.setDeckOrder(null);
         instance.setDiscardedRound(match.getCurrentRound());
@@ -1678,6 +1691,14 @@ public class MatchServiceImpl implements MatchService {
             if ("DAMAGE_BOSS".equals(pending.getEffectType())) {
                 int finalDamage = Math.max(0, value(pending.getEffectValue()) - defense);
                 match.setBossCurrentHp(Math.max(0, value(match.getBossCurrentHp()) - finalDamage));
+                if (finalDamage > 0 && pending.getSourceUserId() != null) {
+                    try {
+                        taskService.recordBattleAction(pending.getSourceUserId(), null, 0, finalDamage);
+                    } catch (Exception e) {
+                        logger.warn("Skip delayed damage task progress userId={} matchId={}: {}",
+                                pending.getSourceUserId(), match.getId(), e.getMessage());
+                    }
+                }
             } else if ("REDUCE_BOSS_ATTACK".equals(pending.getEffectType())) {
                 match.setBossCurrentAttack(Math.max(0, value(match.getBossCurrentAttack()) - value(pending.getEffectValue())));
             } else if ("DRAW_CARDS".equals(pending.getEffectType()) && pending.getTargetUserId() != null) {
@@ -1920,6 +1941,7 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards) {
+        leaderboardService.ensureCurrentWeek();
         int winDelta = winnerType == 1 ? 1 : 0;
         int loseDelta = winnerType == 2 ? 1 : 0;
         int drawDelta = winnerType == 1 || winnerType == 2 ? 0 : 1;

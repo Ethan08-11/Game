@@ -6,12 +6,16 @@
       <button :class="{ active: tab === 'total' }" @click="tab = 'total'">总榜</button>
       <button :class="{ active: tab === 'weekly' }" @click="tab = 'weekly'">周榜</button>
     </div>
-    <div class="list" :key="tab">
-      <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${idx * 0.08}s` }">
+    <p v-if="tab === 'weekly'" class="week-hint">本周获得金币 · 每周一 0:00 刷新</p>
+    <div ref="listRef" class="list" :key="tab">
+      <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${Math.min(idx * 0.03, 0.4)}s` }">
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
         <PlayerAvatar class="row-avatar" :src="item.avatarUrl" :alt="item.displayName || item.username" />
         <span class="name">{{ item.displayName || item.username }}</span>
-        <span class="pts">{{ item.money }} 金币</span>
+        <div class="stats">
+          <span class="pts">{{ item.money }} 金币</span>
+          <span class="rate">胜率 {{ item.winRate }}%</span>
+        </div>
       </div>
       <div v-if="list.length === 0" class="empty">暂无排行数据</div>
     </div>
@@ -19,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, nextTick } from 'vue'
 import { getLeaderboard } from '@/api'
 import type { LeaderboardEntry } from '@/api'
 import BackButton from '@/components/BackButton.vue'
@@ -32,13 +36,18 @@ import hallNight from '@/assets/hall-bg.webp'
 
 const tab = ref<'total' | 'weekly'>('total')
 const list = ref<LeaderboardEntry[]>([])
+const listRef = ref<HTMLElement | null>(null)
 const hour = new Date().getHours()
 const hallBg = hour >= 6 && hour < 18 ? hallDay : hallNight
 
 async function loadLeaderboard() {
   try {
-    list.value = await getLeaderboard(tab.value)
-  } catch { list.value = [] }
+    list.value = await getLeaderboard(tab.value, 1, 10000)
+  } catch {
+    list.value = []
+  }
+  await nextTick()
+  if (listRef.value) listRef.value.scrollTop = 0
 }
 
 onMounted(loadLeaderboard)
@@ -94,7 +103,12 @@ watch(tab, loadLeaderboard)
   transform-origin: center center;
   pointer-events: none;
 }
-.tabs { display: flex; gap: var(--space-2); justify-content: center; margin-bottom: var(--space-5); }
+.tabs { display: flex; gap: var(--space-2); justify-content: center; margin-bottom: var(--space-3); }
+.week-hint {
+  margin: 0 0 var(--space-4);
+  color: #6a5338;
+  font-size: var(--text-sm);
+}
 .tabs button {
   padding: var(--space-1) var(--space-5);
   border: 1px solid var(--color-border-default);
@@ -113,7 +127,7 @@ watch(tab, loadLeaderboard)
 .list { max-width: 760px; margin: 0 auto; flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 120px; width: 100%; }
 .row {
   display: grid;
-  grid-template-columns: 48px 56px minmax(0, 1fr) 108px;
+  grid-template-columns: 48px 56px minmax(0, 1fr) 118px;
   align-items: center;
   column-gap: 12px;
   padding: 8px 96px 8px 20px;
@@ -151,10 +165,24 @@ watch(tab, loadLeaderboard)
   height: 52px;
   justify-self: center;
 }
+.stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
 .pts {
   color: #4a3520;
   font-weight: var(--weight-medium);
   font-size: 16px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rate {
+  color: #6a5338;
+  font-size: 13px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

@@ -8,6 +8,10 @@
       <div v-else-if="taskGroups.length === 0" class="state-msg">暂无任务</div>
 
       <div v-else class="task-list-area">
+        <div class="quest-summary">
+          <span>今日还可领 {{ remainingMoney }} 金币</span>
+          <span class="quest-reset">刷新倒计时 {{ resetLabel }}</span>
+        </div>
         <template v-for="(entry, idx) in flatTaskList" :key="entry.task.id">
           <div v-if="entry.sectionStart" class="type-section">
             <div class="type-header">
@@ -19,15 +23,42 @@
               <span class="type-count">{{ groupTaskCount(entry.type) }} 个任务</span>
             </div>
           </div>
-          <div class="card" :style="{ animationDelay: `${idx * 0.08}s` }">
+          <div
+            class="card"
+            :class="{ 'card-hero': entry.task.taskCode === 'T-DAILY-FIRST-WIN' }"
+            :style="{ animationDelay: `${idx * 0.08}s` }"
+          >
             <div class="card-info">
               <div class="task-name">{{ entry.task.taskName }}</div>
               <div class="task-desc">{{ entry.task.description }}</div>
-              <div class="task-target">目标: {{ entry.task.targetCount }}</div>
+              <div class="task-progress">
+                <div class="progress-track">
+                  <div class="progress-fill" :style="{ width: progressPercent(entry.task) + '%' }"></div>
+                </div>
+                <span class="progress-text">{{ progressText(entry.task) }}</span>
+              </div>
             </div>
-            <div class="card-reward">
-              <span class="reward-icon">{{ rewardIcon(entry.task.rewardType) }}</span>
-              <span class="reward-text">{{ rewardText(entry.task) }}</span>
+            <div class="card-side">
+              <div class="card-reward">
+                <span class="reward-icon">{{ rewardIcon(entry.task.rewardType) }}</span>
+                <span class="reward-text">{{ rewardText(entry.task) }}</span>
+              </div>
+              <button
+                v-if="entry.task.status === 2"
+                class="quest-action claim"
+                :disabled="claimingId === entry.task.id"
+                @click="onClaim(entry.task)"
+              >{{ claimingId === entry.task.id ? '领取中' : '领取' }}</button>
+              <button
+                v-else-if="entry.task.status >= 3"
+                class="quest-action done"
+                disabled
+              >已领取</button>
+              <button
+                v-else-if="canGoStart(entry.task)"
+                class="quest-action go"
+                @click="goStartMatch"
+              >去开局</button>
             </div>
           </div>
         </template>
@@ -73,9 +104,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { fetchTasks } from '@/api'
-import type { ApiTask } from '@/api'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { fetchMyTaskBoard, claimTask } from '@/api'
+import type { UserTask } from '@/api'
+import { useUserStore } from '@/store/user'
 import BackButton from '@/components/BackButton.vue'
 import hallBgDay from '@/assets/hall-bg2.webp'
 import hallBgNight from '@/assets/hall-bg.webp'
@@ -87,18 +121,24 @@ import eventTagBg from '@/assets/tag-event-bg.webp'
 
 interface TaskGroup {
   type: string
-  tasks: ApiTask[]
+  tasks: UserTask[]
 }
 
-const tasks = ref<ApiTask[]>([])
+const router = useRouter()
+const user = useUserStore()
+const tasks = ref<UserTask[]>([])
+const remainingMoney = ref(0)
+const resetInSeconds = ref(0)
 const loading = ref(true)
 const error = ref('')
 const bgUrl = ref('')
+const claimingId = ref<number | null>(null)
+let resetTimer: ReturnType<typeof setInterval> | null = null
 
 const typeOrder = ['daily', 'growth', 'event']
 
 const taskGroups = computed<TaskGroup[]>(() => {
-  const map = new Map<string, ApiTask[]>()
+  const map = new Map<string, UserTask[]>()
   for (const t of tasks.value) {
     const list = map.get(t.taskType) || []
     list.push(t)
@@ -110,7 +150,7 @@ const taskGroups = computed<TaskGroup[]>(() => {
 })
 
 interface FlatTaskEntry {
-  task: ApiTask
+  task: UserTask
   type: string
   sectionStart: boolean
 }
@@ -133,14 +173,74 @@ function groupTaskCount(type: string): number {
   return taskGroups.value.find(g => g.type === type)?.tasks.length ?? 0
 }
 
+const resetLabel = computed(() => {
+  const total = Math.max(0, resetInSeconds.value)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+})
+
+function progressText(task: UserTask): string {
+  const current = Math.min(task.progressValue || 0, task.targetCount || 0)
+  return `${current}/${task.targetCount || 0}`
+}
+
+function progressPercent(task: UserTask): number {
+  const target = task.targetCount || 1
+  return Math.min(100, Math.round(((task.progressValue || 0) / target) * 100))
+}
+
+function canGoStart(task: UserTask): boolean {
+  const type = (task.progressType || '').toUpperCase()
+  return type !== 'LOGIN_COUNT' && type !== 'LOGIN_STREAK'
+}
+
+function goStartMatch() {
+  const matchId = sessionStorage.getItem('activeMatchId')
+  if (matchId) {
+    router.push(`/battle/${matchId}`)
+    return
+  }
+  router.push('/customer-current')
+}
+
+async function loadBoard() {
+  const board = await fetchMyTaskBoard()
+  tasks.value = board.tasks || []
+  remainingMoney.value = board.remainingMoney || 0
+  resetInSeconds.value = board.resetInSeconds || 0
+}
+
+async function onClaim(task: UserTask) {
+  if (claimingId.value != null) return
+  claimingId.value = task.id
+  try {
+    const result = await claimTask(task.id)
+    ElMessage.success(result.message || '领取成功')
+    await loadBoard()
+    user.loadMe().catch(() => {})
+    user.loadPoints().catch(() => {})
+  } catch (e) {
+    ElMessage.error((e as Error).message || '领取失败')
+  } finally {
+    claimingId.value = null
+  }
+}
+
 onMounted(() => {
   const hour = new Date().getHours()
   bgUrl.value = hour >= 6 && hour < 18 ? hallBgDay : hallBgNight
-
-  fetchTasks()
-    .then(data => { tasks.value = data })
+  loadBoard()
     .catch(e => { error.value = e.message || '加载任务失败' })
     .finally(() => { loading.value = false })
+  resetTimer = setInterval(() => {
+    if (resetInSeconds.value > 0) resetInSeconds.value -= 1
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (resetTimer) clearInterval(resetTimer)
 })
 
 // 成长标签调节器
@@ -200,7 +300,7 @@ function rewardIcon(rewardType: string): string {
   return icons[rewardType] || '?'
 }
 
-function rewardText(task: ApiTask): string {
+function rewardText(task: UserTask): string {
   const val = parseReward(task.rewardValue)
   switch (task.rewardType) {
     case 'money':
@@ -311,10 +411,74 @@ function rewardText(task: ApiTask): string {
 .task-name { font-weight: var(--weight-semibold); }
 .task-desc { font-size: var(--text-sm); color: #4a3520; }
 .task-target { font-size: var(--text-xs); color: #4a3520; margin-top: 2px; }
+.task-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(74, 53, 32, 0.18);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: #c4a962;
+}
+.progress-text {
+  font-size: var(--text-xs);
+  color: #4a3520;
+  min-width: 2.6em;
+  text-align: right;
+}
+.quest-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 8px 12px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: #4a3520;
+}
+.quest-reset { font-weight: var(--weight-regular); opacity: 0.85; }
+.card-hero {
+  filter: brightness(1.06);
+  box-shadow: inset 0 0 0 2px rgba(196, 169, 98, 0.55);
+}
+.card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-right: 3em;
+}
+.quest-action {
+  min-width: 76px;
+  height: 28px;
+  border: 1px solid #8a6a3a;
+  border-radius: 4px;
+  background: #f3e2b8;
+  color: #4a3520;
+  font-size: 12px;
+  cursor: pointer;
+}
+.quest-action.claim { background: #d4b56a; font-weight: 700; }
+.quest-action.go { background: #efe0c0; }
+.quest-action.done {
+  background: transparent;
+  border-color: transparent;
+  color: #7a6850;
+  cursor: default;
+}
 
 .card-reward {
   display: flex; align-items: center; gap: var(--space-1);
-  color: #4a3520; flex-shrink: 0; margin-right: 3em;
+  color: #4a3520; flex-shrink: 0;
 }
 .reward-icon { font-size: var(--text-lg); font-weight: var(--weight-bold); }
 .reward-text { font-size: var(--text-sm); }

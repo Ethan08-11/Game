@@ -22,13 +22,16 @@ public class LeaderboardController {
 
     @GetMapping
     public Result<List<LeaderboardResp>> list(@RequestHeader("Authorization") String authorization,
+                                              @RequestParam(value = "type", defaultValue = "total") String type,
                                               @RequestParam(value = "page", defaultValue = "1") int page,
-                                              @RequestParam(value = "size", defaultValue = "20") int size) {
-        return Result.ok(leaderboardService.listLeaderboard(authTokenSupport.requireUserIdFromAccessToken(authorization), page, size));
+                                              @RequestParam(value = "size", defaultValue = "0") int size) {
+        return Result.ok(leaderboardService.listLeaderboard(
+                authTokenSupport.requireUserIdFromAccessToken(authorization), type, page, size));
     }
 
     @GetMapping("/me")
-    public Result<LeaderboardResp> me(@RequestHeader("Authorization") String authorization) {
-        return Result.ok(leaderboardService.getMyRank(authTokenSupport.requireUserIdFromAccessToken(authorization)));
+    public Result<LeaderboardResp> me(@RequestHeader("Authorization") String authorization,
+                                      @RequestParam(value = "type", defaultValue = "total") String type) {
+        return Result.ok(leaderboardService.getMyRank(authTokenSupport.requireUserIdFromAccessToken(authorization), type));
     }
 }

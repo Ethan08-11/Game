@@ -44,6 +44,11 @@
       </button>
       <button class="float-btn" :style="questBtnStyle">
         <img :src="questBtnImg" alt="任务" class="quest-img" />
+        <span
+          v-if="questBadgeText"
+          class="quest-badge"
+          :title="questBadgeTitle"
+        >{{ questBadgeText }}</span>
         <span class="hit-target" @click="$router.push('/quests')"></span>
       </button>
       <button class="float-btn" :style="customerBtnStyle">
@@ -85,18 +90,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useRoomStore } from '@/store/room'
-import { leaveRoom, abandonMatch, getMatchDetail, getCurrentRoom, releaseIdleRoom } from '@/api'
+import { leaveRoom, abandonMatch, getMatchDetail, getCurrentRoom, releaseIdleRoom, fetchMyTaskBoard } from '@/api'
 import { clearMatchCache } from '@/utils/matchCache'
 import FriendPanel from '@/components/FriendPanel.vue'
 import AnnouncementBar from '@/components/AnnouncementBar.vue'
 import AvatarPickerDialog from '@/components/AvatarPickerDialog.vue'
 import PlayerAvatar from '@/components/PlayerAvatar.vue'
-import dayjs from 'dayjs'
 import startBtnImg from '@/assets/start-btn-v2.webp'
 import questBtnImg from '@/assets/quest-btn-v3.webp'
 import customerBtnImg from '@/assets/customer-btn-v3.webp'
@@ -122,17 +126,14 @@ const questBtnStyle = { left: '800px', bottom: '330px', width: '500px', height: 
 const customerBtnStyle = { left: '800px', bottom: '239px', width: '500px', height: '184px' }
 const startBtnStyle = { backgroundImage: `url(${startBtnImg})`, left: '703px', bottom: '-4px', width: '700px', height: '258px' }
 
-const modeText = computed(() => {
-  const d = dayjs().day()
-  if (d === 1) return '本周模式：周一单人'
-  if (d === 2 || d === 3) return '本周模式：周二周三双人'
-  return '本周模式：休赛期'
-})
+const modeText = '本周模式：双人模式'
 
 const avatarDialogVisible = ref(false)
 const reconnectDialogVisible = ref(false)
 const reconnectCountdown = ref(30)
 const reconnectMatchId = ref('')
+const questBadgeText = ref('')
+const questBadgeTitle = ref('')
 let reconnectTimer: ReturnType<typeof setInterval> | null = null
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -207,6 +208,25 @@ async function clearLocalCache() {
   ElMessage.success('对局缓存已清除，可以重新组队')
 }
 
+async function loadQuestBadge() {
+  try {
+    const board = await fetchMyTaskBoard()
+    if (board.claimableCount > 0) {
+      questBadgeText.value = String(board.claimableCount)
+      questBadgeTitle.value = `有 ${board.claimableCount} 个任务可领`
+    } else if (board.firstWinIncomplete) {
+      questBadgeText.value = '!'
+      questBadgeTitle.value = '今日首胜未完成'
+    } else {
+      questBadgeText.value = ''
+      questBadgeTitle.value = ''
+    }
+  } catch {
+    questBadgeText.value = ''
+    questBadgeTitle.value = ''
+  }
+}
+
 onMounted(async () => {
   const hour = new Date().getHours()
   bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
@@ -214,6 +234,7 @@ onMounted(async () => {
   user.loadMe()
   user.loadFriends()
   user.loadPoints()
+  loadQuestBadge()
   const current = await getCurrentRoom().catch(() => null)
   if (!current) {
     room.resetMatchMaking()
@@ -260,14 +281,30 @@ async function handleLogout() {
   justify-content: space-between;
   align-items: center;
   padding: var(--space-2) var(--space-5);
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.15);
-  height: var(--header-height);
+  background: rgba(28, 18, 10, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 232, 196, 0.16);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.28);
+  height: 64px;
 }
-.mode-tag { font-size: var(--text-md); color: var(--color-accent); }
+.mode-tag {
+  font-family: 'HuiWen MingChao', 'Songti SC', 'STSong', serif;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  color: #ffe9a6;
+  text-shadow:
+    0 0 1px #6a4a12,
+    0 1px 0 #3a2408,
+    0 2px 6px rgba(0, 0, 0, 0.75);
+  padding: 6px 14px 5px;
+  border: 1px solid rgba(255, 214, 120, 0.55);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(90, 58, 18, 0.72), rgba(42, 26, 8, 0.78));
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
 .top-nav { display: flex; gap: var(--space-1); }
 .top-btn {
   padding: var(--space-1) var(--space-4);
@@ -365,32 +402,57 @@ async function handleLogout() {
 }
 .user-avatar-wrap {
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
 }
 .user-avatar {
-  width: 32px;
-  height: 32px;
+  width: 56px;
+  height: 56px;
 }
 .avatar-edit-dot {
   position: absolute;
-  right: -6px;
-  bottom: -4px;
-  min-width: 18px;
-  height: 16px;
-  padding: 0 4px;
+  right: -4px;
+  bottom: -2px;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 5px;
   border-radius: 999px;
   background: #8b6914;
   color: #fff8e6;
-  font-size: 10px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 20px;
   font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(40, 24, 8, 0.35);
 }
 .user-profile-btn:hover .user-avatar {
   filter: brightness(1.08);
 }
-.user-name { color: var(--color-text-primary); }
+.user-name {
+  color: #fff8e6;
+  font-weight: var(--weight-semibold);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.5);
+}
+.header-right :deep(.el-button) {
+  --el-button-text-color: #fff8e6;
+  --el-button-bg-color: rgba(40, 26, 12, 0.55);
+  --el-button-border-color: rgba(255, 232, 196, 0.35);
+  --el-button-hover-text-color: #fffdf4;
+  --el-button-hover-bg-color: rgba(62, 40, 18, 0.72);
+  --el-button-hover-border-color: rgba(255, 232, 196, 0.55);
+  color: #fff8e6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+.header-right :deep(.el-button--danger.is-text) {
+  --el-button-text-color: #ff9a8a;
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-text-color: #ffc2b6;
+  --el-button-hover-bg-color: rgba(80, 20, 16, 0.35);
+  --el-button-hover-border-color: transparent;
+  color: #ff9a8a;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
 
 .hall-body { display: flex; flex: 1; overflow-x: hidden; overflow-y: auto; position: relative; }
 
@@ -506,6 +568,23 @@ async function handleLogout() {
 }
 .quest-img {
   transform: scale(0.80) translateX(12px);
+}
+.quest-badge {
+  position: absolute;
+  right: 148px;
+  top: 42px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: #c44536;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  z-index: 4;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
 .tujian-img {
   transform: scale(1.08) translateX(-6px);

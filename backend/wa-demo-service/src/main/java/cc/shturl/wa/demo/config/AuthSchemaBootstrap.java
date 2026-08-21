@@ -70,6 +70,7 @@ public class AuthSchemaBootstrap implements ApplicationRunner {
                   lose_count int NOT NULL DEFAULT 0,
                   draw_count int NOT NULL DEFAULT 0,
                   money bigint NOT NULL DEFAULT 0,
+                  weekly_money bigint NOT NULL DEFAULT 0,
                   created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                   updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                   PRIMARY KEY (id),

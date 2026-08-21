@@ -225,6 +225,7 @@ interface BackendLeaderboardEntry {
   winCount?: number
   loseCount?: number
   drawCount?: number
+  winRate?: number
   rank: number
 }
 
@@ -234,29 +235,35 @@ export interface LeaderboardEntry {
   displayName: string
   avatarUrl?: string | null
   money: number
+  winRate: number
   level: number
   rank: number
 }
 
 function transformLeaderboardEntry(be: BackendLeaderboardEntry): LeaderboardEntry {
+  const games = (be.winCount ?? 0) + (be.loseCount ?? 0) + (be.drawCount ?? 0)
+  const winRate = Number.isFinite(Number(be.winRate))
+    ? Math.max(0, Math.round(Number(be.winRate)))
+    : (games <= 0 ? 0 : Math.round(((be.winCount ?? 0) * 100) / games))
   return {
     userId: be.userId,
     username: formatPlayerName(be.username),
     displayName: formatPlayerName(be.displayName || be.username),
     avatarUrl: be.avatarUrl,
     money: be.money,
+    winRate,
     level: be.level ?? 1,
     rank: be.rank,
   }
 }
 
-export async function getLeaderboard(_type: 'total' | 'weekly', page = 1, size = 20): Promise<LeaderboardEntry[]> {
-  const list = await apiCall<BackendLeaderboardEntry[]>(`/leaderboard?page=${page}&size=${size}`)
+export async function getLeaderboard(type: 'total' | 'weekly' = 'total', page = 1, size = 10000): Promise<LeaderboardEntry[]> {
+  const list = await apiCall<BackendLeaderboardEntry[]>(`/leaderboard?type=${type}&page=${page}&size=${size}`)
   return list.map(transformLeaderboardEntry)
 }
 
-export async function getMyLeaderboardRank(): Promise<LeaderboardEntry> {
-  const entry = await apiCall<BackendLeaderboardEntry>('/leaderboard/me')
+export async function getMyLeaderboardRank(type: 'total' | 'weekly' = 'total'): Promise<LeaderboardEntry> {
+  const entry = await apiCall<BackendLeaderboardEntry>(`/leaderboard/me?type=${type}`)
   return transformLeaderboardEntry(entry)
 }
 

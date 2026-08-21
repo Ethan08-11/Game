@@ -68,6 +68,7 @@ public class UserServiceImpl implements UserService {
             profile.setLoseCount(0);
             profile.setDrawCount(0);
             profile.setMoney(0L);
+            profile.setWeeklyMoney(0L);
             profileMapper.insert(profile);
         }
         if (request.displayName() != null) profile.setDisplayName(request.displayName());

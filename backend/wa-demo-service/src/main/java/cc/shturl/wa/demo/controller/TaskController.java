@@ -1,9 +1,9 @@
 package cc.shturl.wa.demo.controller;
 
 import cc.shturl.wa.common.result.Result;
+import cc.shturl.wa.demo.dto.resp.MyTaskBoardResp;
 import cc.shturl.wa.demo.dto.resp.TaskClaimResp;
 import cc.shturl.wa.demo.dto.resp.TaskResp;
-import cc.shturl.wa.demo.dto.resp.UserTaskResp;
 import cc.shturl.wa.demo.security.AuthTokenSupport;
 import cc.shturl.wa.demo.service.TaskService;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +30,9 @@ public class TaskController {
     }
 
     @GetMapping("/me")
-    public Result<List<UserTaskResp>> listMyTasks(@RequestHeader("Authorization") String authorization) {
+    public Result<MyTaskBoardResp> listMyTasks(@RequestHeader("Authorization") String authorization) {
         Long userId = authTokenSupport.requireUserIdFromAccessToken(authorization);
-        return Result.ok(taskService.listMyTasks(userId));
+        return Result.ok(taskService.listMyTaskBoard(userId));
     }
 
     @PostMapping("/{userTaskId}/claim")

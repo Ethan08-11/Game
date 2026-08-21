@@ -18,5 +18,8 @@ public class UserProfile extends BaseEntity {
     private Integer loseCount;
     private Integer drawCount;
     private Long money;
+    private Long weeklyMoney;
+    private Integer loginStreak;
+    private java.time.LocalDate lastTaskLoginDate;
 }
 
