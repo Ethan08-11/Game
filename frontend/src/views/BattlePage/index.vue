@@ -72,8 +72,7 @@
             <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying" @click="endTurn" aria-label="结束回合" />
           </div>
 
-          <p v-if="!canRevealHand" class="hand-wait-hint">等待自己的回合</p>
-          <div class="hand-cards" :style="{ '--card-width': handCardWidth + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }">
+          <div class="hand-cards" :style="{ '--card-width': cardWidth + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }">
             <template v-if="canRevealHand">
               <CardItem
                 v-for="card in activeHand"
@@ -99,6 +98,7 @@
                 :style="cardBackStyle"
                 aria-hidden="true"
               />
+              <div class="hand-wait-hint">等待自己的回合</div>
             </template>
           </div>
         </div>
@@ -143,28 +143,27 @@
 
     <Teleport to="body">
       <div v-if="showTargetDialog" class="target-overlay" @click.self="cancelTargetDialog">
-        <div
-          class="target-dialog target-dialog-highlight"
-          :style="{ '--choose-player-bg': `url(${choosePlayerBg})`, '--p1-btn-bg': `url(${p1BtnBg})`, '--p2-btn-bg': `url(${p2BtnBg})` }"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="targetDialogTitle"
-        >
-          <h2 class="target-dialog-title">{{ targetDialogTitle }}</h2>
-          <p class="target-dialog-desc">{{ targetDialogHint }}</p>
+        <div class="target-dialog target-dialog-highlight" :style="{ '--choose-player-bg': `url(${choosePlayerBg})`, '--p1-btn-bg': `url(${p1BtnBg})`, '--p2-btn-bg': `url(${p2BtnBg})`, '--frame-w': frameW + 'px', '--frame-h': frameH + 'px', '--bg-w': bgW + 'px', '--bg-h': bgH + 'px' }">
+          <div class="target-dialog-title">
+            <span class="target-title-box target-title-main" :style="{ position: 'relative', top: titleTop + 'px', left: titleLeft + 'px' }">{{ pendingTargetCard?.type === 'defend' ? '选择防御目标' : pendingTargetCard?.type === 'support' ? '选择辅助目标' : '选择加血目标' }}</span>
+          </div>
+          <div class="target-dialog-desc">
+            <span class="target-title-box target-title-sub" :style="{ position: 'relative', top: descTop + 'px', left: descLeft + 'px' }">请选择本次{{ pendingTargetCard?.type === 'defend' ? '防御' : pendingTargetCard?.type === 'support' ? '辅助' : '加血' }}对象</span>
+          </div>
           <div class="target-dialog-list">
-            <button
-              v-for="player in targetablePlayers"
-              :key="player.userId"
-              class="target-player-btn"
-              type="button"
-              :class="player.seatNo === 0 ? 'target-player-btn-p1' : 'target-player-btn-p2'"
-              :disabled="pendingTargetUserId === player.userId"
-              @click="confirmTarget(player.userId)"
-            >
-              <span class="target-player-name">{{ player.dept || '玩家' }}</span>
-              <span class="target-player-role">{{ player.userId === user.userId ? '自己' : '队友' }}</span>
-            </button>
+            <div v-for="player in targetablePlayers" :key="player.userId" class="target-player-wrapper">
+              <div class="target-player-label" :style="{ position: 'relative', top: (player.seatNo === 0 ? p1LabelTop : p2LabelTop) + 'px', left: (player.seatNo === 0 ? p1LabelLeft : p2LabelLeft) + 'px' }">
+                {{ player.dept || '玩家' }}<span class="target-player-role">（{{ player.userId === user.userId ? '自己' : '队友' }}）</span>
+              </div>
+              <button
+                class="target-player-btn"
+                type="button"
+                :class="player.seatNo === 0 ? 'target-player-btn-p1' : 'target-player-btn-p2'"
+                :disabled="pendingTargetUserId === player.userId"
+                :style="{ position: 'relative', top: (player.seatNo === 0 ? p1BtnTop : p2BtnTop) + 'px', left: (player.seatNo === 0 ? p1BtnLeft : p2BtnLeft) + 'px' }"
+                @click="confirmTarget(player.userId)"
+              />
+            </div>
           </div>
           <button class="target-dialog-close" type="button" @click="cancelTargetDialog" aria-label="取消">×</button>
         </div>
@@ -548,20 +547,21 @@ const canConfirmRevive = computed(() => {
   if (reviveSubmitting.value) return false
   return true
 })
-const targetDialogTitle = computed(() => {
-  const type = pendingTargetCard.value?.type
-  if (type === 'defend') return '选择防御目标'
-  if (type === 'support') return '选择辅助目标'
-  return '选择加血目标'
-})
-const targetDialogHint = computed(() => {
-  const type = pendingTargetCard.value?.type
-  const kind = type === 'defend' ? '防御' : type === 'support' ? '辅助' : '加血'
-  return `请选择本次${kind}对象`
-})
 const showTargetDialog = ref(false)
 const pendingTargetCard = ref<BattleCard | null>(null)
 const pendingTargetUserId = ref('')
+const frameW = ref(570)
+const frameH = ref(330)
+const bgW = ref(780)
+const bgH = ref(470)
+const p1LabelTop = ref(97)
+const p1LabelLeft = ref(32)
+const p2LabelTop = ref(97)
+const p2LabelLeft = ref(32)
+const p1BtnTop = ref(-37)
+const p1BtnLeft = ref(0)
+const p2BtnTop = ref(-37)
+const p2BtnLeft = ref(0)
 const cardWidth = ref(230)
 const cardCostTop = ref(0)
 const cardCostLeft = ref(-1)
@@ -577,6 +577,10 @@ const cardTagLeft = ref(20)
 const cardEffectTop = ref(0)
 const cardEffectLeft = ref(-1)
 const cardEffectSize = ref(10)
+const titleTop = ref(15)
+const titleLeft = ref(0)
+const descTop = ref(68)
+const descLeft = ref(0)
 const customerBoxPos = reactive({ top: 344, left: 118 })
 const finishBtn = reactive({ w: 167, h: 83, bottom: -176, right: -170, imgW: 248, imgH: 64 })
 const bullyBoxPos = reactive({ top: 8, left: -14 })
@@ -753,29 +757,7 @@ const canRevealHand = computed(() => {
   if (activePhase.value !== 'PLAYER_ACTION') return false
   return isCurrentUserActiveTurnPlayer.value && !isCurrentUserEnded.value
 })
-const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 0))
-const CARD_ASPECT = 441 / 800
-const HAND_GAP = 4
-const HAND_REF_COUNT = 5
-const HAND_MAX_HEIGHT = 236
-const viewportH = ref(typeof window !== 'undefined' ? window.innerHeight : 800)
-const viewportW = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
-
-function updateBattleViewport() {
-  const view = window.visualViewport
-  viewportH.value = view?.height ?? window.innerHeight
-  viewportW.value = view?.width ?? window.innerWidth
-}
-
-const handCardWidth = computed(() => {
-  const maxH = Math.min(HAND_MAX_HEIGHT, Math.round(viewportH.value * 0.28))
-  const fromHeight = maxH * CARD_ASPECT
-  const available = Math.max(280, viewportW.value - 280)
-  const shown = canRevealHand.value ? activeHand.value.length : hiddenHandCount.value
-  const count = Math.max(shown, HAND_REF_COUNT)
-  const fromWidth = (available - HAND_GAP * Math.max(count - 1, 0)) / count
-  return Math.round(Math.max(96, Math.min(cardWidth.value, fromHeight, fromWidth)))
-})
+const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 5))
 const customerStatusText = computed(() => {
   if (customerTriggered.value === null) return '顾客机制：等待判定'
   if (!customerTriggered.value) return '顾客机制：本回合未触发'
@@ -1804,9 +1786,6 @@ watch(() => game.isGameOver, (over) => {
 })
 
 onMounted(async () => {
-  updateBattleViewport()
-  window.addEventListener('resize', updateBattleViewport)
-  window.visualViewport?.addEventListener('resize', updateBattleViewport)
   const hour = new Date().getHours()
   bgImage.value = bgList[hour % bgList.length]
   console.log('[BattlePage onMounted] route.matchId =', route.params.matchId)
@@ -1885,8 +1864,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', updateBattleViewport)
-  window.visualViewport?.removeEventListener('resize', updateBattleViewport)
   stopDisconnectTimers()
   stopFirstPlayerPoll()
   stopActionPhasePoll()
@@ -2463,31 +2440,16 @@ onUnmounted(() => {
   gap: 4px;
   justify-content: center;
   align-items: flex-end;
-  height: calc(var(--card-width) * 800 / 441);
-  min-height: calc(var(--card-width) * 800 / 441);
+  min-height: 280px;
   padding-top: 0;
   margin-top: 0;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
   position: relative;
   z-index: 3;
 }
-.hand-cards :deep(.card-item),
-.hand-card-back {
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  width: var(--card-width);
-  height: calc(var(--card-width) * 800 / 441);
-  aspect-ratio: 441 / 800;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
 .hand-cards :deep(.card-item) {
-  transform: none;
+  transform: scale(0.88);
   transform-origin: bottom center;
-}
-.hand-cards :deep(.card-item:hover:not(.disabled)) {
-  transform: translateY(-10px);
 }
 .hand-empty {
   color: rgba(255,255,255,0.7);
@@ -2495,21 +2457,29 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 .hand-card-back {
-  border: 1px solid var(--color-border-subtle);
+  width: calc(var(--card-width) * 0.88);
+  aspect-ratio: 441 / 800;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(196, 169, 98, 0.45);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
   pointer-events: none;
   background-color: #e6d4a8;
   background-position: center;
-  background-size: 100% 100%;
+  background-size: cover;
   background-repeat: no-repeat;
 }
 .hand-wait-hint {
-  margin: 0 0 6px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
   text-align: center;
-  color: #fff8e6;
+  color: rgba(255, 248, 230, 0.92);
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
 .finish-btn:disabled {
@@ -2779,89 +2749,105 @@ onUnmounted(() => {
 <style>
 .target-overlay {
   position: fixed;
-  inset: 0 0 180px;
+  left: 0;
+  right: 0;
+  bottom: 320px;
   display: flex;
-  align-items: center;
   justify-content: center;
   pointer-events: none;
   z-index: 3000;
 }
 .target-dialog {
-  width: min(520px, calc(100vw - 40px));
-  min-height: 300px;
-  background: var(--choose-player-bg) center / 100% 100% no-repeat;
+  width: var(--frame-w, min(760px, calc(100vw - 32px)));
+  height: var(--frame-h, auto);
+  background: var(--choose-player-bg) center / var(--bg-w, 760px) var(--bg-h, auto) no-repeat;
   border: none;
   border-radius: 18px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
-  color: #3d2b1f;
-  padding: 58px 42px 28px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  padding: 92px 40px 42px;
   pointer-events: auto;
   position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  overflow: visible;
+}
+.target-dialog::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 19, 27, 0.18);
+  pointer-events: none;
+}
+.target-dialog > * {
+  position: relative;
+  z-index: 1;
 }
 .target-dialog-title {
-  margin: 0 0 10px;
+  margin-top: -46px;
+  margin-bottom: 6px;
   text-align: center;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: #3d2b1f;
-  text-shadow: 0 1px 0 rgba(255, 236, 200, 0.45);
 }
 .target-dialog-desc {
-  margin: 0 0 22px;
+  margin-bottom: 22px;
   text-align: center;
-  font-size: 15px;
-  font-weight: 600;
-  color: #5b4634;
-  letter-spacing: 0.04em;
 }
-.target-dialog-list {
-  width: 100%;
-  max-width: 360px;
+.target-title-main {
+  font-size: 26px;
+  font-weight: 700;
+  color: #3d2b1f;
+}
+.target-title-sub {
+  font-size: 18px;
+  color: #3d2b1f;
+}
+.target-player-wrapper {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
+  align-items: center;
+  gap: 8px;
+}
+.target-player-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: #3d2b1f;
+  text-align: center;
+  white-space: nowrap;
+  z-index: 2;
+}
+.target-player-role {
+  font-size: 13px;
+  font-weight: 400;
+  color: #5b4a3a;
+}
+.target-dialog-list {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 88px;
+  flex-wrap: nowrap;
+  padding-top: 10px;
+  min-height: 200px;
 }
 .target-player-btn {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  width: 100%;
-  height: 68px;
-  padding: 0 22px 0 108px;
+  position: relative;
   border: none;
   background-color: transparent;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 100% 100%;
+  background-size: contain;
+  width: 190px;
+  height: 240px;
+  padding: 0;
   cursor: pointer;
-  font-size: 18px;
-  font-weight: 700;
-  color: #f4ead0;
-  letter-spacing: 0.06em;
-  text-shadow: 0 1px 2px rgba(20, 12, 6, 0.85);
-  transition: transform 0.18s ease, filter 0.18s ease;
-}
-.target-player-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  filter: brightness(1.08);
-}
-.target-player-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.target-player-role {
   flex: 0 0 auto;
-  font-size: 13px;
-  font-weight: 600;
-  color: #d9c9a6;
+  font-size: 0;
+  color: transparent;
+  overflow: hidden;
+}
+.target-player-btn-p1 {
+  top: 4px;
+}
+.target-player-btn-p2 {
+  top: 10px;
 }
 .target-player-btn-p1 {
   background-image: var(--p1-btn-bg);
@@ -2876,16 +2862,16 @@ onUnmounted(() => {
 }
 .target-dialog-close {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 12px;
+  right: 12px;
   z-index: 10;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 224, 160, 0.45);
-  background: rgba(28, 18, 10, 0.72);
-  color: #fff4dc;
-  font-size: 20px;
+  border: 2px solid rgba(255,255,255,0.5);
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  font-size: 18px;
   line-height: 1;
   cursor: pointer;
   display: flex;
@@ -2894,7 +2880,7 @@ onUnmounted(() => {
   padding: 0;
 }
 .target-dialog-close:hover {
-  background: rgba(160, 48, 36, 0.82);
+  background: rgba(200,60,60,0.7);
   border-color: #fff;
 }
 .disconnect-overlay {
