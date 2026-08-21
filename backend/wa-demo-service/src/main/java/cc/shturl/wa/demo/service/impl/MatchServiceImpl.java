@@ -1559,10 +1559,10 @@ public class MatchServiceImpl implements MatchService {
                 Map<String, Object> attackPayload = new LinkedHashMap<>();
                 attackPayload.put("matchId", matchId);
                 attackPayload.put("userId", currentUserId);
-                attackPayload.put("resolvedRound", resolvedRound);
-                attackPayload.put("currentRound", match.getCurrentRound());
+                attackPayload.put("resolvedRound", response.resolvedRound());
+                attackPayload.put("currentRound", response.currentRound());
                 attackPayload.put("bossAttackResolved", true);
-                attackPayload.put("bossAttackTargets", targets);
+                attackPayload.put("bossAttackTargets", response.bossAttackTargets());
                 notifyPlayers(matchId, "boss.attack.resolved", attackPayload);
             }
             if (response.matchEnded()) {
