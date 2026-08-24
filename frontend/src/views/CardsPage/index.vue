@@ -89,9 +89,11 @@ const deptMap: Record<string, string> = {
   it: '公共部',
   finance: '财务部',
   hr: '人事部',
+  // 下次打开「你的0来了」时恢复下一行
+  // zero: '你的0来了',
 }
 
-const deptOrder = ['销售部', '采购部', '物流部', '营销部', '设计部', '技术部', '财务部', '人事部', '公共部', '中立']
+const deptOrder = ['销售部', '采购部', '物流部', '营销部', '设计部', '技术部', '财务部', '人事部', /* '你的0来了', */ '公共部', '中立']
 
 const cardGroups = computed<DeptGroup[]>(() => {
   const map = new Map<string, ApiCard[]>()
@@ -161,6 +163,8 @@ function getDeptColor(dept: string): string {
     '技术部': '#1abc9c',
     '财务部': '#f39c12',
     '人事部': '#e67e22',
+    // 下次打开「你的0来了」时恢复下一行
+    // '你的0来了': '#6b3a4a',
   }
   return colors[dept] || '#c4a962'
 }

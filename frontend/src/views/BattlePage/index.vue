@@ -256,8 +256,10 @@
         <div class="revive-stage" @click.stop>
           <video
             v-if="canShowRevive"
+            :key="currentReviveAdVideo"
             ref="reviveVideoRef"
             class="revive-video"
+            :src="currentReviveAdVideo"
             controls
             playsinline
             autoplay
@@ -272,9 +274,7 @@
             @contextmenu.prevent
             @ended="reviveVideoWatched = true"
             @error="reviveVideoError = '视频加载失败，请检查文件是否存在或文件名是否正确'"
-          >
-            <source :src="reviveAdVideo" type="video/mp4" />
-          </video>
+          />
           <div v-else class="revive-video revive-video-placeholder" />
           <div class="revive-header">
             <h2>观看视频广告复活</h2>
@@ -382,7 +382,8 @@ import bullyImg from '@/assets/battle/bully.webp'
 import playerImg from '@/assets/battle/player.webp'
 import purchaseImg from '@/assets/battle/purchase.webp'
 import salesImg from '@/assets/battle/sales.webp'
-import reviveAdVideo from '@/assets/revive-ad.mp4'
+import reviveAdVideoA from '@/assets/revive-ad.mp4'
+import reviveAdVideoB from '@/assets/简介 - 职员 - Kade.mp4'
 import resultLoseBg from '@/assets/result-lose-bg.webp'
 import resultWinBg from '@/assets/result-win-bg.webp'
 import bundledCardBack from '@/assets/cards/Card_Back.webp'
@@ -548,6 +549,13 @@ const fallenDeptLabel = computed(() => {
 const reviveStatus = ref<any>(null)
 const reviveStatusLoading = ref(false)
 const reviveSubmitting = ref(false)
+const REVIVE_AD_VIDEOS = [reviveAdVideoA, reviveAdVideoB] as const
+
+function pickReviveAdVideo() {
+  return REVIVE_AD_VIDEOS[Math.floor(Math.random() * REVIVE_AD_VIDEOS.length)]
+}
+
+const currentReviveAdVideo = ref(pickReviveAdVideo())
 const reviveVideoWatched = ref(false)
 const reviveVideoError = ref('')
 const reviveVideoRef = ref<HTMLVideoElement | null>(null)
@@ -808,6 +816,8 @@ const deptLabelMap: Record<string, string> = {
   public: '公共部',
   neutral: '路人部',
   passerby: '路人部',
+  // 下次打开「你的0来了」时恢复下一行
+  // zero: '你的0来了',
 }
 
 function normalizeDept(dept?: string | null) {
@@ -1507,6 +1517,7 @@ async function submitRevive() {
 
 function openReviveDialog() {
   if (showReviveDialog.value || game.isGameOver || reviveDialogDismissed.value) return
+  currentReviveAdVideo.value = pickReviveAdVideo()
   reviveVideoWatched.value = false
   reviveVideoError.value = ''
   reviveLastTime.value = 0

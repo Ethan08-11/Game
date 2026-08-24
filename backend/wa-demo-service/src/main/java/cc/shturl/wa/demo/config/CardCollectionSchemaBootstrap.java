@@ -44,6 +44,9 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         runScript("db/006_hr_collectible_cards.sql");
         runScript("db/007_boss_collectible_cards.sql");
         runScript("db/008_character_collectible_cards.sql");
+        // 下次打开「你的0来了」时：取消下一行注释，并注释掉 hideZeroDeptCards()
+        // runScript("db/009_zero_dept_cards.sql");
+        hideZeroDeptCards();
         log.info("Card collection schema bootstrap finished.");
     }
 
@@ -108,6 +111,36 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
                 """);
         if (n > 0) {
             log.info("Updated Ethan/O-13 card art to 技术_Ethan.webp ({} rows).", n);
+        }
+    }
+
+    /**
+     * 停用「你的0来了」：卡面和 SQL 都保留，只把已入库卡的 status 设为 0，图鉴和对局都抽不到。
+     * 下次打开时改跑 db/009_zero_dept_cards.sql（脚本末尾会把 status 设回 1）。
+     */
+    private void hideZeroDeptCards() {
+        try {
+            int cards = 0;
+            int depts = 0;
+            if (columnExists("cards", "dept_type")) {
+                cards = jdbcTemplate.update("""
+                        UPDATE `cards`
+                        SET `status` = 0
+                        WHERE `dept_type` = 'zero'
+                        """);
+            }
+            if (tableExists("card_depts") && columnExists("card_depts", "status")) {
+                depts = jdbcTemplate.update("""
+                        UPDATE `card_depts`
+                        SET `status` = 0
+                        WHERE `dept_code` = 'DEPT_ZERO'
+                        """);
+            }
+            if (cards > 0 || depts > 0) {
+                log.info("Paused zero-dept cards: cards={}, depts={}.", cards, depts);
+            }
+        } catch (Exception e) {
+            log.warn("Skip pausing zero-dept cards: {}", e.getMessage());
         }
     }
 

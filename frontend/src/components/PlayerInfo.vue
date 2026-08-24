@@ -53,6 +53,8 @@ const deptLabelMap: Record<string, string> = {
   tech: '技术部',
   finance: '财务部',
   hr: '人事部',
+  // 下次打开「你的0来了」时恢复下一行
+  // zero: '你的0来了',
 }
 const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || props.dept || '')
 </script>

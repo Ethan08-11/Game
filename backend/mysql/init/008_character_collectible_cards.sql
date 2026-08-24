@@ -1,4 +1,4 @@
--- 人物中世纪收藏卡（采购×2、老板×4）。可重复执行。不覆盖已有卡面。
+-- 人物中世纪收藏卡（采购×2、老板×5）。可重复执行。不覆盖已有卡面。
 INSERT INTO `cards` (`id`,`card_code`,`card_name`,`dept_id`,`dept_type`,`cost`,`card_type`,`description`,`image_url`,`combo_card_id`,`is_unique`,`require_unlock`,`status`,`created_at`,`updated_at`) SELECT 154, 'P-19', '盐引官', 2, 'purchase', 1, 'support', '本回合员工调用机会 +1，并为一名玩家增加 2 点防御', '/images/cards/采购_盐引官.webp', NULL, 0, 1, 1, NOW(), NOW() WHERE NOT EXISTS (SELECT 1 FROM `cards` WHERE `card_code` = 'P-19');
 UPDATE `cards` SET `description` = '本回合员工调用机会 +1，并为一名玩家增加 2 点防御', `card_type` = 'support', `cost` = 1 WHERE `card_code` = 'P-19';
 DELETE e FROM `card_effects` e INNER JOIN `cards` c ON c.id = e.card_id WHERE c.card_code = 'P-19';
@@ -37,4 +37,10 @@ DELETE e FROM `card_effects` e INNER JOIN `cards` c ON c.id = e.card_id WHERE c.
 INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) SELECT c.id, 1, 'ANY_PLAYER', 'HEAL_PLAYER', 'IMMEDIATE', 0, 1, 'STACK', 0, 3, 'ANY_PLAYER', NULL, NOW(), NOW() FROM `cards` c WHERE c.card_code = 'B-07';
 INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) SELECT c.id, 2, 'ALL_PLAYERS', 'ADD_SHIELD', 'IMMEDIATE', 0, 1, 'STACK', 0, 1, 'ALL_PLAYERS', NULL, NOW(), NOW() FROM `cards` c WHERE c.card_code = 'B-07';
 
-ALTER TABLE `cards` AUTO_INCREMENT = 160;
+INSERT INTO `cards` (`id`,`card_code`,`card_name`,`dept_id`,`dept_type`,`cost`,`card_type`,`description`,`image_url`,`combo_card_id`,`is_unique`,`require_unlock`,`status`,`created_at`,`updated_at`) SELECT 160, 'B-08', '花舫主', 3, 'public', 2, 'attack', '立即造成 4 点伤害，并恢复自己 2 点血量', '/images/cards/老板_花舫主.webp', NULL, 0, 1, 1, NOW(), NOW() WHERE NOT EXISTS (SELECT 1 FROM `cards` WHERE `card_code` = 'B-08');
+UPDATE `cards` SET `description` = '立即造成 4 点伤害，并恢复自己 2 点血量', `card_type` = 'attack', `cost` = 2 WHERE `card_code` = 'B-08';
+DELETE e FROM `card_effects` e INNER JOIN `cards` c ON c.id = e.card_id WHERE c.card_code = 'B-08';
+INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) SELECT c.id, 1, 'BOSS', 'DAMAGE_BOSS', 'IMMEDIATE', 0, 1, 'STACK', 0, 4, 'BOSS', NULL, NOW(), NOW() FROM `cards` c WHERE c.card_code = 'B-08';
+INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) SELECT c.id, 2, 'SELF', 'HEAL_PLAYER', 'IMMEDIATE', 0, 1, 'STACK', 0, 2, 'SELF', NULL, NOW(), NOW() FROM `cards` c WHERE c.card_code = 'B-08';
+
+ALTER TABLE `cards` AUTO_INCREMENT = 161;

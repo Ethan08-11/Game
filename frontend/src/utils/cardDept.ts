@@ -7,6 +7,9 @@ const PUBLIC_GAMEPLAY_DEPTS = new Set([
   '公共部',
   '中立',
   '路人部',
+  // 下次打开「你的0来了」时恢复下面两行
+  // 'zero',
+  // '你的0来了',
 ])
 
 export function flavorDeptFromImageUrl(imageUrl?: string | null): string | null {

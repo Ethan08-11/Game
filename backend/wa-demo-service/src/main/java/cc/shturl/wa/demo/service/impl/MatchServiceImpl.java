@@ -668,6 +668,9 @@ public class MatchServiceImpl implements MatchService {
         boolean matchEnded = value(match.getBossCurrentHp()) <= 0;
         if (matchEnded) {
             finishMatch(match, 1);
+        } else if (allPlayersDown(match.getId())) {
+            matchEnded = true;
+            finishMatch(match, 2);
         }
         match.setVersion(match.getVersion() + 1);
         matchesMapper.updateById(match);
@@ -1381,6 +1384,30 @@ public class MatchServiceImpl implements MatchService {
                             actualValue, beforeValue, afterValue, match.getCurrentRound()));
                 }
             }
+            case "DAMAGE_PLAYER" -> {
+                for (MatchPlayers recipient : resolveEffectTargets(match.getId(), actor, target, effect)) {
+                    int beforeValue = value(recipient.getCurrentHp());
+                    int afterValue = applyPlayerHpLoss(recipient, actualValue);
+                    persistPlayerIfNotActor(actor, recipient);
+                    results.add(effectResult(effect, resultTargetType(effect), recipient.getUserId(), baseValue,
+                            beforeValue - afterValue, beforeValue, afterValue, match.getCurrentRound()));
+                }
+            }
+            case "INCREASE_BOSS_ATTACK" -> {
+                int beforeValue = value(match.getBossCurrentAttack());
+                int afterValue = beforeValue + actualValue;
+                match.setBossCurrentAttack(afterValue);
+                results.add(effectResult(effect, "BOSS", null, baseValue, actualValue,
+                        beforeValue, afterValue, match.getCurrentRound()));
+            }
+            case "HEAL_BOSS" -> {
+                int beforeValue = value(match.getBossCurrentHp());
+                int afterValue = beforeValue + actualValue;
+                match.setBossMaxHp(value(match.getBossMaxHp()) + actualValue);
+                match.setBossCurrentHp(afterValue);
+                results.add(effectResult(effect, "BOSS", null, baseValue, actualValue,
+                        beforeValue, afterValue, match.getCurrentRound()));
+            }
             default -> throw new BusinessException("不支持的立即效果类型：" + effect.getEffectType());
         }
     }
@@ -1401,7 +1428,9 @@ public class MatchServiceImpl implements MatchService {
         boolean hasSelf = effects.stream().anyMatch(effect -> "SELF".equals(effect.getEffectScope()));
         boolean hasBoss = effects.stream().anyMatch(effect -> "BOSS".equals(effect.getEffectScope())
                 || "DAMAGE_BOSS".equals(effect.getEffectType())
-                || "REDUCE_BOSS_ATTACK".equals(effect.getEffectType()));
+                || "REDUCE_BOSS_ATTACK".equals(effect.getEffectType())
+                || "INCREASE_BOSS_ATTACK".equals(effect.getEffectType())
+                || "HEAL_BOSS".equals(effect.getEffectType()));
         if (hasSelf && !hasBoss) {
             return "SELF";
         }
@@ -1444,6 +1473,31 @@ public class MatchServiceImpl implements MatchService {
         if (player != null && !actor.getId().equals(player.getId())) {
             matchPlayersMapper.updateById(player);
         }
+    }
+
+    private int applyPlayerHpLoss(MatchPlayers player, int amount) {
+        int before = value(player.getCurrentHp());
+        int after = Math.max(0, before - Math.max(amount, 0));
+        player.setCurrentHp(after);
+        player.setDamageTaken(value(player.getDamageTaken()) + before - after);
+        if (after <= 0) {
+            player.setPlayerStatus("DEAD");
+            player.setReviveStatus(1);
+        }
+        return after;
+    }
+
+    private boolean allPlayersDown(Long matchId) {
+        List<MatchPlayers> players = listPlayers(matchId);
+        if (players.isEmpty()) {
+            return false;
+        }
+        for (MatchPlayers player : players) {
+            if (value(player.getCurrentHp()) > 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void schedulePendingEffects(Matches match, MatchPlayers actor, MatchCards instance, MatchPlayers target,
@@ -1489,7 +1543,8 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private String pendingTargetType(CardEffects effect) {
-        if ("DAMAGE_BOSS".equals(effect.getEffectType()) || "REDUCE_BOSS_ATTACK".equals(effect.getEffectType())) {
+        if ("DAMAGE_BOSS".equals(effect.getEffectType()) || "REDUCE_BOSS_ATTACK".equals(effect.getEffectType())
+                || "INCREASE_BOSS_ATTACK".equals(effect.getEffectType()) || "HEAL_BOSS".equals(effect.getEffectType())) {
             return "BOSS";
         }
         return "PLAYER";
@@ -1497,6 +1552,7 @@ public class MatchServiceImpl implements MatchService {
 
     private List<Long> pendingTargetUserIds(Long matchId, MatchPlayers actor, MatchPlayers selected, CardEffects effect) {
         if ("DAMAGE_BOSS".equals(effect.getEffectType()) || "REDUCE_BOSS_ATTACK".equals(effect.getEffectType())
+                || "INCREASE_BOSS_ATTACK".equals(effect.getEffectType()) || "HEAL_BOSS".equals(effect.getEffectType())
                 || "MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
             if ("MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
                 return List.of(actor.getUserId());
@@ -1708,6 +1764,12 @@ public class MatchServiceImpl implements MatchService {
                 }
             } else if ("REDUCE_BOSS_ATTACK".equals(pending.getEffectType())) {
                 match.setBossCurrentAttack(Math.max(0, value(match.getBossCurrentAttack()) - value(pending.getEffectValue())));
+            } else if ("INCREASE_BOSS_ATTACK".equals(pending.getEffectType())) {
+                match.setBossCurrentAttack(value(match.getBossCurrentAttack()) + Math.max(value(pending.getEffectValue()), 0));
+            } else if ("HEAL_BOSS".equals(pending.getEffectType())) {
+                int hpGain = Math.max(value(pending.getEffectValue()), 0);
+                match.setBossMaxHp(value(match.getBossMaxHp()) + hpGain);
+                match.setBossCurrentHp(value(match.getBossCurrentHp()) + hpGain);
             } else if ("DRAW_CARDS".equals(pending.getEffectType()) && pending.getTargetUserId() != null) {
                 drawCards(match.getId(), pending.getTargetUserId(), roundNo, value(pending.getEffectValue()));
             } else {
@@ -1723,6 +1785,9 @@ public class MatchServiceImpl implements MatchService {
                 } else if (target != null && "ADD_ACTION_POINTS".equals(pending.getEffectType())) {
                     // 下回合加调用机会：加在本回合已刷新的 actionPoints 上，不要永久改 base
                     target.setActionPoints(value(target.getActionPoints()) + value(pending.getEffectValue()));
+                    matchPlayersMapper.updateById(target);
+                } else if (target != null && "DAMAGE_PLAYER".equals(pending.getEffectType())) {
+                    applyPlayerHpLoss(target, Math.max(value(pending.getEffectValue()), 0));
                     matchPlayersMapper.updateById(target);
                 }
             }

@@ -12,6 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 MD = ROOT / "backend" / "mdFile" / "新卡牌专属效果.md"
 OUT = ROOT / "backend" / "mdFile" / "新卡牌专属效果.docx"
+V2_MD = ROOT / "backend" / "mdFile" / "新卡牌专属效果（第二版）.md"
+V2_OUT = ROOT / "backend" / "mdFile" / "新卡牌专属效果（第二版）.docx"
 HEADERS = ["编号", "名称", "费用", "类型", "专属效果", "设计说明"]
 CENTER_COLS = {0, 2, 3}
 
@@ -237,5 +239,87 @@ def main():
         print("locked, wrote", alt, "sections", len(sections))
 
 
+def save_doc(doc, out: Path):
+    tmp = out.with_suffix(".tmp.docx")
+    doc.save(tmp)
+    try:
+        tmp.replace(out)
+        print("wrote", out)
+    except PermissionError:
+        alt = out.with_name(out.stem + "-新表.docx")
+        tmp.replace(alt)
+        print("locked, wrote", alt)
+
+
+def main_v2():
+    sections = parse_md_tables(V2_MD.read_text(encoding="utf-8"))
+    doc = Document()
+    section = doc.sections[0]
+    section.orientation = WD_ORIENT.LANDSCAPE
+    section.page_width, section.page_height = section.page_height, section.page_width
+    section.left_margin = Cm(1.4)
+    section.right_margin = Cm(1.4)
+    section.top_margin = Cm(1.4)
+    section.bottom_margin = Cm(1.4)
+
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = title.add_run("新卡牌专属效果（第二版）")
+    set_run_font(run, 22, True, RGBColor(0x1F, 0x4E, 0x79), "微软雅黑")
+
+    add_body(doc, "记录自 2026-08-24 起新增的收藏卡专属效果。第一版（此前全部收藏卡）见同目录《新卡牌专属效果.docx》。")
+    add_body(doc, "费用、部门、卡牌类型以入库配置为准；效果与库内 cards.description 一致。表格列：编号、名称、费用、类型、专属效果、设计说明。")
+
+    add_heading(doc, "设计原则", 2)
+    for line in [
+        "只收录今日起新加的卡，不回写第一版已有卡面。",
+        "整套机制（类型 + 时机 + 延迟 + 数值 + 目标）不与旧卡、第一版新卡重复。",
+        "老板卡同费明显高于公共卡（约高一档费用）。",
+    ]:
+        add_body(doc, "· " + line)
+
+    for heading, note, rows in sections:
+        if heading == "修订记录":
+            continue
+        add_heading(doc, heading, 2)
+        if note:
+            add_body(doc, note)
+        add_table(doc, rows)
+
+    text = V2_MD.read_text(encoding="utf-8")
+    rec_heading = None
+    rec_rows = []
+    in_rec = False
+    for line in text.splitlines():
+        if line.startswith("## ") and "修订记录" in line:
+            rec_heading = "修订记录"
+            continue
+        if rec_heading and line.startswith("|") and "日期" in line:
+            in_rec = True
+            continue
+        if in_rec and line.startswith("|") and set(line.replace("|", "").strip()) <= set("-: "):
+            continue
+        if in_rec and line.startswith("|"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            rec_rows.append(cells)
+        elif in_rec:
+            break
+    if rec_heading:
+        add_heading(doc, rec_heading, 2)
+        rec = doc.add_table(rows=1 + len(rec_rows), cols=2)
+        rec.alignment = WD_TABLE_ALIGNMENT.CENTER
+        write_cell(rec.rows[0].cells[0], "日期", header=True, center=True)
+        write_cell(rec.rows[0].cells[1], "说明", header=True, center=True)
+        for i, row in enumerate(rec_rows, start=1):
+            write_cell(rec.rows[i].cells[0], row[0], center=True)
+            write_cell(rec.rows[i].cells[1], row[1] if len(row) > 1 else "")
+
+    save_doc(doc, V2_OUT)
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if "v2" in sys.argv:
+        main_v2()
+    else:
+        main()
