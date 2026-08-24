@@ -665,13 +665,14 @@ public class MatchServiceImpl implements MatchService {
         instance.setVersion(value(instance.getVersion()) + 1);
         matchCardsMapper.updateById(instance);
 
-        boolean matchEnded = value(match.getBossCurrentHp()) <= 0;
-        if (matchEnded) {
+        boolean bossDefeated = value(match.getBossCurrentHp()) <= 0;
+        boolean playersDown = !bossDefeated && allPlayersDown(match.getId());
+        if (bossDefeated) {
             finishMatch(match, 1);
-        } else if (allPlayersDown(match.getId())) {
-            matchEnded = true;
+        } else if (playersDown) {
             finishMatch(match, 2);
         }
+        final boolean matchEnded = bossDefeated || playersDown;
         match.setVersion(match.getVersion() + 1);
         matchesMapper.updateById(match);
 
