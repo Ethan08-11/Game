@@ -29,75 +29,75 @@ def reduce_atk(v, order=1):
     return (order, "BOSS", "REDUCE_BOSS_ATTACK", IM, 0, v, "BOSS")
 
 
-def ap(v, order=1, timing=IM, delay=0):
-    return (order, "SELF", "ADD_ACTION_POINTS", timing, delay, v, "SELF")
+def ap(v, order=1, scope="SELF", timing=IM, delay=0):
+    return (order, scope, "ADD_ACTION_POINTS", timing, delay, v, scope)
 
 
-def multiply():
-    return (1, "SELF", "MULTIPLY_NEXT_CARD", "NEXT_CARD", 0, 2, "SELF")
+def multiply(order=1):
+    return (order, "SELF", "MULTIPLY_NEXT_CARD", "NEXT_CARD", 0, 2, "SELF")
 
 
 cards = [
     # sales
-    ("S-07", "摊贩", "销售", 0, "attack", "sales", 1, "立即造成 2 点伤害", [dmg(2)]),
+    ("S-07", "摊贩", "销售", 0, "attack", "sales", 1, "立即造成 1 点伤害，并为一名玩家增加 1 点防御", [dmg(1), sh(1, 2)]),
     ("S-08", "货郎", "销售", 0, "draw", "sales", 1, "抽 1 张牌", [draw(1)]),
     ("S-09", "卖艺货郎", "销售", 0, "attack", "sales", 1, "立即造成 1 点伤害，并抽 1 张牌", [dmg(1), draw(1, 2)]),
-    ("S-10", "酒娘", "销售", 1, "attack", "sales", 1, "立即造成 3 点伤害", [dmg(3)]),
-    ("S-11", "面包师", "销售", 1, "attack", "sales", 1, "本回合造成 2 点伤害，下回合再造成 1 点", [dmg(2), dmg(1, 2, RS, 1)]),
+    ("S-10", "酒娘", "销售", 1, "attack", "sales", 1, "立即造成 2 点伤害，并恢复自己 1 点血量", [dmg(2), heal(1, 2, "SELF")]),
+    ("S-11", "面包师", "销售", 1, "attack", "sales", 1, "本回合造成 1 点伤害，下回合再造成 2 点", [dmg(1), dmg(2, 2, RS, 1)]),
     ("S-12", "珠串商", "销售", 1, "attack", "sales", 1, "立即造成 2 点伤害，并为一名玩家增加 1 点防御", [dmg(2), sh(1, 2)]),
     ("S-13", "香囊商", "销售", 1, "attack", "sales", 1, "立即造成 2 点伤害，并恢复一名玩家 1 点血量", [dmg(2), heal(1, 2)]),
     ("S-14", "绒帽商", "销售", 1, "support", "sales", 1, "立即造成 1 点伤害，本回合霸凌者攻击 -1", [dmg(1), reduce_atk(1, 2)]),
-    ("S-15", "酒商", "销售", 2, "attack", "sales", 1, "立即造成 4 点伤害", [dmg(4)]),
+    ("S-15", "酒商", "销售", 2, "attack", "sales", 1, "立即造成 3 点伤害，并抽 1 张牌", [dmg(3), draw(1, 2)]),
     ("S-16", "衡器商", "销售", 2, "support", "sales", 1, "立即造成 2 点伤害，本回合霸凌者攻击 -2", [dmg(2), reduce_atk(2, 2)]),
-    ("S-17", "布商", "销售", 2, "attack", "sales", 1, "本回合造成 3 点伤害，下回合再造成 2 点", [dmg(3), dmg(2, 2, RS, 1)]),
+    ("S-17", "布商", "销售", 2, "attack", "sales", 1, "本回合造成 2 点伤害，下回合再造成 3 点", [dmg(2), dmg(3, 2, RS, 1)]),
     ("S-18", "行商", "销售", 2, "attack", "sales", 1, "立即造成 2 点伤害，并抽 1 张牌", [dmg(2), draw(1, 2)]),
     ("S-19", "杂货商", "销售", 2, "attack", "sales", 1, "立即造成 2 点伤害，双方各获得 1 点防御", [dmg(2), sh(1, 2, "ALL_PLAYERS")]),
     ("S-20", "花边商", "销售", 2, "attack", "sales", 1, "立即造成 3 点伤害，下回合再造成 1 点", [dmg(3), dmg(1, 2, RS, 1)]),
-    ("S-21", "公会会长", "销售", 3, "attack", "sales", 1, "立即造成 6 点伤害", [dmg(6)]),
+    ("S-21", "公会会长", "销售", 3, "attack", "sales", 1, "立即造成 4 点伤害，双方各获得 1 点防御", [dmg(4), sh(1, 2, "ALL_PLAYERS")]),
     ("S-22", "香料商", "销售", 3, "attack", "sales", 1, "本回合造成 3 点伤害，下回合再造成 3 点", [dmg(3), dmg(3, 2, RS, 1)]),
     ("S-23", "旅店掌柜", "销售", 3, "attack", "sales", 1, "立即造成 2 点伤害，双方各获得 2 点防御", [dmg(2), sh(2, 2, "ALL_PLAYERS")]),
     ("S-24", "绸缎商", "销售", 3, "attack", "sales", 1, "立即造成 4 点伤害，并抽 1 张牌", [dmg(4), draw(1, 2)]),
     # purchase
-    ("P-05", "掮客", "采购", 0, "defend", "purchase", 2, "为一名玩家增加 2 点防御", [sh(2)]),
+    ("P-05", "掮客", "采购", 0, "defend", "purchase", 2, "为自己增加 2 点防御", [sh(2, 1, "SELF")]),
     ("P-06", "采办官", "采购", 0, "defend", "purchase", 2, "本回合增加 1 点防御，下回合再增加 1 点", [sh(1), sh(1, 2, "ANY_PLAYER", RS, 1)]),
     ("P-07", "仓储管事", "采购", 1, "defend", "purchase", 2, "本回合增加 2 点防御，下回合再增加 1 点", [sh(2), sh(1, 2, "ANY_PLAYER", RS, 1)]),
     ("P-08", "园圃办货", "采购", 1, "defend", "purchase", 2, "为一名玩家增加 2 点防御，并恢复 1 点血量", [sh(2), heal(1, 2)]),
     ("P-09", "丝线采买", "采购", 1, "draw", "purchase", 2, "抽 1 张牌，并为一名玩家增加 1 点防御", [draw(1), sh(1, 2)]),
     ("P-10", "账册核验", "采购", 1, "support", "purchase", 2, "为一名玩家增加 2 点防御，本回合霸凌者攻击 -1", [sh(2), reduce_atk(1, 2)]),
-    ("P-11", "粮秣官", "采购", 2, "defend", "purchase", 2, "为一名玩家增加 4 点防御", [sh(4)]),
+    ("P-11", "粮秣官", "采购", 2, "defend", "purchase", 2, "为一名玩家增加 2 点防御，并恢复 2 点血量", [sh(2), heal(2, 2)]),
     ("P-12", "暗市办货", "采购", 2, "defend", "purchase", 2, "为自己增加 4 点防御", [sh(4, 1, "SELF")]),
-    ("P-13", "书坊采买", "采购", 2, "defend", "purchase", 2, "本回合增加 2 点防御，下回合再增加 2 点", [sh(2), sh(2, 2, "ANY_PLAYER", RS, 1)]),
+    ("P-13", "书坊采买", "采购", 2, "defend", "purchase", 2, "本回合增加 3 点防御，下回合再增加 1 点", [sh(3), sh(1, 2, "ANY_PLAYER", RS, 1)]),
     ("P-14", "学府采办", "采购", 2, "draw", "purchase", 2, "为一名玩家增加 2 点防御，并抽 1 张牌", [sh(2), draw(1, 2)]),
     ("P-15", "珍宝估价", "采购", 2, "defend", "purchase", 2, "为一名玩家增加 3 点防御，并对霸凌者造成 1 点伤害", [sh(3), dmg(1, 2)]),
     ("P-16", "军需官", "采购", 3, "defend", "purchase", 2, "双方各获得 3 点防御", [sh(3, 1, "ALL_PLAYERS")]),
-    ("P-17", "王室采办", "采购", 3, "defend", "purchase", 2, "本回合增加 3 点防御，下回合再增加 3 点", [sh(3), sh(3, 2, "ANY_PLAYER", RS, 1)]),
-    ("P-18", "贡银采办", "采购", 3, "defend", "purchase", 2, "双方各获得 2 点防御，并对霸凌者造成 2 点伤害", [sh(2, 1, "ALL_PLAYERS"), dmg(2, 2)]),
+    ("P-17", "王室采办", "采购", 3, "defend", "purchase", 2, "本回合增加 4 点防御，下回合再增加 2 点", [sh(4), sh(2, 2, "ANY_PLAYER", RS, 1)]),
+    ("P-18", "贡银采办", "采购", 3, "defend", "purchase", 2, "双方各获得 2 点防御，并抽 1 张牌", [sh(2, 1, "ALL_PLAYERS"), draw(1, 2)]),
     # design / others as public
-    ("O-20", "绣娘", "设计", 1, "attack", "public", 3, "立即造成 2 点伤害，并为一名玩家增加 1 点防御", [dmg(2), sh(1, 2)]),
+    ("O-20", "绣娘", "设计", 1, "attack", "public", 3, "立即造成 2 点伤害，下回合为一名玩家增加 1 点防御", [dmg(2), sh(1, 2, "ANY_PLAYER", RS, 1)]),
     ("O-21", "纹章师", "设计", 1, "defend", "public", 3, "为一名玩家增加 2 点防御，并对霸凌者造成 1 点伤害", [sh(2), dmg(1, 2)]),
-    ("O-22", "泥金师", "设计", 2, "attack", "public", 3, "本回合造成 3 点伤害，下回合再造成 1 点", [dmg(3), dmg(1, 2, RS, 1)]),
-    ("O-23", "营造师", "设计", 2, "defend", "public", 3, "为一名玩家增加 4 点防御", [sh(4)]),
+    ("O-22", "泥金师", "设计", 2, "attack", "public", 3, "立即造成 3 点伤害，并恢复一名玩家 1 点血量", [dmg(3), heal(1, 2)]),
+    ("O-23", "营造师", "设计", 2, "defend", "public", 3, "本回合增加 1 点防御，下回合再增加 3 点", [sh(1), sh(3, 2, "ANY_PLAYER", RS, 1)]),
     ("O-24", "舆图师", "设计", 2, "draw", "public", 3, "抽 1 张牌，下回合再抽 1 张", [draw(1), draw(1, 2, RS, 1)]),
-    ("O-25", "果贩", "市场", 0, "attack", "public", 3, "立即造成 2 点伤害", [dmg(2)]),
-    ("O-26", "宫廷抄写员", "文员", 0, "attack", "public", 3, "本回合造成 1 点伤害，下回合再造成 1 点", [dmg(1), dmg(1, 2, RS, 1)]),
-    ("O-27", "守门人", "安保", 0, "defend", "public", 3, "为一名玩家增加 2 点防御", [sh(2)]),
-    ("O-28", "学徒", "行政", 0, "draw", "public", 3, "抽 1 张牌", [draw(1)]),
-    ("O-29", "花使", "礼仪", 1, "attack", "public", 3, "立即造成 3 点伤害", [dmg(3)]),
-    ("O-30", "草药师", "医疗", 1, "heal", "public", 3, "恢复一名玩家 3 点血量", [heal(3)]),
-    ("O-31", "司膳", "餐饮", 1, "heal", "public", 3, "本回合恢复 2 点，下回合再恢复 1 点", [heal(2), heal(1, 2, "ANY_PLAYER", RS, 1)]),
-    ("O-32", "牧羊女", "农业", 1, "defend", "public", 3, "为一名玩家增加 3 点防御", [sh(3)]),
+    ("O-25", "果贩", "市场", 0, "attack", "public", 3, "立即造成 1 点伤害，并恢复一名玩家 1 点血量", [dmg(1), heal(1, 2)]),
+    ("O-26", "宫廷抄写员", "文员", 0, "attack", "public", 3, "立即造成 1 点伤害，下回合抽 1 张牌", [dmg(1), draw(1, 2, RS, 1)]),
+    ("O-27", "守门人", "安保", 0, "defend", "public", 3, "双方各获得 1 点防御", [sh(1, 1, "ALL_PLAYERS")]),
+    ("O-28", "学徒", "行政", 0, "draw", "public", 3, "下回合抽 1 张牌", [draw(1, 1, RS, 1)]),
+    ("O-29", "花使", "礼仪", 1, "attack", "public", 3, "立即造成 1 点伤害，双方各恢复 1 点血量", [dmg(1), heal(1, 2, "ALL_PLAYERS")]),
+    ("O-30", "草药师", "医疗", 1, "heal", "public", 3, "恢复一名玩家 2 点血量，并为一名玩家增加 1 点防御", [heal(2), sh(1, 2)]),
+    ("O-31", "司膳", "餐饮", 1, "heal", "public", 3, "本回合恢复 1 点，下回合再恢复 2 点", [heal(1), heal(2, 2, "ANY_PLAYER", RS, 1)]),
+    ("O-32", "牧羊女", "农业", 1, "defend", "public", 3, "双方各获得 1 点防御，并恢复一名玩家 1 点血量", [sh(1, 1, "ALL_PLAYERS"), heal(1, 2)]),
     ("O-33", "捕鼠师", "仓储", 1, "attack", "public", 3, "立即造成 2 点伤害，并为自己增加 1 点防御", [dmg(2), sh(1, 2, "SELF")]),
-    ("O-34", "藏书吏", "行政", 1, "draw", "public", 3, "抽 1 张牌，下回合再抽 1 张", [draw(1), draw(1, 2, RS, 1)]),
-    ("O-35", "弓箭手", "军事", 2, "attack", "public", 3, "立即造成 4 点伤害", [dmg(4)]),
-    ("O-36", "厨子", "餐饮", 2, "heal", "public", 3, "恢复一名玩家 4 点血量", [heal(4)]),
+    ("O-34", "藏书吏", "行政", 1, "draw", "public", 3, "抽 1 张牌，下回合对霸凌者造成 1 点伤害", [draw(1), dmg(1, 2, RS, 1)]),
+    ("O-35", "弓箭手", "军事", 2, "attack", "public", 3, "本回合造成 1 点伤害，下回合再造成 4 点", [dmg(1), dmg(4, 2, RS, 1)]),
+    ("O-36", "厨子", "餐饮", 2, "heal", "public", 3, "恢复一名玩家 3 点血量，并抽 1 张牌", [heal(3), draw(1, 2)]),
     ("O-37", "渔妇", "渔业", 2, "heal", "public", 3, "本回合恢复 2 点，下回合再恢复 2 点", [heal(2), heal(2, 2, "ANY_PLAYER", RS, 1)]),
     ("O-38", "织工", "生产", 2, "defend", "public", 3, "双方各获得 1 点防御，下回合再各获得 1 点", [sh(1, 1, "ALL_PLAYERS"), sh(1, 2, "ALL_PLAYERS", RS, 1)]),
-    ("O-39", "染匠", "生产", 2, "attack", "public", 3, "立即造成 3 点伤害，下回合再造成 1 点", [dmg(3), dmg(1, 2, RS, 1)]),
+    ("O-39", "染匠", "生产", 2, "attack", "public", 3, "下回合造成 4 点伤害", [dmg(4, 1, RS, 1)]),
     ("O-40", "机械工匠", "技术", 2, "attack", "public", 3, "立即造成 2 点伤害，并为一名玩家增加 2 点防御", [dmg(2), sh(2, 2)]),
     ("O-41", "学者", "教育", 2, "heal", "public", 3, "恢复一名玩家 2 点血量，并抽 1 张牌", [heal(2), draw(1, 2)]),
-    ("O-42", "珠宝商", "零售", 3, "attack", "public", 3, "立即造成 6 点伤害", [dmg(6)]),
-    ("O-43", "骑士", "安保", 3, "defend", "public", 3, "双方各获得 3 点防御", [sh(3, 1, "ALL_PLAYERS")]),
-    ("O-44", "占卜师", "玄学", 3, "support", "public", 3, "使自己打出的下一张牌数值效果翻倍", [multiply()]),
+    ("O-42", "珠宝商", "零售", 3, "attack", "public", 3, "立即造成 5 点伤害，并为自己增加 1 点防御", [dmg(5), sh(1, 2, "SELF")]),
+    ("O-43", "骑士", "安保", 3, "defend", "public", 3, "立即造成 3 点伤害，并为自己增加 3 点防御", [dmg(3), sh(3, 2, "SELF")]),
+    ("O-44", "占卜师", "玄学", 3, "support", "public", 3, "本回合员工调用机会 +1，并使自己打出的下一张牌数值效果翻倍", [ap(1), multiply(2)]),
 ]
 
 lines = [
@@ -121,6 +121,12 @@ for i, row in enumerate(cards):
         f"SELECT {cid}, '{code}', '{name}', {dept_id}, '{dept}', {cost}, '{ctype}', '{desc_sql}', '{img}', NULL, 0, 1, 1, NOW(), NOW() "
         f"WHERE NOT EXISTS (SELECT 1 FROM `cards` WHERE `card_code` = '{code}');"
     )
+    lines.append(
+        f"UPDATE `cards` SET `description` = '{desc_sql}', `card_type` = '{ctype}', `cost` = {cost} WHERE `card_code` = '{code}';"
+    )
+    lines.append(
+        f"DELETE e FROM `card_effects` e INNER JOIN `cards` c ON c.id = e.card_id WHERE c.card_code = '{code}';"
+    )
     for eff in effects:
         order, scope, etype, timing, delay, value, target = eff
         extra = "NULL"
@@ -132,14 +138,17 @@ for i, row in enumerate(cards):
         lines.append(
             "INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) "
             f"SELECT c.id, {order}, '{scope}', '{etype}', '{timing}', {delay}, {remain}, '{stack}', 0, {value}, '{target}', {extra}, NOW(), NOW() "
-            f"FROM `cards` c WHERE c.card_code = '{code}' "
-            f"AND NOT EXISTS (SELECT 1 FROM `card_effects` e WHERE e.card_id = c.id AND e.effect_order = {order} AND e.effect_type = '{etype}');"
+            f"FROM `cards` c WHERE c.card_code = '{code}';"
         )
     lines.append("")
 
 lines.append(f"ALTER TABLE `cards` AUTO_INCREMENT = {start_id + len(cards)};")
 text = "\n".join(lines) + "\n"
-OUT.write_text(text, encoding="utf-8")
-init_out = Path(__file__).parent / "init" / "004_collectible_cards.sql"
-init_out.write_text(text, encoding="utf-8")
-print(f"wrote {OUT} and {init_out} cards={len(cards)}")
+paths = [
+    OUT,
+    Path(__file__).parent / "init" / "004_collectible_cards.sql",
+    Path(__file__).parent.parent / "wa-demo-service" / "src" / "main" / "resources" / "db" / "004_collectible_cards.sql",
+]
+for p in paths:
+    p.write_text(text, encoding="utf-8")
+print(f"wrote {len(paths)} files, cards={len(cards)}")
