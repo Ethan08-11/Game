@@ -47,6 +47,9 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         // 下次打开「你的0来了」时：取消下一行注释，并注释掉 hideZeroDeptCards()
         // runScript("db/009_zero_dept_cards.sql");
         hideZeroDeptCards();
+        runScript("db/010_medieval_character_cards.sql");
+        runScript("db/011_it_medieval_character_cards.sql");
+        runScript("db/012_it_medieval_character_cards.sql");
         log.info("Card collection schema bootstrap finished.");
     }
 
