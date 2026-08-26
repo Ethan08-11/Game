@@ -51,9 +51,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { announcements, type Announcement } from '@/data/announcements'
+import { visibleAnnouncements, type Announcement } from '@/data/announcements'
 
-const notices = announcements
+const notices = visibleAnnouncements
+
 const index = ref(0)
 const paused = ref(false)
 const dialogVisible = ref(false)
