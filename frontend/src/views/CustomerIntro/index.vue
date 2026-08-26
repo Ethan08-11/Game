@@ -190,7 +190,7 @@ onMounted(async () => {
 <style scoped>
 .customer-page {
   height: 100%;
-  padding: var(--space-10);
+  padding: var(--space-6) var(--space-10) var(--space-8);
   color: var(--color-text-primary);
   position: relative;
   isolation: isolate;
@@ -219,7 +219,7 @@ onMounted(async () => {
   flex-direction: column;
   overflow: hidden;
   margin: 0 auto;
-  padding: var(--space-8);
+  padding: var(--space-5) var(--space-8) var(--space-6);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-xl);
   background: rgba(0, 0, 0, 0.35);
@@ -236,8 +236,8 @@ onMounted(async () => {
 }
 h1 {
   flex-shrink: 0;
-  margin: var(--space-2) 0 var(--space-4);
-  font-size: var(--text-4xl);
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: var(--text-3xl);
   color: #f0e6d2;
 }
 .story {
@@ -251,23 +251,24 @@ h1 {
   overflow-x: hidden;
   overflow-y: auto;
   margin-top: var(--space-2);
-  padding: 130px var(--space-2) 160px;
+  padding: 96px var(--space-2) 48px;
 }
 .customer-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 300px var(--space-4);
+  gap: 88px var(--space-4);
 }
 .customer-item {
   position: relative;
   z-index: 1;
   padding: var(--space-5);
+  padding-bottom: 136px;
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   overflow: visible;
-  min-height: 260px;
+  min-height: 396px;
 }
 .customer-item:nth-child(3n+1) { z-index: 3; }
 .customer-item:nth-child(3n+2) { z-index: 2; }
@@ -276,21 +277,20 @@ h1 {
   content: '';
   position: absolute;
   width: 210%;
-  height: 210%;
+  height: 546px;
   left: -55%;
-  top: -55%;
+  top: -143px;
   background: var(--card-bg, var(--color-surface-01)) center/contain no-repeat;
   z-index: -1;
   pointer-events: none;
 }
 .name-section {
   position: absolute;
-  bottom: -110px;
+  bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
   display: inline-block;
   padding: var(--space-2) var(--space-3);
-
   white-space: nowrap;
 }
 .highlight-section {
