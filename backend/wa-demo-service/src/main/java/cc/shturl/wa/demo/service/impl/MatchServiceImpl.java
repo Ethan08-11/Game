@@ -70,6 +70,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,8 +88,11 @@ public class MatchServiceImpl implements MatchService {
     private static final Logger logger = LoggerFactory.getLogger(MatchServiceImpl.class);
     private static final int PLAYER_COUNT = 2;
     private static final int DECK_SIZE = 30;
-    private static final int DEPT_UNIQUE_COUNT = 10;
-    private static final int DEPT_COPIES = 2;
+    private static final int DEPT_STARTER_UNIQUE_CAP = 10;
+    private static final int DEPT_STARTER_COPIES = 2;
+    private static final int DEPT_COLLECTIBLE_SLOTS = 8;
+    private static final int SHARED_COLLECTIBLE_SLOTS = 6;
+    private static final int SHARED_STARTER_SLOTS = 2;
     private static final int INITIAL_HAND_SIZE = 5;
     private static final String SALES = "sales";
     private static final String PURCHASE = "purchase";
@@ -424,7 +429,7 @@ public class MatchServiceImpl implements MatchService {
             throw new BusinessException("本局复活次数已用尽");
         }
         int beforeHp = value(player.getCurrentHp());
-        int reviveHp = ThreadLocalRandom.current().nextInt(10, 31);
+        int reviveHp = ThreadLocalRandom.current().nextInt(10, 21);
         reviveHp = Math.min(reviveHp, value(player.getMaxHp()));
         player.setCurrentHp(reviveHp);
         player.setPlayerStatus("ACTIVE");
@@ -809,9 +814,9 @@ public class MatchServiceImpl implements MatchService {
     }
 
     /**
-     * 本局牌组尽量凑满 30 张：本部门最多 10 种不同卡各 2 张，其余从公共部（不含对方部门）抽不同卡补齐。
-     * 例：销售部 = 销售最多 10 种 ×2 + 除采购部外的公共部 n 张，总数 ≤ 30。
-     * 解锁不足时可以少于 30 张；只要已解锁数量够填满剩余席位，就必须正好 30 张。
+     * 销售满编 30 张：本部门基础 14（7 种 × 2）+ 本部门收藏 8 种各 1 张 + 公共收藏 6 + 公共基础 2。
+     * 采购基础卡更少时，多出的空位优先加本部门收藏。收藏名额优先给最近没上场过的已解锁卡。
+     * 解锁不足时可以少于 30 张；够填满时必须正好 30 张。
      */
     private List<Long> buildUnlockedDeckCardIds(Long userId, String deptType) {
         Set<Long> playable = cardCollectionService.listPlayableCardIds(userId);
@@ -823,39 +828,132 @@ public class MatchServiceImpl implements MatchService {
         List<Cards> enabled = cardsMapper.selectList(Wrappers.<Cards>lambdaQuery()
                 .eq(Cards::getStatus, 1)
                 .orderByAsc(Cards::getId));
-        List<Cards> core = new ArrayList<>();
-        List<Cards> shared = new ArrayList<>();
+        List<Cards> coreStarters = new ArrayList<>();
+        List<Cards> coreCollectibles = new ArrayList<>();
+        List<Cards> sharedStarters = new ArrayList<>();
+        List<Cards> sharedCollectibles = new ArrayList<>();
         for (Cards card : enabled) {
             if (!playable.contains(card.getId())) {
                 continue;
             }
             String cardDept = card.getDeptType() == null ? "" : card.getDeptType().trim().toLowerCase();
             if (!ownDept.isEmpty() && ownDept.equals(cardDept)) {
-                core.add(card);
+                if (isStarterCard(card)) {
+                    coreStarters.add(card);
+                } else {
+                    coreCollectibles.add(card);
+                }
             } else if (isSharedDept(cardDept) && (opponent == null || !opponent.equals(cardDept))) {
-                shared.add(card);
+                if (isStarterCard(card)) {
+                    sharedStarters.add(card);
+                } else {
+                    sharedCollectibles.add(card);
+                }
             }
         }
-        if (core.isEmpty() && shared.isEmpty()) {
+        if (coreStarters.isEmpty() && coreCollectibles.isEmpty() && sharedStarters.isEmpty() && sharedCollectibles.isEmpty()) {
             throw new BusinessException("没有可用于组牌的已解锁卡牌");
         }
+        Map<Long, Long> lastSeen = lastSeenCardSeq(userId);
         List<Long> cardIds = new ArrayList<>(DECK_SIZE);
-        int ownUnique = Math.min(DEPT_UNIQUE_COUNT, core.size());
-        if (ownUnique > 0) {
-            cardIds.addAll(pickUniqueWithCopies(core, ownUnique, DEPT_COPIES));
+        Set<Long> used = new HashSet<>();
+        int starterUnique = Math.min(DEPT_STARTER_UNIQUE_CAP, coreStarters.size());
+        if (starterUnique > 0) {
+            List<Long> starters = pickUniqueWithCopies(coreStarters, starterUnique, DEPT_STARTER_COPIES);
+            cardIds.addAll(starters);
+            used.addAll(starters);
         }
-        int sharedSlots = Math.max(DECK_SIZE - cardIds.size(), 0);
-        if (sharedSlots > 0 && !shared.isEmpty()) {
-            cardIds.addAll(pickDistinct(shared, sharedSlots));
+        int remaining = Math.max(DECK_SIZE - cardIds.size(), 0);
+        int bandTotal = DEPT_COLLECTIBLE_SLOTS + SHARED_COLLECTIBLE_SLOTS + SHARED_STARTER_SLOTS;
+        int wantDeptColl;
+        int wantSharedColl;
+        int wantSharedStart;
+        if (remaining >= bandTotal) {
+            wantDeptColl = DEPT_COLLECTIBLE_SLOTS + (remaining - bandTotal);
+            wantSharedColl = SHARED_COLLECTIBLE_SLOTS;
+            wantSharedStart = SHARED_STARTER_SLOTS;
+        } else {
+            wantDeptColl = Math.round(remaining * (DEPT_COLLECTIBLE_SLOTS / (float) bandTotal));
+            wantSharedColl = Math.round(remaining * (SHARED_COLLECTIBLE_SLOTS / (float) bandTotal));
+            wantSharedStart = Math.max(0, remaining - wantDeptColl - wantSharedColl);
+        }
+        cardIds.addAll(takeDistinct(preferUnseen(coreCollectibles, lastSeen), wantDeptColl, used, false));
+        cardIds.addAll(takeDistinct(preferUnseen(sharedCollectibles, lastSeen), wantSharedColl, used, false));
+        cardIds.addAll(takeDistinct(preferUnseen(sharedStarters, lastSeen), wantSharedStart, used, true));
+        if (cardIds.size() < DECK_SIZE) {
+            List<Cards> leftover = new ArrayList<>();
+            leftover.addAll(preferUnseen(coreCollectibles, lastSeen));
+            leftover.addAll(preferUnseen(sharedCollectibles, lastSeen));
+            leftover.addAll(sharedStarters);
+            cardIds.addAll(takeDistinct(leftover, DECK_SIZE - cardIds.size(), used, false));
         }
         if (cardIds.isEmpty() || cardIds.size() > DECK_SIZE) {
             throw new BusinessException("牌组生成数量异常");
         }
-        int available = ownUnique * DEPT_COPIES + shared.size();
+        int available = starterUnique * DEPT_STARTER_COPIES
+                + coreCollectibles.size() + sharedCollectibles.size() + sharedStarters.size();
         if (available >= DECK_SIZE && cardIds.size() != DECK_SIZE) {
             throw new BusinessException("已解锁卡牌足够时牌组必须凑满 " + DECK_SIZE + " 张");
         }
         return cardIds;
+    }
+
+    private boolean isStarterCard(Cards card) {
+        return card.getRequireUnlock() == null || card.getRequireUnlock() == 0;
+    }
+
+    private Map<Long, Long> lastSeenCardSeq(Long userId) {
+        Map<Long, Long> lastSeen = new HashMap<>();
+        if (userId == null) {
+            return lastSeen;
+        }
+        List<MatchCards> recent = matchCardsMapper.selectList(Wrappers.<MatchCards>lambdaQuery()
+                .eq(MatchCards::getUserId, userId)
+                .orderByDesc(MatchCards::getId)
+                .last("LIMIT 400"));
+        if (recent == null) {
+            return lastSeen;
+        }
+        for (MatchCards row : recent) {
+            if (row.getCardId() == null) {
+                continue;
+            }
+            lastSeen.putIfAbsent(row.getCardId(), row.getId());
+        }
+        return lastSeen;
+    }
+
+    private List<Cards> preferUnseen(List<Cards> pool, Map<Long, Long> lastSeen) {
+        List<Cards> copy = new ArrayList<>(pool);
+        Collections.shuffle(copy);
+        copy.sort(Comparator.comparingLong(card -> {
+            Long cardId = card.getId();
+            return cardId == null ? 0L : lastSeen.getOrDefault(cardId, 0L);
+        }));
+        return copy;
+    }
+
+    private List<Long> takeDistinct(List<Cards> pool, int count, Set<Long> used, boolean shuffle) {
+        if (count <= 0 || pool == null || pool.isEmpty()) {
+            return List.of();
+        }
+        List<Cards> ordered = new ArrayList<>(pool);
+        if (shuffle) {
+            Collections.shuffle(ordered);
+        }
+        List<Long> ids = new ArrayList<>(count);
+        for (Cards card : ordered) {
+            if (ids.size() >= count) {
+                break;
+            }
+            Long cardId = card.getId();
+            if (cardId == null || used.contains(cardId)) {
+                continue;
+            }
+            used.add(cardId);
+            ids.add(cardId);
+        }
+        return ids;
     }
 
     private List<Long> pickUniqueWithCopies(List<Cards> pool, int uniqueCount, int copies) {
@@ -866,18 +964,6 @@ public class MatchServiceImpl implements MatchService {
             for (int copy = 0; copy < copies; copy++) {
                 ids.add(cardId);
             }
-        }
-        return ids;
-    }
-
-    private List<Long> pickDistinct(List<Cards> pool, int count) {
-        Collections.shuffle(pool);
-        List<Long> ids = new ArrayList<>(Math.min(count, pool.size()));
-        for (Cards card : pool) {
-            if (ids.size() >= count) {
-                break;
-            }
-            ids.add(card.getId());
         }
         return ids;
     }
