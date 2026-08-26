@@ -41,6 +41,7 @@
             </div>
           </article>
         </div>
+        <div class="customer-scroll-spacer" aria-hidden="true"></div>
       </div>
     </section>
     <!-- 绿色框位置调节器 -->
@@ -251,7 +252,12 @@ h1 {
   overflow-x: hidden;
   overflow-y: auto;
   margin-top: var(--space-2);
-  padding: 156px var(--space-2) 80px;
+  padding: 156px var(--space-2) 24px;
+}
+.customer-scroll-spacer {
+  height: 220px;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 .customer-grid {
   display: grid;
