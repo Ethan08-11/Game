@@ -7,6 +7,12 @@ export interface Announcement {
 
 export const announcements: Announcement[] = [
   {
+    id: 'card-hide-t01-20260826',
+    title: '版本更新：下架与机械工匠重复立绘的「系统术士」',
+    date: '2026-08-26',
+    content: '技术部「系统术士」与「机械工匠」使用同一张卡面，现已从图鉴和对局中下架「系统术士」。机械工匠及后续技术收藏卡保留。',
+  },
+  {
     id: 'card-medieval-s28-p25-20260826',
     title: '版本更新：新增七张销售与五张采购中世纪收藏卡',
     date: '2026-08-26',

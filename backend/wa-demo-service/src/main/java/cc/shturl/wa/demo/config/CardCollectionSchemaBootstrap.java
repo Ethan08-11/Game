@@ -40,6 +40,7 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         realignLegacyCardDepartments();
         refreshEthanCardArt();
         runScript("db/004_collectible_cards.sql");
+        // 005：停用与机械工匠重复立绘的「系统术士」
         runScript("db/005_it_sample_card.sql");
         runScript("db/006_hr_collectible_cards.sql");
         runScript("db/007_boss_collectible_cards.sql");
