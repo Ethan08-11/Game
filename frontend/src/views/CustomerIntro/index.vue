@@ -194,12 +194,13 @@ onMounted(async () => {
   color: var(--color-text-primary);
   position: relative;
   isolation: isolate;
-  overflow-x: hidden;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .customer-page::before {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: -20px;
   background: var(--hall-bg, var(--color-bg-base)) center/cover no-repeat;
   filter: blur(6px);
@@ -212,8 +213,12 @@ onMounted(async () => {
 }
 .customer-card {
   width: min(1100px, 95vw);
-  min-height: calc(100% - 120px);
-  margin: 0 auto 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0 auto;
   padding: var(--space-8);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-xl);
@@ -223,12 +228,14 @@ onMounted(async () => {
   box-shadow: var(--shadow-lg);
 }
 .eyebrow {
+  flex-shrink: 0;
   color: var(--color-accent);
   font-size: var(--text-sm);
   font-weight: var(--weight-bold);
   letter-spacing: 0.2em;
 }
 h1 {
+  flex-shrink: 0;
   margin: var(--space-2) 0 var(--space-4);
   font-size: var(--text-4xl);
   color: #f0e6d2;
@@ -239,6 +246,10 @@ h1 {
   line-height: var(--leading-relaxed);
 }
 .customer-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   margin-top: var(--space-2);
   padding: 130px var(--space-2) 160px;
 }
