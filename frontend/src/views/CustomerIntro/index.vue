@@ -157,7 +157,7 @@ const mockCustomers: CustomerApiItem[] = [
     customerTypeId: 4,
     customerCode: 'CUSTOMER_WINDOW',
     customerName: '闲逛双客',
-    description: '一对和气的过路客，总是结伴进铺，驻足闲聊、夸货比划，却几乎从不落单。人虽好，帮不上买卖；偶发善心时会给两名护卫各恢复一些血值。',
+    description: '结伴闲逛却从不落单，偶尔会给两名护卫恢复血值。',
     imageUrl: '/images/customer/p4.webp',
     effectType: 'player_hp_up',
     effectValue: 2,
@@ -194,7 +194,8 @@ onMounted(async () => {
   color: var(--color-text-primary);
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .customer-page::before {
   content: '';
@@ -239,10 +240,7 @@ h1 {
 }
 .customer-scroll {
   margin-top: var(--space-2);
-  max-height: calc(100% - 70px);
-  overflow-y: auto;
-  padding: 130px var(--space-2) var(--space-2);
-
+  padding: 130px var(--space-2) 160px;
 }
 .customer-grid {
   display: grid;
