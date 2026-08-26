@@ -1787,6 +1787,15 @@ public class MatchServiceImpl implements MatchService {
                 int hpGain = Math.max(value(customer.getEffectValue()), 0);
                 match.setBossMaxHp(value(match.getBossMaxHp()) + hpGain);
                 match.setBossCurrentHp(value(match.getBossCurrentHp()) + hpGain);
+            } else if ("player_hp_up".equals(customer.getEffectType())) {
+                int heal = Math.max(value(customer.getEffectValue()), 0);
+                for (MatchPlayers player : players) {
+                    if (value(player.getCurrentHp()) <= 0) {
+                        continue;
+                    }
+                    int before = value(player.getCurrentHp());
+                    player.setCurrentHp(Math.min(value(player.getMaxHp()), before + heal));
+                }
             }
         }
         match.setCurrentRound(nextRoundNo);

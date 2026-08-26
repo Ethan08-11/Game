@@ -87,6 +87,7 @@ function effectLabel(effectType?: string) {
     bully_attack_down: '霸凌者攻击降低',
     bully_hp_up: '霸凌者血量提升',
     bully_attack_up: '霸凌者攻击提升',
+    player_hp_up: '我方血值恢复',
     bully_defense_up: '霸凌者防御提升',
     hp: '血量变化',
     attack: '攻击变化',
@@ -111,6 +112,9 @@ function effectLabel(effectType?: string) {
 function formatEffectValue(effectType?: string, value?: number) {
   const num = value ?? 0
   const prefix = num >= 0 ? '+' : ''
+  if (effectType === 'player_hp_up' || /heal_player/i.test(effectType || '')) {
+    return `血值${prefix}${num}`
+  }
   const unit = effectType?.includes('hp') ? 'HP' : '攻击'
   return `${unit}${prefix}${num}`
 }
@@ -147,6 +151,18 @@ const mockCustomers: CustomerApiItem[] = [
     effectValue: 5,
     selectionWeight: 22,
     triggerChance: 55,
+    status: 1,
+  },
+  {
+    customerTypeId: 4,
+    customerCode: 'CUSTOMER_WINDOW',
+    customerName: '闲逛双客',
+    description: '一对和气的过路客，总是结伴进铺，驻足闲聊、夸货比划，却几乎从不落单。人虽好，帮不上买卖；偶发善心时会给两名护卫各恢复一些血值。',
+    imageUrl: '/images/customer/p4.webp',
+    effectType: 'player_hp_up',
+    effectValue: 2,
+    selectionWeight: 10,
+    triggerChance: 20,
     status: 1,
   },
 ]

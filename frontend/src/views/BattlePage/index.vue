@@ -906,6 +906,7 @@ function effectLabel(effectType?: string) {
     bully_attack_down: '霸凌者攻击降低',
     bully_attack_up: '霸凌者攻击提升',
     bully_hp_up: '霸凌者血量提升',
+    player_hp_up: '我方血值恢复',
     bully_defense_up: '霸凌者防御提升',
     ADD_BOSS_SHIELD: '霸凌者防御提升',
     REDUCE_BOSS_ATTACK: '霸凌者攻击降低',
@@ -994,7 +995,11 @@ function syncToStore(detail: any) {
     helpMax: 0,
     hinderMin: 0,
     hinderMax: 0,
-    effectType: detail.customer.effectType?.includes('hp') ? 'hp' : 'attack',
+    effectType: detail.customer.effectType?.includes('player_hp')
+      ? 'player_hp'
+      : detail.customer.effectType?.includes('hp')
+        ? 'hp'
+        : 'attack',
     effectValue: detail.customer.effectValue ?? 0,
     effectTriggerRate: (detail.customer.triggerChance ?? 40) / 100,
   } : game.employerTrait

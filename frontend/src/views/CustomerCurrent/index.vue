@@ -59,7 +59,11 @@ const jumping = ref(false)
 const trait = computed(() => game.employerTrait)
 const effectText = computed(() => {
   if (!trait.value) return '加载中'
-  const target = trait.value.effectType === 'hp' ? '霸凌者血量' : '霸凌者基础攻击'
+  const target = trait.value.effectType === 'player_hp'
+    ? '我方血值'
+    : trait.value.effectType === 'hp'
+      ? '霸凌者血量'
+      : '霸凌者基础攻击'
   const value = trait.value.effectValue ?? 0
   return `${target}${value >= 0 ? '+' : ''}${value}`
 })

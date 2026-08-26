@@ -5,11 +5,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.stereotype.Component;
 
+import javax.sql.DataSource;
+
 /**
- * 顾客效果数值：略微提高难度。
+ * 顾客目录：难度微调，并幂等写入新顾客。
  */
 @Component
 @Order(4)
@@ -18,9 +22,11 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(CustomerCatalogBootstrap.class);
 
     private final JdbcTemplate jdbcTemplate;
+    private final DataSource dataSource;
 
-    public CustomerCatalogBootstrap(JdbcTemplate jdbcTemplate) {
+    public CustomerCatalogBootstrap(JdbcTemplate jdbcTemplate, DataSource dataSource) {
         this.jdbcTemplate = jdbcTemplate;
+        this.dataSource = dataSource;
     }
 
     @Override
@@ -29,9 +35,11 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
             log.info("Skip customer catalog bootstrap: customer_types missing.");
             return;
         }
+        runScript("db/015_window_couple_customer.sql");
         update("CUSTOMER_KIND", -1, 30, 32);
         update("CUSTOMER_TIMID", 2, 65, 38);
         update("CUSTOMER_ANXIOUS", 2, 60, 30);
+        update("CUSTOMER_WINDOW", 2, 20, 10);
         log.info("Customer catalog difficulty tuned.");
     }
 
@@ -41,6 +49,24 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
                 SET effect_value = ?, trigger_chance = ?, selection_weight = ?
                 WHERE customer_code = ?
                 """, effectValue, triggerChance, selectionWeight, code);
+    }
+
+    private void runScript(String classpathLocation) {
+        ClassPathResource resource = new ClassPathResource(classpathLocation);
+        if (!resource.exists()) {
+            log.warn("SQL script missing on classpath: {}", classpathLocation);
+            return;
+        }
+        try {
+            ResourceDatabasePopulator populator = new ResourceDatabasePopulator(resource);
+            populator.setSqlScriptEncoding("UTF-8");
+            populator.setContinueOnError(true);
+            populator.setIgnoreFailedDrops(true);
+            populator.setSeparator(";");
+            populator.execute(dataSource);
+        } catch (Exception e) {
+            log.error("Failed to run {}", classpathLocation, e);
+        }
     }
 
     private boolean tableExists(String table) {
