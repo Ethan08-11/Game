@@ -424,7 +424,7 @@ public class MatchServiceImpl implements MatchService {
             throw new BusinessException("本局复活次数已用尽");
         }
         int beforeHp = value(player.getCurrentHp());
-        int reviveHp = ThreadLocalRandom.current().nextInt(1, 21);
+        int reviveHp = ThreadLocalRandom.current().nextInt(10, 31);
         reviveHp = Math.min(reviveHp, value(player.getMaxHp()));
         player.setCurrentHp(reviveHp);
         player.setPlayerStatus("ACTIVE");
