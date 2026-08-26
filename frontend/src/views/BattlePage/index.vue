@@ -73,9 +73,10 @@
           </div>
 
           <div
+            ref="handCardsRef"
             class="hand-cards"
             :class="{ 'is-waiting': !canRevealHand }"
-            :style="{ '--card-width': cardWidth + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }"
+            :style="{ '--card-width': cardWidth + 'px', '--hand-slot-width': handSlotWidth + 'px', '--hand-overlap': handOverlap + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }"
           >
             <template v-if="canRevealHand">
               <div
@@ -83,7 +84,7 @@
                 :key="card.id"
                 class="hand-flip"
                 :class="{ 'is-flipped': handFlipped }"
-                :style="{ '--flip-delay': `${Math.min(index, 6) * 55}ms` }"
+                :style="{ '--flip-delay': `${Math.min(index, 6) * 55}ms`, '--hand-z': index + 1 }"
               >
                 <div class="hand-flip-inner">
                   <div class="hand-flip-face hand-flip-back" :style="cardBackStyle" />
@@ -590,6 +591,12 @@ const p1BtnLeft = ref(0)
 const p2BtnTop = ref(-37)
 const p2BtnLeft = ref(0)
 const cardWidth = ref(230)
+const HAND_VISUAL_SCALE = 0.88
+const HAND_MAX_OVERLAP_RATIO = 0.62
+const HAND_MIN_SLOT_WIDTH = 72
+const handCardsRef = ref<HTMLElement | null>(null)
+const handAreaWidth = ref(0)
+let handResizeObserver: ResizeObserver | null = null
 const cardCostTop = ref(0)
 const cardCostLeft = ref(-1)
 const cardCostSize = ref(24)
@@ -786,6 +793,31 @@ const canRevealHand = computed(() => {
 })
 const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 5))
 const handFlipped = ref(false)
+const visibleHandSlots = computed(() => (
+  canRevealHand.value ? activeHand.value.length : hiddenHandCount.value
+))
+const handSlotWidth = computed(() => {
+  const base = canRevealHand.value ? Math.round(cardWidth.value * HAND_VISUAL_SCALE) : 90
+  const n = visibleHandSlots.value
+  const available = handAreaWidth.value
+  if (n <= 1 || available <= 0) return base
+  const minVisible = base * (1 - HAND_MAX_OVERLAP_RATIO)
+  const minTotal = base + (n - 1) * minVisible
+  if (minTotal <= available) return base
+  const shrunk = available / (1 + (n - 1) * (1 - HAND_MAX_OVERLAP_RATIO))
+  return Math.max(HAND_MIN_SLOT_WIDTH, Math.round(shrunk))
+})
+const handOverlap = computed(() => {
+  const n = visibleHandSlots.value
+  if (n <= 1) return 0
+  const slot = handSlotWidth.value
+  const available = handAreaWidth.value
+  if (available <= 0) return 0
+  const needed = slot * n
+  if (needed <= available) return 0
+  const overlap = (needed - available) / (n - 1)
+  return -Math.round(Math.min(overlap, slot * HAND_MAX_OVERLAP_RATIO))
+})
 
 watch(canRevealHand, async (show, wasShow) => {
   if (show && !wasShow) {
@@ -1963,6 +1995,15 @@ onMounted(async () => {
   }
   await refreshBattleState()
   if (isSelectingFirstPlayer.value) startFirstPlayerPoll()
+  await nextTick()
+  if (handCardsRef.value && typeof ResizeObserver !== 'undefined') {
+    handResizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0
+      if (width > 0) handAreaWidth.value = width
+    })
+    handResizeObserver.observe(handCardsRef.value)
+    handAreaWidth.value = handCardsRef.value.clientWidth
+  }
   unsubscribeFns.push(
     subscribeRoomEvent('friend.presence.changed', handleTeammatePresence),
     subscribeRoomEvent('match.started', handleMatchEvent),
@@ -2013,6 +2054,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  handResizeObserver?.disconnect()
+  handResizeObserver = null
   stopDisconnectTimers()
   stopFirstPlayerPoll()
   stopActionPhasePoll()
@@ -2585,8 +2628,12 @@ onUnmounted(() => {
 }
 .hand-cards {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  align-self: stretch;
   display: flex;
-  gap: 4px;
+  flex-wrap: nowrap;
+  gap: 0;
   justify-content: center;
   align-items: flex-end;
   min-height: 280px;
@@ -2601,12 +2648,8 @@ onUnmounted(() => {
   min-height: 128px;
   margin-bottom: 8px;
 }
-.hand-cards :deep(.card-item) {
-  transform: scale(0.88);
-  transform-origin: bottom center;
-}
 .hand-cards :deep(.card-item:hover:not(.disabled)) {
-  transform: scale(0.88) translateY(-8px);
+  transform: translateY(-10px);
 }
 .hand-empty {
   color: rgba(255,255,255,0.7);
@@ -2623,7 +2666,7 @@ onUnmounted(() => {
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
 }
 .hand-card-back {
-  width: 90px;
+  width: var(--hand-slot-width, 90px);
   aspect-ratio: 441 / 800;
   flex: 0 0 auto;
   border-radius: var(--radius-md);
@@ -2634,12 +2677,24 @@ onUnmounted(() => {
   aspect-ratio: 441 / 800;
   flex: 0 0 auto;
   position: relative;
+  overflow: visible;
   transform-origin: center bottom;
-  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-  transition-delay: var(--flip-delay, 0ms);
+  z-index: var(--hand-z, 1);
+  transition-property: width, margin-left;
+  transition-duration: 0.5s, 0.2s;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1), ease;
+  transition-delay: var(--flip-delay, 0ms), 0s;
+}
+.hand-flip + .hand-flip,
+.hand-card-back + .hand-card-back {
+  margin-left: var(--hand-overlap, 0px);
+}
+.hand-flip:hover,
+.hand-flip:focus-within {
+  z-index: 100;
 }
 .hand-flip.is-flipped {
-  width: var(--card-width);
+  width: var(--hand-slot-width, var(--card-width));
 }
 .hand-flip-inner {
   width: 100%;
@@ -2669,8 +2724,9 @@ onUnmounted(() => {
   transform: rotateY(0deg);
   overflow: visible;
 }
-.hand-flip-front :deep(.card-item) {
+.hand-cards .hand-flip-front :deep(.card-item) {
   width: 100%;
+  max-width: 100%;
   height: 100%;
 }
 .hand-wait-hint {
