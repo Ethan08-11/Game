@@ -251,12 +251,12 @@ h1 {
   overflow-x: hidden;
   overflow-y: auto;
   margin-top: var(--space-2);
-  padding: 96px var(--space-2) 48px;
+  padding: 156px var(--space-2) 80px;
 }
 .customer-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 88px var(--space-4);
+  gap: 240px var(--space-4);
 }
 .customer-item {
   position: relative;
