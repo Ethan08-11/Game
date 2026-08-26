@@ -9,6 +9,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-leaderboard-reward-202608',
+    title: '排行榜奖励：本月前五名有奖，8月31日17:00截榜',
+    date: '2026-08-26',
+    content: '本月排行榜奖励如下：\n\n第一名：50 元\n第二、三名：混果汁一杯\n第四、五名：蜜雪冰城一杯\n\n截榜时间为 8 月 31 日下午 5 点（17:00）。请以截榜时的排行榜名次为准。',
+  },
+  {
     id: 'topic-window-couple',
     title: '顾客图鉴：闲逛双客结伴来访，很少落单',
     date: '2026-08-26',
