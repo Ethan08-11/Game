@@ -14,7 +14,10 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.io.EOFException;
+import java.io.IOException;
 import java.net.URLDecoder;
+import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
@@ -83,25 +86,69 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
-        if (isBenignTransportError(exception)) {
-            log.debug("Websocket closed during send: {}", exception.getMessage());
+        boolean alreadyClosed = session != null && !session.isOpen();
+        boolean benign = alreadyClosed || isBenignTransportError(exception);
+        if (benign) {
+            log.debug("Websocket disconnected: {}", describeTransportError(exception));
         } else {
-            log.warn("Websocket transport error: {}", exception.getMessage());
+            log.warn("Websocket transport error: {}", describeTransportError(exception));
         }
         Long userId = authenticatedUserId(session);
         if (userId != null) {
             sessionService.unbind(userId, session);
-            cleanupService.handleUserDisconnected(userId, "websocket_error");
+            cleanupService.handleUserDisconnected(userId, benign ? "websocket_closed" : "websocket_error");
         }
-        closeQuietly(session, CloseStatus.SERVER_ERROR);
+        if (!benign) {
+            closeQuietly(session, CloseStatus.SERVER_ERROR);
+        } else {
+            closeQuietly(session, CloseStatus.NORMAL);
+        }
     }
 
     private static boolean isBenignTransportError(Throwable exception) {
-        String message = exception == null || exception.getMessage() == null ? "" : exception.getMessage();
-        return message.contains("TEXT_PARTIAL_WRITING")
-                || message.contains("has been closed")
-                || message.contains("Broken pipe")
-                || message.contains("Connection reset");
+        if (exception == null) {
+            return true;
+        }
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof EOFException
+                    || current instanceof ClosedChannelException
+                    || current instanceof java.io.UncheckedIOException) {
+                return true;
+            }
+            String name = current.getClass().getName();
+            String message = current.getMessage() == null ? "" : current.getMessage();
+            if (name.contains("EOFException")
+                    || name.contains("EofException")
+                    || name.contains("ClosedChannelException")
+                    || name.contains("ClientAbortException")
+                    || name.contains("CloseNowException")
+                    || message.contains("TEXT_PARTIAL_WRITING")
+                    || message.contains("has been closed")
+                    || message.contains("Broken pipe")
+                    || message.contains("Connection reset")
+                    || message.contains("Connection timed out")
+                    || message.contains("An established connection was aborted")
+                    || message.contains("远程主机强迫关闭")
+                    || message.contains("你的主机中的软件中止")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        // 客户端直接掐 TCP 时，Tomcat 常抛出 message 为空的 IOException
+        return exception instanceof IOException
+                && (exception.getMessage() == null || exception.getMessage().isBlank());
+    }
+
+    private static String describeTransportError(Throwable exception) {
+        if (exception == null) {
+            return "empty";
+        }
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            return exception.getClass().getSimpleName();
+        }
+        return exception.getClass().getSimpleName() + ": " + message;
     }
 
     private void closeQuietly(WebSocketSession session, CloseStatus status) {
