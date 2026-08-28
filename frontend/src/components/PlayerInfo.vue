@@ -7,7 +7,6 @@
     ]"
     :style="{ '--hp-pct': staminaPercentage / 100 }"
   >
-    <img class="info-bg-img" :src="infoBg" alt="" />
     <div class="crest-frame" aria-hidden="true">
       <svg class="crest-corner tl" viewBox="0 0 24 24">
         <path d="M3 20C3 9 9 3 20 3" fill="none" stroke="var(--crest-metal)" stroke-width="1.8" stroke-linecap="round" />
@@ -80,7 +79,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import shieldIcon from '@/assets/player-shield.webp'
-import infoBg from '@/assets/battle/player-info-bg.webp'
 import { formatPlayerName } from '@/utils/playerName'
 
 const props = withDefaults(defineProps<{
@@ -150,7 +148,7 @@ onBeforeUnmount(() => {
   gap: var(--space-3);
   width: 300px;
   min-height: 78px;
-  padding: 10px 14px 12px 54px;
+  padding: 10px 14px 12px;
   background-color: transparent;
   border-radius: 14px;
   color: #3E2723;
@@ -167,15 +165,6 @@ onBeforeUnmount(() => {
   --crest-metal: #c5d48c;
   --crest-metal-dark: #4a6230;
   --crest-glow: rgba(140, 170, 96, 0.48);
-}
-.info-bg-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: fill;
-  z-index: 0;
-  pointer-events: none;
 }
 .crest-frame {
   position: absolute;
@@ -308,25 +297,41 @@ onBeforeUnmount(() => {
 }
 .crest-meta {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
 }
 .nickname {
   font-size: 13px;
-  font-weight: var(--weight-bold);
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #2a160c;
-  text-shadow: 0 1px 0 rgba(255, 244, 214, 0.7);
+  color: #fff6dc;
+  -webkit-text-stroke: 0.8px #2a1408;
+  paint-order: stroke fill;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 .dept-label {
-  font-size: 12px;
+  flex: 0 0 auto;
+  padding: 1px 8px 2px;
+  border: 1px solid var(--crest-metal);
+  border-radius: 999px;
+  background: rgba(28, 16, 8, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 232, 180, 0.28),
+    0 0 0 1px var(--crest-metal-dark),
+    0 1px 3px rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
   white-space: nowrap;
-  color: var(--crest-metal-dark);
-  font-weight: 700;
+  color: #fff4d0;
+  -webkit-text-stroke: 0.9px #1a0e08;
+  paint-order: stroke fill;
+  text-shadow: 0 0 6px var(--crest-glow), 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 .crest-hp {
   display: flex;
