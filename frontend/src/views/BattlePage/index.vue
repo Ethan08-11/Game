@@ -2144,29 +2144,32 @@ onUnmounted(() => {
 .vs-divider { font-size: var(--text-3xl); font-weight: var(--weight-bold); }
 .bully-status-hud {
   position: absolute;
-  top: 10px;
-  right: 292px;
+  top: 8px;
+  right: 280px;
   z-index: 6;
   width: max-content;
   pointer-events: none;
-  transform: scale(0.86);
-  transform-origin: top right;
 }
 .bully-status-hud :deep(.bully-card) {
-  padding: 8px 12px 10px;
+  padding: 16px 18px 14px;
+  min-width: 240px;
 }
 .bully-status-hud :deep(.bully-status) {
-  width: 168px;
-  margin-bottom: 4px;
+  width: 220px;
+  margin-bottom: 8px;
 }
 .bully-status-hud :deep(.bully-name) {
-  font-size: var(--text-sm);
-  margin-bottom: 4px;
+  font-size: var(--text-xl);
+  margin-bottom: 8px;
 }
 .bully-status-hud :deep(.bully-hp-bar) {
-  height: 22px;
+  height: 32px;
+}
+.bully-status-hud :deep(.bully-hp-text) {
+  font-size: var(--text-lg);
 }
 .bully-status-hud :deep(.bully-damage) {
+  font-size: var(--text-base);
   margin-bottom: 0;
 }
 .action-log-panel {
