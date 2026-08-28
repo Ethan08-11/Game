@@ -724,6 +724,7 @@ async function leaveCurrentRoom() {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #c4a962 transparent;
+  margin-top: 48px;
 }
 
 .friend-row {
