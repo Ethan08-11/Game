@@ -39,7 +39,7 @@
     <BackButton to="" text="返回大厅" @click="leaveCurrentRoom" />
 
     <div class="left-panel" :style="{ '--friend-list-bg': `url(${matchBg})` }">
-      <h3>好友列表</h3>
+      <h3 class="panel-title">好友列表</h3>
       <div class="friend-list">
         <div v-for="f in displayFriends" :key="f.id" class="friend-row">
           <PlayerAvatar class="friend-avatar" :src="f.avatarUrl" :alt="f.displayName || f.username" />
@@ -60,7 +60,7 @@
     </div>
 
     <div class="right-panel" :style="{ '--team-bg': `url(${matchFriendListBg})` }">
-      <h3>队伍房间</h3>
+      <h3 class="panel-title">队伍房间</h3>
       <div class="room-slots">
         <div v-for="i in 2" :key="i" class="slot" :class="{ filled: room.players[i-1], empty: !room.players[i-1] }">
           <template v-if="room.players[i-1]">
@@ -638,9 +638,9 @@ async function leaveCurrentRoom() {
   z-index: 1;
   display: flex;
   justify-content: center;
-  align-items: stretch;
-  gap: 40px;
-  padding: 72px 48px 48px;
+  align-items: center;
+  gap: 48px;
+  padding: 64px 48px 40px;
   box-sizing: border-box;
   margin: 0;
   color: #4a3520;
@@ -669,60 +669,62 @@ async function leaveCurrentRoom() {
   user-select: none;
 }
 
-/* ========== 面板布局 ========== */
+/* ========== 面板布局：木板原图 512×512，面板与图同比例铺满 ========== */
 .left-panel, .right-panel {
-  flex: 1 1 0;
+  flex: 0 0 520px;
+  width: 520px;
+  height: 520px;
   max-width: 520px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-xl);
-  padding: 36px 24px 28px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 108px 42px 48px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  box-sizing: border-box;
 }
 .left-panel {
   position: relative;
   isolation: isolate;
-  background: rgba(0, 0, 0, 0.15);
   overflow: hidden;
 }
 .left-panel::before {
   content: '';
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 140%;
-  height: 130%;
-  background: var(--friend-list-bg) center/contain no-repeat;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--friend-list-bg) center / 100% 100% no-repeat;
   z-index: -1;
   pointer-events: none;
 }
 .right-panel {
   position: relative;
   isolation: isolate;
-  padding-left: calc(var(--space-3) + 24px);
   overflow: hidden;
 }
 .right-panel::before {
   content: '';
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 140%;
-  height: 130%;
-  background: var(--team-bg) center/contain no-repeat;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--team-bg) center / 100% 100% no-repeat;
   z-index: -1;
   pointer-events: none;
 }
-.left-panel h3, .right-panel h3 {
-  margin: 8px 0 16px;
-  font-size: var(--text-xl);
-  color: #4a3520;
-  text-align: center;
-  flex-shrink: 0;
+.panel-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .friend-list {
   flex: 1;
@@ -736,20 +738,20 @@ async function leaveCurrentRoom() {
 .friend-row {
   display: flex;
   align-items: center;
-  height: 320px;
+  height: 220px;
   flex-shrink: 0;
-  padding: 12px var(--space-5) 0 var(--space-3);
+  padding: 6px 12px 0 8px;
   background: url('@/assets/friend-row-bg.webp') center/100% 100% no-repeat;
   position: relative;
-  margin-top: -260px;
+  margin-top: -136px;
 }
 .friend-row:first-child {
-  margin-top: -130px;
+  margin-top: 0;
 }
 
 .friend-avatar {
-  width: 72px;
-  height: 72px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--radius-full);
   object-fit: cover;
   flex-shrink: 0;
@@ -759,8 +761,8 @@ async function leaveCurrentRoom() {
 .fname {
   flex: 1;
   color: #4a3520;
-  font-size: 24px;
-  margin-left: calc(var(--space-3) - 1em);
+  font-size: 20px;
+  margin-left: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -774,17 +776,17 @@ async function leaveCurrentRoom() {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  margin-left: -80px;
+  margin-left: -28px;
 }
 
 .status-icon {
-  height: 54px;
+  height: 44px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .invite-btn {
-  width: 54px; height: 54px;
+  width: 44px; height: 44px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -822,7 +824,7 @@ async function leaveCurrentRoom() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 12px;
   min-height: 0;
 }
 
@@ -830,10 +832,11 @@ async function leaveCurrentRoom() {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: 10px 12px;
   border-radius: var(--radius-lg);
   transition: all var(--transition-base);
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 .slot.filled {
   background: rgba(196, 169, 98, 0.2);
