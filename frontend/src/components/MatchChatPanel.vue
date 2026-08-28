@@ -89,10 +89,12 @@ function submitDraft() {
   display: flex;
   flex-direction: column;
   padding: 10px 10px 8px;
-  border: 1px solid rgba(139, 105, 20, 0.55);
+  border: 1px solid rgba(139, 105, 20, 0.42);
   border-radius: 10px;
-  background: rgba(246, 236, 214, 0.96);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+  background: rgba(246, 236, 214, 0.48);
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
   color: #3e2723;
   pointer-events: auto;
 }
@@ -153,13 +155,13 @@ function submitDraft() {
   max-width: 92%;
   padding: 5px 8px;
   border-radius: 8px;
-  background: rgba(255, 248, 230, 0.92);
+  background: rgba(255, 248, 230, 0.72);
   font-size: 13px;
   line-height: 1.35;
   word-break: break-word;
 }
 .match-chat-item.mine .match-chat-text {
-  background: #e8d7a8;
+  background: rgba(232, 215, 168, 0.72);
 }
 .match-chat-phrases {
   display: flex;
@@ -171,7 +173,7 @@ function submitDraft() {
   padding: 3px 7px;
   border: 1px solid rgba(93, 58, 26, 0.28);
   border-radius: 999px;
-  background: rgba(255, 250, 236, 0.9);
+  background: rgba(255, 250, 236, 0.62);
   color: #3e2723;
   font-size: 12px;
   line-height: 1.3;
@@ -197,7 +199,7 @@ function submitDraft() {
   padding: 0 8px;
   border: 1px solid rgba(93, 58, 26, 0.3);
   border-radius: 6px;
-  background: #fffaf0;
+  background: rgba(255, 250, 240, 0.62);
   color: #3e2723;
   font-size: 13px;
 }

@@ -2742,21 +2742,28 @@ onUnmounted(() => {
 .match-chat-live {
   position: absolute;
   left: 72px;
-  bottom: 448px;
+  bottom: 386px;
   z-index: 48;
-  width: 260px;
+  width: 280px;
   margin: 0;
   padding: 0;
   border: none;
   background: none;
   box-shadow: none;
-  color: #fff8e4;
-  font-size: 18px;
+  color: #ffe7a0;
+  font-family: 'HuiWen MingChao', 'Microsoft YaHei', serif;
+  font-size: 24px;
   font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: 0.04em;
+  line-height: 1.35;
+  letter-spacing: 0.1em;
   text-align: left;
-  text-shadow: 0 1px 2px #1a1008, 0 0 8px rgba(0, 0, 0, 0.85);
+  -webkit-text-stroke: 1.5px #2a1408;
+  paint-order: stroke fill;
+  text-shadow:
+    0 0 8px rgba(255, 204, 72, 0.95),
+    0 0 18px rgba(255, 168, 32, 0.55),
+    0 2px 0 #1a1008,
+    0 4px 10px rgba(0, 0, 0, 0.78);
   pointer-events: none;
   word-break: break-word;
   animation: match-chat-live-in 0.25s ease-out;
@@ -3005,7 +3012,7 @@ onUnmounted(() => {
 .player-hp-hud.is-flash {
   animation: hp-flash 0.45s ease;
 }
-.player-hp-hud.is-flash :deep(.stamina-bar) {
+.player-hp-hud.is-flash :deep(.hp-well) {
   filter: brightness(1.8) saturate(1.4);
 }
 @keyframes hp-flash {
