@@ -97,36 +97,43 @@ const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || pr
 }
 .defense-row {
   position: absolute;
-  left: 4px;
-  top: -8px;
+  left: 0;
+  top: -20px;
   display: inline-flex;
   align-items: center;
-  gap: 0;
-  width: fit-content;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
   padding: 0;
   margin: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--color-accent);
+  color: #fffef2;
   border: none;
   box-shadow: none;
-  font-size: 28px;
-  font-weight: var(--weight-bold);
   line-height: 1;
   z-index: 2;
   pointer-events: none;
 }
 .defense-icon {
-  width: 32px;
-  height: 32px;
+  width: 52px;
+  height: 52px;
   object-fit: contain;
-  display: inline-block;
-  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.22));
+  display: block;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 8px rgba(0, 0, 0, 0.45));
 }
 .defense-value {
-  font-size: 22px;
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  font-size: 26px;
+  font-weight: 800;
   line-height: 1;
-  transform: translateY(-1px);
+  color: #fffef2;
+  -webkit-text-stroke: 2px #2a1508;
+  paint-order: stroke fill;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.75);
   font-feature-settings: 'tnum';
 }
 .stamina-row {

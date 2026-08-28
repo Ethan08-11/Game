@@ -624,7 +624,7 @@ const p1RectTop = ref(38)
 const p2RectW = ref(270)
 const p2RectH = ref(234)
 const p2RectLeft = ref(72)
-const p2RectTop = ref(42)
+const p2RectTop = ref(38)
 
 const teammateId = computed(() => {
   const selfId = user.userId
