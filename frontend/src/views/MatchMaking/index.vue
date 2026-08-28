@@ -675,7 +675,6 @@ async function leaveCurrentRoom() {
   isolation: isolate;
   background: rgba(0, 0, 0, 0.15);
   overflow: hidden;
-  padding-top: 84px;
 }
 .left-panel::before {
   content: '';
@@ -722,38 +721,28 @@ async function leaveCurrentRoom() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
   overflow-y: auto;
-  overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: #c4a962 transparent;
-  min-height: 0;
-  padding: 2px 0 8px;
-}
-.friend-list::-webkit-scrollbar {
-  width: 6px;
-}
-.friend-list::-webkit-scrollbar-thumb {
-  background: #c4a962;
-  border-radius: 4px;
-}
-.friend-list::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 .friend-row {
   display: flex;
   align-items: center;
-  height: 60px;
+  height: 320px;
   flex-shrink: 0;
-  padding: 0 12px 0 8px;
-  background: url('@/assets/friend-row-bg.webp') center / 112% auto no-repeat;
+  padding: 12px var(--space-5) 0 var(--space-3);
+  background: url('@/assets/friend-row-bg.webp') center/100% 100% no-repeat;
   position: relative;
+  margin-top: -260px;
+}
+.friend-row:first-child {
+  margin-top: -130px;
 }
 
 .friend-avatar {
-  width: 44px;
-  height: 44px;
+  width: 72px;
+  height: 72px;
   border-radius: var(--radius-full);
   object-fit: cover;
   flex-shrink: 0;
@@ -763,8 +752,8 @@ async function leaveCurrentRoom() {
 .fname {
   flex: 1;
   color: #4a3520;
-  font-size: 20px;
-  margin-left: 8px;
+  font-size: 24px;
+  margin-left: calc(var(--space-3) - 1em);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -778,16 +767,17 @@ async function leaveCurrentRoom() {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
+  margin-left: -80px;
 }
 
 .status-icon {
-  height: 40px;
+  height: 54px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .invite-btn {
-  width: 40px; height: 40px;
+  width: 54px; height: 54px;
   border: none;
   background: transparent;
   cursor: pointer;
