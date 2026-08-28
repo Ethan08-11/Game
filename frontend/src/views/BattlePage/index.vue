@@ -21,6 +21,9 @@
               <EmployerCard />
             </div>
           </div>
+          <div class="bully-status-hud">
+            <BullyCard />
+          </div>
           <div class="action-log-panel">
             <div class="action-log-title">战斗记录</div>
             <div ref="actionLogListRef" class="action-log-list">
@@ -332,9 +335,6 @@
       </div>
       <div class="pos-rect pos-rect-bully" ref="bullyRectRef" :class="{ 'is-charging': bullyCharging }" :style="{ width: '188px', height: '289px', left: '51%', top: '16%' }">
         <img :src="bullyImg" alt="霸凌者" />
-        <div class="bully-status-hud">
-          <BullyCard />
-        </div>
       </div>
     </div>
 
@@ -619,12 +619,12 @@ const finishBtn = reactive({ w: 167, h: 83, bottom: -176, right: -170, imgW: 248
 const p1RectW = ref(270)
 const p1RectH = ref(234)
 const p1RectLeft = ref(27)
-const p1RectTop = ref(30)
+const p1RectTop = ref(38)
 
 const p2RectW = ref(270)
 const p2RectH = ref(234)
-const p2RectLeft = ref(76)
-const p2RectTop = ref(31)
+const p2RectLeft = ref(72)
+const p2RectTop = ref(42)
 
 const teammateId = computed(() => {
   const selfId = user.userId
@@ -2090,7 +2090,7 @@ onUnmounted(() => {
 .battle-main { position: relative; z-index: 1; flex: 1; min-height: 0; display: flex; overflow: visible; }
 .battle-footer { position: relative; z-index: 4; }
 .battle-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
-.stage-bg { text-align: center; color: #fff; width: 100%; }
+.stage-bg { position: relative; text-align: center; color: #fff; width: 100%; height: 100%; }
 .turn-info {
   position: absolute;
   top: 56px;
@@ -2142,6 +2142,33 @@ onUnmounted(() => {
 }
 .entity-row { display: flex; align-items: center; justify-content: center; gap: var(--space-6); overflow: visible; }
 .vs-divider { font-size: var(--text-3xl); font-weight: var(--weight-bold); }
+.bully-status-hud {
+  position: absolute;
+  top: 10px;
+  right: 292px;
+  z-index: 6;
+  width: max-content;
+  pointer-events: none;
+  transform: scale(0.86);
+  transform-origin: top right;
+}
+.bully-status-hud :deep(.bully-card) {
+  padding: 8px 12px 10px;
+}
+.bully-status-hud :deep(.bully-status) {
+  width: 168px;
+  margin-bottom: 4px;
+}
+.bully-status-hud :deep(.bully-name) {
+  font-size: var(--text-sm);
+  margin-bottom: 4px;
+}
+.bully-status-hud :deep(.bully-hp-bar) {
+  height: 22px;
+}
+.bully-status-hud :deep(.bully-damage) {
+  margin-bottom: 0;
+}
 .action-log-panel {
   position: absolute;
   top: var(--space-4);
@@ -2170,7 +2197,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  max-height: 176px;
+  max-height: 120px;
   pointer-events: auto;
   scrollbar-width: thin;
 }
@@ -2809,16 +2836,6 @@ onUnmounted(() => {
 .pos-rect-player2,
 .pos-rect-bully {
   overflow: visible;
-}
-.bully-status-hud {
-  position: absolute;
-  left: 50%;
-  top: 4px;
-  transform: translateX(-50%) scale(0.9);
-  transform-origin: top center;
-  z-index: 4;
-  width: max-content;
-  pointer-events: none;
 }
 .pos-rect-bully.is-charging img {
   transform-origin: center bottom;
