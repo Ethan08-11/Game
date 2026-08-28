@@ -21,7 +21,7 @@
               <EmployerCard />
             </div>
           </div>
-          <div class="bully-status-hud">
+          <div class="bully-status-hud" :class="{ 'is-flash': bullyHpFlash }">
             <BullyCard />
           </div>
           <div class="action-log-panel">
@@ -334,7 +334,7 @@
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
       </div>
-      <div class="pos-rect pos-rect-bully" ref="bullyRectRef" :class="{ 'is-charging': bullyCharging }" :style="{ width: '188px', height: '289px', left: '51%', top: '16%' }">
+      <div class="pos-rect pos-rect-bully" ref="bullyRectRef" :class="{ 'is-charging': bullyCharging, 'is-struck': bullyStruck }" :style="{ width: '188px', height: '289px', left: '51%', top: '16%' }">
         <img :src="bullyImg" alt="霸凌者" />
       </div>
     </div>
@@ -346,6 +346,27 @@
         :key="hit.id"
         class="bully-float"
         :class="{ blocked: hit.blocked }"
+        :style="hit.style"
+      >{{ hit.text }}</div>
+      <div
+        v-for="bolt in heroBolts"
+        :key="bolt.id"
+        class="hero-bolt"
+        :class="bolt.tone"
+        :style="bolt.style"
+      />
+      <div
+        v-for="burst in heroBursts"
+        :key="burst.id"
+        class="hero-burst"
+        :class="burst.tone"
+        :style="burst.style"
+      />
+      <div
+        v-for="hit in heroFloats"
+        :key="hit.id"
+        class="hero-float"
+        :class="hit.tone"
         :style="hit.style"
       >{{ hit.text }}</div>
     </div>
@@ -506,6 +527,14 @@ let pendingGameOverDetail: any = null
 let lastBullyFxRound: number | string | null = null
 let bullyFloatSeq = 0
 let bullyFxChain: Promise<void> = Promise.resolve()
+const heroBolts = ref<Array<{ id: number; tone: string; style: Record<string, string> }>>([])
+const heroBursts = ref<Array<{ id: number; tone: string; style: Record<string, string> }>>([])
+const heroFloats = ref<Array<{ id: number; tone: string; text: string; style: Record<string, string> }>>([])
+const bullyStruck = ref(false)
+const bullyHpFlash = ref(false)
+let heroFxSeq = 0
+const playedHeroFxKeys = new Set<string>()
+let heroFxAlive = true
 
 function scrollActionLogToLatest() {
   void nextTick(() => {
@@ -1180,6 +1209,7 @@ async function playCard(card: BattleCard) {
       console.log(`[调试] boss HP 变化 → beforeValue: ${res.beforeValue}, afterValue: ${res.afterValue}, effects:`, JSON.stringify(res.effects ?? []))
       logMatchEvent('card.played', res)
       notifyPlayCardEffects(res)
+      queueHeroAttackFx(res)
       if (res.matchEnded) {
         await loadSettlement()
         return
@@ -1315,6 +1345,100 @@ function floatStyle(targetEl: HTMLElement) {
     left: `${point.x}px`,
     top: `${point.y}px`,
   }
+}
+
+function heroFxKey(payload: any) {
+  return `hero:${payload?.actionId ?? payload?.clientActionId ?? `${payload?.actorUserId ?? ''}:${payload?.cardInstanceId ?? ''}:${payload?.version ?? ''}`}`
+}
+
+function extractBossDamage(payload: any) {
+  const effects = payload?.effects ?? payload?.data?.effects ?? []
+  if (!Array.isArray(effects)) return 0
+  return effects.reduce((sum: number, effect: any) => {
+    if (String(effect?.effectType ?? effect?.effect_type ?? '') !== 'DAMAGE_BOSS' || effect?.scheduled) return sum
+    const actual = Number(effect.actualValue ?? effect.actual_value ?? 0)
+    if (actual > 0) return sum + actual
+    const before = Number(effect.beforeValue ?? effect.before_value)
+    const after = Number(effect.afterValue ?? effect.after_value)
+    if (Number.isFinite(before) && Number.isFinite(after) && before > after) return sum + (before - after)
+    return sum
+  }, 0)
+}
+
+function heroToneForActor(actorUserId: unknown) {
+  const player = players.value.find((item) => sameBattleUserId(item.userId, actorUserId))
+  const dept = String(player?.dept ?? '').toLowerCase()
+  if (dept === 'purchase' || dept.includes('采购')) return 'tone-purchase'
+  return 'tone-sales'
+}
+
+function heroBoltStyle(fromEl: HTMLElement, toEl: HTMLElement) {
+  const from = layerOffset(fromEl, 0.5, 0.42)
+  const to = layerOffset(toEl, 0.5, 0.38)
+  return {
+    left: `${from.x}px`,
+    top: `${from.y}px`,
+    '--dx': `${to.x - from.x}px`,
+    '--dy': `${to.y - from.y}px`,
+  }
+}
+
+async function playHeroAttackFx(payload: any) {
+  const damage = extractBossDamage(payload)
+  if (damage <= 0) return
+  const key = heroFxKey(payload)
+  if (!key || playedHeroFxKeys.has(key)) return
+  playedHeroFxKeys.add(key)
+  if (playedHeroFxKeys.size > 40) {
+    const first = playedHeroFxKeys.values().next().value
+    if (first) playedHeroFxKeys.delete(first)
+  }
+  await nextTick()
+  await waitForFxAnchors()
+  if (!heroFxAlive) return
+  const actor = payload?.actorUserId ?? payload?.actor_user_id ?? payload?.userId
+  let seat = players.value.findIndex((item) => sameBattleUserId(item.userId, actor))
+  if (seat < 0) seat = players.value.findIndex((item) => sameBattleUserId(item.userId, user.userId))
+  const fromEl = playerRectBySeat(seat)
+  const toEl = bullyRectRef.value
+  if (!fromEl || !toEl) return
+  const tone = heroToneForActor(actor)
+  heroFxSeq += 1
+  const boltId = heroFxSeq
+  heroBolts.value = [...heroBolts.value, { id: boltId, tone, style: heroBoltStyle(fromEl, toEl) }]
+  await waitFx(320)
+  if (!heroFxAlive) return
+  heroBolts.value = heroBolts.value.filter((item) => item.id !== boltId)
+  const burstPoint = layerOffset(toEl, 0.5, 0.4)
+  heroFxSeq += 1
+  const burstId = heroFxSeq
+  heroBursts.value = [...heroBursts.value, { id: burstId, tone, style: { left: `${burstPoint.x}px`, top: `${burstPoint.y}px` } }]
+  bullyStruck.value = true
+  bullyHpFlash.value = true
+  heroFxSeq += 1
+  const floatId = heroFxSeq
+  heroFloats.value = [...heroFloats.value, {
+    id: floatId,
+    tone,
+    text: `-${damage}`,
+    style: floatStyle(toEl),
+  }]
+  window.setTimeout(() => {
+    if (!heroFxAlive) return
+    heroBursts.value = heroBursts.value.filter((item) => item.id !== burstId)
+    if (heroBursts.value.length === 0) {
+      bullyStruck.value = false
+      bullyHpFlash.value = false
+    }
+  }, 420)
+  window.setTimeout(() => {
+    if (!heroFxAlive) return
+    heroFloats.value = heroFloats.value.filter((item) => item.id !== floatId)
+  }, 900)
+}
+
+function queueHeroAttackFx(payload: any) {
+  void playHeroAttackFx(payload)
 }
 
 async function waitForFxAnchors() {
@@ -1464,6 +1588,7 @@ async function confirmTarget(targetUserId: string) {
     pendingTargetCard.value = null
     notifyPlayCardEffects(res)
     logMatchEvent('card.played', res)
+    queueHeroAttackFx(res)
     if (res.matchEnded) {
       await loadSettlement()
       return
@@ -1988,6 +2113,9 @@ function makeMatchHandler(eventType: string) {
       })
     }
     logMatchEvent(eventType, data, message)
+    if (eventType === 'card.played') {
+      queueHeroAttackFx(unwrapMatchEvent(data, message))
+    }
     void refreshBattleState().catch(() => {})
   }
 }
@@ -2128,6 +2256,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  heroFxAlive = false
   handResizeObserver?.disconnect()
   handResizeObserver = null
   stopDisconnectTimers()
@@ -2249,9 +2378,8 @@ onUnmounted(() => {
 .bully-status-hud :deep(.bully-hp-text) {
   font-size: var(--text-lg);
 }
-.bully-status-hud :deep(.bully-damage) {
-  font-size: var(--text-base);
-  margin-bottom: 0;
+.bully-status-hud.is-flash :deep(.bully-hp-bar) {
+  filter: brightness(1.7) drop-shadow(0 0 10px rgba(255, 200, 70, 0.8));
 }
 .action-log-panel {
   position: absolute;
@@ -2995,10 +3123,18 @@ onUnmounted(() => {
   animation: bully-charge 0.32s ease-in forwards;
   filter: drop-shadow(0 0 18px rgba(255, 64, 32, 0.85));
 }
+.pos-rect-bully.is-struck img {
+  animation: bully-struck 0.4s ease-out;
+}
 @keyframes bully-charge {
   0% { transform: scale(1) translateY(0) rotate(0deg); }
   55% { transform: scale(1.1) translateY(6px) rotate(-2deg); }
   100% { transform: scale(1.06) translateY(10px) rotate(-3deg); }
+}
+@keyframes bully-struck {
+  0% { filter: brightness(2.2) drop-shadow(0 0 16px rgba(255, 210, 80, 0.95)); transform: translate(0, 0) scale(1); }
+  35% { filter: brightness(1.45) drop-shadow(0 0 10px rgba(255, 186, 48, 0.7)); transform: translate(7px, -5px) scale(1.04); }
+  100% { filter: none; transform: translate(0, 0) scale(1); }
 }
 .pos-rect-player1.has-shield .player-img,
 .pos-rect-player2.has-shield .player-img {
@@ -3063,6 +3199,93 @@ onUnmounted(() => {
   0% { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
   18% { opacity: 1; transform: translate(-50%, -70%) scale(1.12); }
   100% { opacity: 0; transform: translate(-50%, -150%) scale(1); }
+}
+.hero-bolt {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, #fffdf0 0%, #ffe08a 28%, #f0b430 62%, transparent 78%);
+  box-shadow:
+    0 0 10px 4px rgba(255, 210, 90, 0.95),
+    0 0 22px 8px rgba(255, 168, 40, 0.45);
+  animation: hero-bolt-fly 0.32s cubic-bezier(0.22, 0.7, 0.2, 1) forwards;
+}
+.hero-bolt.tone-purchase {
+  background: radial-gradient(circle at 35% 30%, #f5fff6 0%, #c8f0c0 28%, #7ec89a 58%, #d4b06a 78%, transparent 86%);
+  box-shadow:
+    0 0 10px 4px rgba(170, 230, 160, 0.9),
+    0 0 20px 8px rgba(212, 176, 90, 0.4);
+}
+.hero-bolt::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 236, 170, 0.55) 0%, transparent 70%);
+}
+@keyframes hero-bolt-fly {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.35); }
+  16% { opacity: 1; transform: translate(calc(var(--dx) * 0.14), calc(var(--dy) * 0.1 - 22px)) scale(1.08); }
+  100% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(0.82); }
+}
+.hero-burst {
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  margin: -46px 0 0 -46px;
+  border-radius: 50%;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(circle, #fff8d4 0%, rgba(255, 196, 70, 0.7) 26%, rgba(255, 160, 40, 0.18) 52%, transparent 70%);
+  box-shadow: 0 0 18px 6px rgba(255, 200, 80, 0.45);
+  animation: hero-burst-pop 0.42s ease-out forwards;
+}
+.hero-burst.tone-purchase {
+  background: radial-gradient(circle, #f3ffe8 0%, rgba(150, 220, 150, 0.55) 26%, rgba(212, 176, 90, 0.2) 52%, transparent 70%);
+}
+.hero-burst::before,
+.hero-burst::after {
+  content: '';
+  position: absolute;
+  inset: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 228, 150, 0.85);
+  animation: hero-burst-ring 0.42s ease-out forwards;
+}
+.hero-burst::after {
+  inset: 8px;
+  border-width: 1px;
+  border-color: rgba(255, 244, 200, 0.55);
+}
+@keyframes hero-burst-pop {
+  0% { opacity: 0; transform: scale(0.35); }
+  30% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+@keyframes hero-burst-ring {
+  0% { opacity: 0.9; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.45); }
+}
+.hero-float {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffe7a0;
+  -webkit-text-stroke: 1.4px #2a1408;
+  paint-order: stroke fill;
+  text-shadow: 0 0 10px rgba(255, 196, 64, 0.9), 0 2px 0 #1a1008;
+  animation: damage-float 0.9s ease-out forwards;
+}
+.hero-float.tone-purchase {
+  color: #e8ffc8;
+  text-shadow: 0 0 10px rgba(160, 220, 120, 0.85), 0 2px 0 #1a1008;
 }
 .position-rects.is-impact {
   animation: bully-impact 0.26s linear;
