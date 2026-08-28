@@ -619,12 +619,12 @@ const finishBtn = reactive({ w: 167, h: 83, bottom: -176, right: -170, imgW: 248
 const p1RectW = ref(270)
 const p1RectH = ref(234)
 const p1RectLeft = ref(27)
-const p1RectTop = ref(38)
+const p1RectTop = ref(30)
 
 const p2RectW = ref(270)
 const p2RectH = ref(234)
 const p2RectLeft = ref(72)
-const p2RectTop = ref(38)
+const p2RectTop = ref(30)
 
 const teammateId = computed(() => {
   const selfId = user.userId
