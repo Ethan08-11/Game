@@ -692,6 +692,7 @@ async function leaveCurrentRoom() {
   position: relative;
   isolation: isolate;
   padding-left: calc(var(--space-3) + 24px);
+  overflow: hidden;
 }
 .right-panel::before {
   content: '';
@@ -723,6 +724,7 @@ async function leaveCurrentRoom() {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #c4a962 transparent;
+  padding-top: 16px;
 }
 
 .friend-row {
@@ -736,7 +738,7 @@ async function leaveCurrentRoom() {
   margin-top: -260px;
 }
 .friend-row:first-child {
-  margin-top: -130px;
+  margin-top: -10px;
 }
 
 .friend-avatar {
@@ -816,6 +818,7 @@ async function leaveCurrentRoom() {
   flex-direction: column;
   gap: var(--space-4);
   min-height: 0;
+  padding-top: 72px;
 }
 
 .slot {
