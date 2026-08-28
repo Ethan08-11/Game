@@ -13,7 +13,7 @@
       <p>对局回合：{{ rounds }}</p>
       <p>对局结果：{{ isVictory ? '胜利' : '失败' }}</p>
       <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
-      <p v-if="isVictory" class="points-reward">获得酬劳：+{{ rewardMoney }} 金币</p>
+      <p v-if="rewardMoney > 0" class="points-reward">获得酬劳：+{{ rewardMoney }} 金币</p>
     </div>
     <div v-if="isVictory && unlockedCard" class="unlock-panel">
       <p class="unlock-title">本局解锁</p>
@@ -78,9 +78,13 @@ const isVictory = computed(() => {
 const rewardMoney = computed(() => {
   const list = settlement.value?.players ?? []
   const mine = findSettlementPlayer(list, user.userId) || list[0]
-  const awarded = Number(mine?.moneyAwarded ?? game.pointsEarned)
+  if (mine?.moneyAwarded != null) {
+    const awarded = Number(mine.moneyAwarded)
+    return Number.isFinite(awarded) ? awarded : 0
+  }
+  const awarded = Number(game.pointsEarned)
   if (Number.isFinite(awarded) && awarded > 0) return awarded
-  return isVictory.value ? 50 : 0
+  return isVictory.value ? 50 : 40
 })
 const mySettlement = computed(() => findSettlementPlayer(settlement.value?.players, user.userId))
 const unlockedCard = computed(() => unlockedCardFromSettlement(mySettlement.value))
@@ -95,8 +99,8 @@ onMounted(async () => {
     game.maxBullyHP = settlement.value.bossMaxHp ?? game.maxBullyHP
     game.bullyHP = settlement.value.bossRemainingHp ?? game.bullyHP
     game.pointsEarned = rewardMoney.value
-  } else if (game.isVictory && game.pointsEarned <= 0) {
-    game.pointsEarned = 50
+  } else if (game.pointsEarned <= 0) {
+    game.pointsEarned = game.isVictory ? 50 : 40
   }
   void user.loadMe().catch(() => {})
 })

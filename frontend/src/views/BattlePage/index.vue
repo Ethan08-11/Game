@@ -201,7 +201,7 @@
                 <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
                 <p>P1 最终血量：{{ resultPlayer1Hp }}/{{ resultPlayer1MaxHp }} <span v-if="resultPlayer1Dead" class="dead-tag">（阵亡）</span></p>
                 <p>P2 最终血量：{{ resultPlayer2Hp }}/{{ resultPlayer2MaxHp }} <span v-if="resultPlayer2Dead" class="dead-tag">（阵亡）</span></p>
-                <p v-if="game.isVictory" class="points-reward">获得酬劳：+{{ resultRewardMoney }} 金币</p>
+                <p v-if="resultRewardMoney > 0" class="points-reward">获得酬劳：+{{ resultRewardMoney }} 金币</p>
               </div>
               <div v-if="game.isVictory && resultUnlockedCard" class="unlock-panel">
                 <p class="unlock-title">本局解锁</p>
@@ -1849,9 +1849,13 @@ function captureUnlockFromPlayers(list: any[] | undefined) {
 function pickRewardMoney(detail: any): number {
   const list = detail?.players ?? []
   const mine = findSettlementPlayer(list, currentBattleUserId()) || list[0]
-  const awarded = Number(detail?.moneyAwarded ?? mine?.moneyAwarded)
-  if (Number.isFinite(awarded) && awarded > 0) return awarded
-  return resolveIsVictory(detail) ? 50 : 0
+  if (detail?.moneyAwarded != null || mine?.moneyAwarded != null) {
+    const awarded = Number(detail?.moneyAwarded ?? mine?.moneyAwarded)
+    return Number.isFinite(awarded) ? awarded : 0
+  }
+  const reason = String(detail?.reason ?? '')
+  if (reason === 'abandon' || reason === 'reconnect_timeout') return 0
+  return resolveIsVictory(detail) ? 50 : 40
 }
 
 function applyGameOver(detail: any) {
