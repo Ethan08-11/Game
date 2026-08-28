@@ -20,10 +20,6 @@
             <div class="entity-outline entity-outline-customer" :style="customerBoxStyle">
               <EmployerCard />
             </div>
-            <div class="guard-team" aria-hidden="true" />
-            <div class="entity-outline entity-outline-bully" :style="bullyBoxStyle">
-              <BullyCard />
-            </div>
           </div>
           <div class="action-log-panel">
             <div class="action-log-title">战斗记录</div>
@@ -336,6 +332,9 @@
       </div>
       <div class="pos-rect pos-rect-bully" ref="bullyRectRef" :class="{ 'is-charging': bullyCharging }" :style="{ width: '188px', height: '289px', left: '51%', top: '16%' }">
         <img :src="bullyImg" alt="霸凌者" />
+        <div class="bully-status-hud">
+          <BullyCard />
+        </div>
       </div>
     </div>
 
@@ -617,7 +616,6 @@ const descTop = ref(68)
 const descLeft = ref(0)
 const customerBoxPos = reactive({ top: 344, left: 118 })
 const finishBtn = reactive({ w: 167, h: 83, bottom: -176, right: -170, imgW: 248, imgH: 64 })
-const bullyBoxPos = reactive({ top: 8, left: -14 })
 const p1RectW = ref(270)
 const p1RectH = ref(234)
 const p1RectLeft = ref(27)
@@ -625,7 +623,7 @@ const p1RectTop = ref(30)
 
 const p2RectW = ref(270)
 const p2RectH = ref(234)
-const p2RectLeft = ref(71)
+const p2RectLeft = ref(76)
 const p2RectTop = ref(31)
 
 const teammateId = computed(() => {
@@ -638,12 +636,6 @@ const customerBoxStyle = computed(() => ({
   zIndex: 20,
   top: px(customerBoxPos.top),
   left: px(customerBoxPos.left),
-}))
-const bullyBoxStyle = computed(() => ({
-  position: 'relative' as const,
-  zIndex: 20,
-  top: px(bullyBoxPos.top),
-  left: px(bullyBoxPos.left),
 }))
 const finishBtnStyle = computed(() => ({
   right: px(finishBtn.right),
@@ -912,7 +904,7 @@ function effectLabel(effectType?: string) {
     REDUCE_BOSS_ATTACK: '霸凌者攻击降低',
     DRAW_CARDS: '抽牌',
     ADD_SHIELD: '增加防御',
-    HEAL_PLAYER: '恢复体力',
+    HEAL_PLAYER: '恢复血值',
   }
   return map[effectType || ''] || effectType || '未知效果'
 }
@@ -1132,7 +1124,7 @@ function notifyPlayCardEffects(res: any) {
     ElMessage.success('双方获得护盾')
   }
   if (effects.some((e: any) => e.effectType === 'HEAL_PLAYER' && e.targetType === 'ALL_PLAYERS')) {
-    ElMessage.success('双方恢复体力')
+    ElMessage.success('双方恢复血值')
   }
 }
 
@@ -2149,13 +2141,6 @@ onUnmounted(() => {
   animation: revivePulse 1.5s ease-in-out infinite;
 }
 .entity-row { display: flex; align-items: center; justify-content: center; gap: var(--space-6); overflow: visible; }
-.guard-team {
-  width: 280px;
-  height: 72px;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-.entity-outline-bully { overflow: visible; }
 .vs-divider { font-size: var(--text-3xl); font-weight: var(--weight-bold); }
 .action-log-panel {
   position: absolute;
@@ -2824,6 +2809,16 @@ onUnmounted(() => {
 .pos-rect-player2,
 .pos-rect-bully {
   overflow: visible;
+}
+.bully-status-hud {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  transform: translateX(-50%) scale(0.9);
+  transform-origin: top center;
+  z-index: 4;
+  width: max-content;
+  pointer-events: none;
 }
 .pos-rect-bully.is-charging img {
   transform-origin: center bottom;

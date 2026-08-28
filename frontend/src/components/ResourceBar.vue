@@ -6,11 +6,11 @@
     </div>
     <div class="res-item">
       <el-icon><Aim /></el-icon>
-      <span>P1体力: {{ game.player1Stamina }}</span>
+      <span>P1血值: {{ game.player1Stamina }}</span>
     </div>
     <div class="res-item">
       <el-icon><Aim /></el-icon>
-      <span>P2体力: {{ game.player2Stamina }}</span>
+      <span>P2血值: {{ game.player2Stamina }}</span>
     </div>
     <div class="bully-hp-bar">
       <div class="hp-fill" :style="{ width: (game.bullyHP / game.maxBullyHP * 100) + '%' }" />
