@@ -298,8 +298,9 @@
       <div class="pos-rect pos-rect-customer" :style="{ width: '188px', height: '289px', left: '50%', top: '58%' }">
         <img :src="customerImage" alt="顾客" />
       </div>
-      <div class="pos-rect pos-rect-player1" ref="player1RectRef" :class="{ 'is-struck': struckSeats.includes(0) }" :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }">
+      <div class="pos-rect pos-rect-player1" ref="player1RectRef" :class="{ 'is-struck': struckSeats.includes(0), 'has-shield': (players[0]?.defense || 0) > 0 }" :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }">
         <img class="player-img" :src="player1Img" alt="玩家1" />
+        <div v-if="(players[0]?.defense || 0) > 0" class="player-shield-veil" aria-hidden="true" />
         <div class="player-hp-hud" :class="{ 'is-flash': flashSeats.includes(0) }">
           <PlayerInfo
             v-if="players[0]"
@@ -315,8 +316,9 @@
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
       </div>
-      <div class="pos-rect pos-rect-player2" ref="player2RectRef" :class="{ 'is-struck': struckSeats.includes(1) }" :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }">
+      <div class="pos-rect pos-rect-player2" ref="player2RectRef" :class="{ 'is-struck': struckSeats.includes(1), 'has-shield': (players[1]?.defense || 0) > 0 }" :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }">
         <img class="player-img" :src="player2Img" alt="玩家2" />
+        <div v-if="(players[1]?.defense || 0) > 0" class="player-shield-veil" aria-hidden="true" />
         <div class="player-hp-hud" :class="{ 'is-flash': flashSeats.includes(1) }">
           <PlayerInfo
             v-if="players[1]"
@@ -2740,7 +2742,7 @@ onUnmounted(() => {
 .match-chat-live {
   position: absolute;
   left: 72px;
-  bottom: 318px;
+  bottom: 448px;
   z-index: 48;
   width: 260px;
   margin: 0;
@@ -2991,9 +2993,9 @@ onUnmounted(() => {
   55% { transform: scale(1.1) translateY(6px) rotate(-2deg); }
   100% { transform: scale(1.06) translateY(10px) rotate(-3deg); }
 }
-.pos-rect-player1.is-struck .player-img,
-.pos-rect-player2.is-struck .player-img {
-  animation: owl-hit 0.4s ease-out;
+.pos-rect-player1.has-shield .player-img,
+.pos-rect-player2.has-shield .player-img {
+  filter: drop-shadow(0 0 14px rgba(255, 204, 80, 0.55));
 }
 @keyframes owl-hit {
   0% { filter: brightness(2) saturate(0.35); transform: translate(0, 0); }
@@ -3071,6 +3073,59 @@ onUnmounted(() => {
   transform: translateX(-50%);
   z-index: 3;
   pointer-events: none;
+}
+.player-shield-veil {
+  position: absolute;
+  inset: -10% -8% 6%;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 50% 50% 46% 46%;
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(255, 228, 140, 0.22) 0%, rgba(255, 190, 70, 0.1) 42%, transparent 72%);
+  box-shadow:
+    inset 0 0 22px rgba(255, 214, 110, 0.32),
+    0 0 18px rgba(255, 196, 72, 0.28);
+  animation: player-shield-veil-pulse 1.8s ease-in-out infinite;
+}
+.player-shield-veil::before,
+.player-shield-veil::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.player-shield-veil::before {
+  top: 8%;
+  left: 18%;
+  width: 10px;
+  height: 10px;
+  background: radial-gradient(circle, #fff8d8 0%, #ffd24a 45%, transparent 72%);
+  box-shadow:
+    0 0 10px 4px rgba(255, 214, 90, 0.7),
+    42px 18px 12px 3px rgba(255, 200, 70, 0.55),
+    88px 8px 10px 2px rgba(255, 220, 120, 0.5),
+    120px 28px 14px 4px rgba(255, 186, 48, 0.4);
+  animation: player-shield-spark 2.2s ease-in-out infinite;
+}
+.player-shield-veil::after {
+  top: 22%;
+  right: 16%;
+  width: 7px;
+  height: 7px;
+  background: radial-gradient(circle, #fffdf2 0%, #ffc14a 50%, transparent 74%);
+  box-shadow:
+    0 0 8px 3px rgba(255, 210, 80, 0.65),
+    -36px 24px 10px 2px rgba(255, 196, 64, 0.45),
+    -72px 6px 12px 3px rgba(255, 224, 130, 0.4);
+  animation: player-shield-spark 2.6s ease-in-out infinite reverse;
+}
+@keyframes player-shield-veil-pulse {
+  0%, 100% { opacity: 0.72; transform: scale(0.98); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+@keyframes player-shield-spark {
+  0%, 100% { opacity: 0.45; transform: translateY(0) scale(0.85); }
+  50% { opacity: 1; transform: translateY(-6px) scale(1.12); }
 }
 .me-tag {
   position: absolute;

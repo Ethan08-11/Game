@@ -2,6 +2,14 @@
   <div class="player-info" :class="{ danger: staminaPercentage <= 25 }">
     <img class="info-bg-img" :src="infoBg" alt="" />
     <div v-if="defense > 0" class="defense-row" aria-label="本回合防御点数">
+      <span class="defense-aura" aria-hidden="true" />
+      <span
+        v-for="n in 8"
+        :key="n"
+        class="defense-spark"
+        aria-hidden="true"
+        :style="{ '--spark-i': n }"
+      />
       <img :src="shieldIcon" alt="盾" class="defense-icon" />
       <span class="defense-value">{{ defense }}</span>
     </div>
@@ -97,13 +105,13 @@ const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || pr
 }
 .defense-row {
   position: absolute;
-  left: 0;
-  top: -20px;
+  left: -8px;
+  top: -36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
+  width: 72px;
+  height: 72px;
   padding: 0;
   margin: 0;
   border-radius: 0;
@@ -114,18 +122,48 @@ const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || pr
   line-height: 1;
   z-index: 2;
   pointer-events: none;
+  overflow: visible;
+}
+.defense-aura {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(255, 236, 160, 0.7) 0%, rgba(255, 196, 70, 0.28) 38%, rgba(255, 160, 40, 0) 70%);
+  animation: defense-aura-pulse 1.7s ease-in-out infinite;
+}
+.defense-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(4px + (var(--spark-i) % 3) * 2px);
+  height: calc(4px + (var(--spark-i) % 3) * 2px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fffdf0 0%, #ffe58a 28%, #ffc14a 62%, transparent 78%);
+  box-shadow:
+    0 0 6px 2px rgba(255, 220, 110, 0.95),
+    0 0 14px 5px rgba(255, 176, 48, 0.45);
+  animation: defense-spark-orbit 2.4s linear infinite;
+  animation-delay: calc(var(--spark-i) * -0.3s);
 }
 .defense-icon {
-  width: 52px;
-  height: 52px;
+  position: relative;
+  z-index: 1;
+  width: 60px;
+  height: 60px;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 8px rgba(0, 0, 0, 0.45));
+  filter:
+    drop-shadow(0 0 5px rgba(255, 224, 120, 0.95))
+    drop-shadow(0 0 12px rgba(255, 186, 52, 0.7))
+    drop-shadow(0 2px 2px rgba(0, 0, 0, 0.8));
+  animation: defense-icon-pulse 1.7s ease-in-out infinite;
 }
 .defense-value {
   position: absolute;
   left: 50%;
   top: 48%;
+  z-index: 2;
   transform: translate(-50%, -50%);
   font-size: 26px;
   font-weight: 800;
@@ -135,6 +173,25 @@ const deptDisplay = computed(() => deptLabelMap[props.dept?.toLowerCase()] || pr
   paint-order: stroke fill;
   text-shadow: 0 2px 3px rgba(0, 0, 0, 0.75);
   font-feature-settings: 'tnum';
+}
+@keyframes defense-aura-pulse {
+  0%, 100% { opacity: 0.72; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+@keyframes defense-icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+@keyframes defense-spark-orbit {
+  0% {
+    transform: rotate(calc(var(--spark-i) * 45deg)) translateX(calc(22px + var(--spark-i) * 2px)) scale(0.7);
+    opacity: 0.15;
+  }
+  35% { opacity: 1; }
+  100% {
+    transform: rotate(calc(var(--spark-i) * 45deg + 360deg)) translateX(calc(22px + var(--spark-i) * 2px)) scale(1);
+    opacity: 0.2;
+  }
 }
 .stamina-row {
   display: flex;
