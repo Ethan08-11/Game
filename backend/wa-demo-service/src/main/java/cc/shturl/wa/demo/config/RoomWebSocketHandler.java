@@ -1,6 +1,7 @@
 package cc.shturl.wa.demo.config;
 
 import cc.shturl.wa.demo.security.AuthTokenSupport;
+import cc.shturl.wa.demo.service.MatchChatService;
 import cc.shturl.wa.demo.service.RoomPresenceCleanupService;
 import cc.shturl.wa.demo.service.RoomWebSocketSessionService;
 import cc.shturl.wa.demo.service.UserPresenceService;
@@ -29,15 +30,17 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
     private final AuthTokenSupport authTokenSupport;
     private final UserPresenceService presenceService;
     private final RoomPresenceCleanupService cleanupService;
+    private final MatchChatService matchChatService;
     private final ObjectMapper objectMapper;
 
     public RoomWebSocketHandler(RoomWebSocketSessionService sessionService, AuthTokenSupport authTokenSupport,
                                 UserPresenceService presenceService, RoomPresenceCleanupService cleanupService,
-                                ObjectMapper objectMapper) {
+                                MatchChatService matchChatService, ObjectMapper objectMapper) {
         this.sessionService = sessionService;
         this.authTokenSupport = authTokenSupport;
         this.presenceService = presenceService;
         this.cleanupService = cleanupService;
+        this.matchChatService = matchChatService;
         this.objectMapper = objectMapper;
     }
 
@@ -65,10 +68,13 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
         }
         try {
             JsonNode payload = objectMapper.readTree(message.getPayload());
-            if ("ws.heartbeat".equals(payload.path("type").asText())) {
+            String type = payload.path("type").asText();
+            if ("ws.heartbeat".equals(type)) {
                 sessionService.heartbeat(userId, session);
                 sessionService.sendText(session,
                         "{\"type\":\"ws.heartbeat.ack\",\"timestamp\":" + System.currentTimeMillis() + "}");
+            } else if ("match.chat".equals(type)) {
+                matchChatService.handleChat(userId, payload);
             }
         } catch (Exception e) {
             log.debug("Ignore websocket text from user {}: {}", userId, e.getMessage());

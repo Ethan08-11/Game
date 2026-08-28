@@ -1,5 +1,5 @@
 <template>
-  <div class="battle-page" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '', '--check-player-bg': `url(${checkPlayerBtnBg})` }">
+  <div class="battle-page" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '' }">
     <BackButton to="" text="放弃对战" @click="handleLeave" />
 
     <div class="battle-main">
@@ -67,7 +67,10 @@
             <div class="funds-indicator"><img class="funds-icon" :src="fundsIcon" alt="" />调用机会 {{ currentFunds }}/{{ fundsCap }}</div>
           </div>
           <div class="hand-actions-row">
-            <button class="switch-player-btn" type="button" :disabled="game.isGameOver" @click="switchPlayer" :aria-label="`查看玩家 P${activePlayer + 1}`" />
+            <button class="match-chat-btn" type="button" :disabled="game.isGameOver" @click="toggleMatchChat" aria-label="对局聊天">
+              <span class="match-chat-btn-text">对局聊天</span>
+              <span v-if="chatUnread > 0" class="match-chat-unread">{{ chatUnread > 9 ? '9+' : chatUnread }}</span>
+            </button>
             <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying" @click="endTurn" aria-label="结束回合" />
           </div>
 
@@ -349,6 +352,15 @@
       >{{ hit.text }}</div>
     </div>
 
+    <MatchChatPanel
+      v-if="chatOpen"
+      :messages="chatMessages"
+      :phrases="MATCH_CHAT_PHRASES"
+      :disabled="game.isGameOver"
+      @close="chatOpen = false"
+      @send="sendMatchChat"
+    />
+
   </div>
 </template>
 
@@ -363,7 +375,7 @@ import { useUserStore } from '@/store/user'
 //import { abandonMatch, endMatchTurn, getMatchDeck, getMatchDetail, playMatchCard, reconnectMatch } from '@/api'
 import { abandonMatch, chooseFirstPlayer, declineMatchRevive, endMatchTurn, findSettlementPlayer, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive, unlockedCardFromSettlement } from '@/api'
 import type { PlayCardPayload, UnlockedCollectibleCard } from '@/api'
-import { subscribeRoomEvent } from '@/utils/roomSocket'
+import { subscribeRoomEvent, sendRoomMessage } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
 import { formatPlayerName } from '@/utils/playerName'
 import bg1 from '@/assets/battle-background2.webp'
@@ -374,7 +386,6 @@ import bg5 from '@/assets/battle-background2.webp'
 import bg6 from '@/assets/battle-background2.webp'
 import choosePlayerBg from '@/assets/battle-playerchoose-bg.webp'
 import fundsIcon from '@/assets/battle/funds-icon.webp'
-import checkPlayerBtnBg from '@/assets/battle-check-player.webp'
 import p1BtnBg from '@/assets/p1.webp'
 import p2BtnBg from '@/assets/p2.webp'
 import customerImg from '@/assets/battle/customer.webp'
@@ -393,6 +404,8 @@ import PlayerInfo from '@/components/PlayerInfo.vue'
 import CardItem from '@/components/CardItem.vue'
 import EmployerCard from '@/components/EmployerCard.vue'
 import BullyCard from '@/components/BullyCard.vue'
+import MatchChatPanel from '@/components/MatchChatPanel.vue'
+import type { MatchChatMessage } from '@/components/MatchChatPanel.vue'
 type BattleCard = {
   id: string
   instanceId: string
@@ -425,6 +438,13 @@ type BattlePlayer = {
 }
 
 const bgList = [bg1, bg2, bg3, bg4, bg5, bg6]
+const MATCH_CHAT_PHRASES = [
+  '这回合我来输出',
+  '帮我补点血值',
+  '先叠盾再打',
+  '调用机会不够了',
+  '可以结束回合了',
+]
 const bgImage = ref('')
 const cardBackFallback = getImageUrl('/images/cards/Card_Back.webp') || '/images/cards/Card_Back.webp'
 const cardBackImg = bundledCardBack || cardBackFallback
@@ -502,6 +522,9 @@ function addAction(msg: string, key?: string) {
   scrollActionLogToLatest()
 }
 const showDeckModal = ref(false)
+const chatOpen = ref(false)
+const chatUnread = ref(0)
+const chatMessages = ref<MatchChatMessage[]>([])
 const activePlayer = ref<0 | 1>(0)
 const players = ref<BattlePlayer[]>([])
 const matchDetail = ref<any>(null)
@@ -1456,9 +1479,47 @@ function cancelTargetDialog() {
   pendingTargetCard.value = null
 }
 
-function switchPlayer() {
-  if (players.value.length < 2) return
-  activePlayer.value = activePlayer.value === 0 ? 1 : 0
+function toggleMatchChat() {
+  if (game.isGameOver) return
+  chatOpen.value = !chatOpen.value
+  if (chatOpen.value) chatUnread.value = 0
+}
+
+function sendMatchChat(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || game.isGameOver) return
+  const ok = sendRoomMessage({
+    type: 'match.chat',
+    matchId: activeMatchId.value,
+    text: trimmed,
+  })
+  if (!ok) {
+    ElMessage.warning('聊天连接已断开，请稍后再试')
+  }
+}
+
+function handleMatchChat(data: any, message?: any) {
+  const payload = data?.data ?? data ?? message?.data ?? {}
+  const text = String(payload.text ?? '').trim()
+  if (!text) return
+  const incomingMatchId = String(payload.matchId ?? '')
+  if (incomingMatchId && activeMatchId.value && incomingMatchId !== String(activeMatchId.value)) return
+  const id = String(payload.messageId ?? `${payload.fromUserId ?? ''}:${payload.timestamp ?? Date.now()}:${text}`)
+  if (chatMessages.value.some((item) => item.id === id)) return
+  const fromUserId = String(payload.fromUserId ?? '')
+  const mine = sameBattleUserId(fromUserId, user.userId)
+  chatMessages.value.push({
+    id,
+    name: resolvePlayerName(fromUserId) || String(payload.fromName ?? '队友'),
+    text,
+    mine,
+  })
+  if (chatMessages.value.length > 40) {
+    chatMessages.value.splice(0, chatMessages.value.length - 40)
+  }
+  if (!chatOpen.value && !mine) {
+    chatUnread.value += 1
+  }
 }
 
 async function loadReviveStatus() {
@@ -2047,6 +2108,7 @@ onMounted(async () => {
       await handleBossAttackEvent(data, message)
       await refreshBattleState()
     }),
+    subscribeRoomEvent('match.chat', handleMatchChat),
   )
 })
 
@@ -2596,28 +2658,53 @@ onUnmounted(() => {
   height: 176px;
   margin-bottom: 4px;
 }
-.switch-player-btn {
+.match-chat-btn {
   position: absolute;
   left: -94px;
   bottom: -235px;
   width: 60px;
   height: 152px;
-  background: var(--check-player-bg) center/500% auto no-repeat;
-  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 8px 16px;
   cursor: pointer;
   flex: 0 0 auto;
-  font-size: 0;
-  color: transparent;
-  overflow: hidden;
+  overflow: visible;
   z-index: 2;
   transition: transform 0.2s ease;
-  border: none;
+  border: 1px solid rgba(93, 58, 26, 0.45);
+  border-radius: 10px;
   outline: none;
+  background: linear-gradient(180deg, #f6ecd6 0%, #e6d3a8 100%);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 248, 230, 0.7);
 }
-.switch-player-btn:hover:not(:disabled) {
+.match-chat-btn-text {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.22em;
+  font-size: 15px;
+  font-weight: 700;
+  color: #3e2723;
+}
+.match-chat-unread {
+  position: absolute;
+  top: 8px;
+  right: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #b42318;
+  color: #fff8e8;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.match-chat-btn:hover:not(:disabled) {
   transform: translateY(-6px);
 }
-.switch-player-btn:disabled {
+.match-chat-btn:disabled {
   cursor: not-allowed;
   filter: grayscale(0.35) brightness(0.8);
   opacity: 0.72;

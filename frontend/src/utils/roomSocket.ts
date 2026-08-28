@@ -162,6 +162,12 @@ export function disconnectRoomSocket() {
   socket = null
 }
 
+export function sendRoomMessage(payload: Record<string, unknown>) {
+  if (socket?.readyState !== WebSocket.OPEN) return false
+  socket.send(JSON.stringify(payload))
+  return true
+}
+
 export function isRoomSocketConnected() {
   return socket?.readyState === WebSocket.OPEN
 }
