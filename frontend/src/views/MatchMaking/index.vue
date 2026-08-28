@@ -1,7 +1,5 @@
 <template>
-  <div class="match-fit">
-    <div class="match-frame">
-    <div class="match-page" :class="{ dimmed: showDeptModal }" :style="pageStyle">
+  <div class="match-wrapper" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
     <!-- 部门选择遮罩层（独立于页面，不受 dim 影响） -->
     <Teleport to="body">
     <div v-if="showDeptModal" class="dept-modal-overlay" @click.self="">
@@ -36,10 +34,11 @@
     </div>
   </Teleport>
 
+  <div class="match-page" :class="{ dimmed: showDeptModal }">
     <BackButton to="" text="返回大厅" @click="leaveCurrentRoom" />
 
     <div class="left-panel" :style="{ '--friend-list-bg': `url(${matchBg})` }">
-      <h3 class="panel-title">好友列表</h3>
+      <h3>好友列表</h3>
       <div class="friend-list">
         <div v-for="f in displayFriends" :key="f.id" class="friend-row">
           <PlayerAvatar class="friend-avatar" :src="f.avatarUrl" :alt="f.displayName || f.username" />
@@ -60,7 +59,7 @@
     </div>
 
     <div class="right-panel" :style="{ '--team-bg': `url(${matchFriendListBg})` }">
-      <h3 class="panel-title">队伍房间</h3>
+      <h3>队伍房间</h3>
       <div class="room-slots">
         <div v-for="i in 2" :key="i" class="slot" :class="{ filled: room.players[i-1], empty: !room.players[i-1] }">
           <template v-if="room.players[i-1]">
@@ -91,26 +90,26 @@
         </div>
       </div>
 
-      <div class="room-actions">
-        <p v-if="pendingInvite && room.players.length < 2" class="invite-wait-hint">邀请已发送，双方进入房间后即可选部门</p>
-        <button
-          class="ready-btn"
-          :class="{
-            disabled: !room.canStart,
-            active: room.canStart && !isSelfReady,
-            readied: isSelfReady
-          }"
-          :disabled="!room.canStart"
-          @click="toggleReady"
-        >
-          {{ isSelfReady ? '已准备' : '准备' }}
-        </button>
-        <p v-if="room.bothReady" class="battle-hint">双方已准备，等待开始对局...</p>
-        <button v-if="room.roomId" class="leave-room-btn" @click="leaveCurrentRoom">退出房间</button>
-      </div>
+      <p v-if="pendingInvite && room.players.length < 2" class="invite-wait-hint">邀请已发送，双方进入房间后即可选部门</p>
+
+      <button
+        class="ready-btn"
+        :class="{
+          disabled: !room.canStart,
+          active: room.canStart && !isSelfReady,
+          readied: isSelfReady
+        }"
+        :disabled="!room.canStart"
+        @click="toggleReady"
+      >
+        {{ isSelfReady ? '已准备' : '准备' }}
+      </button>
+
+      <p v-if="room.bothReady" class="battle-hint">双方已准备，等待开始对局...</p>
+      <button v-if="room.roomId" class="leave-room-btn" @click="leaveCurrentRoom">退出房间</button>
     </div>
-    </div>
-    </div>
+  </div>
+
   </div>
 </template>
 
@@ -145,35 +144,9 @@ const route = useRoute()
 const room = useRoomStore()
 const user = useUserStore()
 
-const DESIGN_W = 1280
-const DESIGN_H = 800
-const stageScaleX = ref(1)
-const stageScaleY = ref(1)
-
 const bgImage = ref('')
 const bgDay = bg2
 const bgNight = bg1
-
-const pageStyle = computed(() => ({
-  '--hall-bg': bgImage.value ? `url(${bgImage.value})` : '',
-  width: `${DESIGN_W}px`,
-  height: `${DESIGN_H}px`,
-  transform: `scale(${stageScaleX.value}, ${stageScaleY.value})`,
-}))
-
-function viewportSize() {
-  const view = window.visualViewport
-  return {
-    width: view?.width ?? window.innerWidth,
-    height: view?.height ?? window.innerHeight,
-  }
-}
-
-function updateStageScale() {
-  const { width, height } = viewportSize()
-  stageScaleX.value = width / DESIGN_W
-  stageScaleY.value = height / DESIGN_H
-}
 
 interface DisplayFriend extends Friend {
   invited: boolean
@@ -432,9 +405,6 @@ async function handleGameStart(data: any) {
 }
 
 onMounted(async () => {
-  updateStageScale()
-  window.addEventListener('resize', updateStageScale)
-  window.visualViewport?.addEventListener('resize', updateStageScale)
   const hour = new Date().getHours()
   bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
   try {
@@ -494,8 +464,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', updateStageScale)
-  window.visualViewport?.removeEventListener('resize', updateStageScale)
   stopRoomPoll()
   unsubscribeFns.splice(0).forEach((unsubscribe) => unsubscribe())
 })
@@ -621,34 +589,14 @@ async function leaveCurrentRoom() {
 </script>
 
 <style scoped>
-.match-fit {
-  width: 100%;
+.match-wrapper {
   height: 100%;
-  overflow: hidden;
-  background: transparent;
-}
-.match-frame {
   position: relative;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
+  isolation: isolate;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
-.match-page {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 48px;
-  padding: 64px 48px 40px;
-  box-sizing: border-box;
-  margin: 0;
-  color: #4a3520;
-  transition: filter var(--transition-base);
-  overflow: hidden;
-  transform-origin: 0 0;
-}
-.match-page::before {
+.match-wrapper::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -656,12 +604,25 @@ async function leaveCurrentRoom() {
   filter: blur(12px);
   transform: scale(1.1);
   z-index: 0;
-  pointer-events: none;
 }
-.match-page > .left-panel,
-.match-page > .right-panel {
+
+.match-page {
   position: relative;
   z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: clamp(16px, 4vw, 48px);
+  padding: 12vh 4vw 10vh;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: none;
+  margin: 0 auto;
+  color: #4a3520;
+  transition: filter var(--transition-base);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .match-page.dimmed {
   filter: brightness(0.35);
@@ -669,62 +630,57 @@ async function leaveCurrentRoom() {
   user-select: none;
 }
 
-/* ========== 面板布局：木板原图 512×512，面板与图同比例铺满 ========== */
+/* ========== 面板布局 ========== */
 .left-panel, .right-panel {
-  flex: 0 0 520px;
-  width: 520px;
-  height: 520px;
+  flex: 1 1 0;
   max-width: 520px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  padding: 108px 42px 48px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  box-sizing: border-box;
 }
 .left-panel {
   position: relative;
   isolation: isolate;
+  background: rgba(0, 0, 0, 0.15);
   overflow: hidden;
 }
 .left-panel::before {
   content: '';
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--friend-list-bg) center / 100% 100% no-repeat;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 140%;
+  height: 130%;
+  background: var(--friend-list-bg) center/contain no-repeat;
   z-index: -1;
   pointer-events: none;
 }
 .right-panel {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  padding-left: calc(var(--space-3) + 24px);
 }
 .right-panel::before {
   content: '';
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--team-bg) center / 100% 100% no-repeat;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 140%;
+  height: 130%;
+  background: var(--team-bg) center/contain no-repeat;
   z-index: -1;
   pointer-events: none;
 }
-.panel-title {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+.left-panel h3, .right-panel h3 {
+  margin-bottom: var(--space-5);
+  font-size: var(--text-xl);
+  color: #4a3520;
 }
 .friend-list {
   flex: 1;
@@ -738,20 +694,20 @@ async function leaveCurrentRoom() {
 .friend-row {
   display: flex;
   align-items: center;
-  height: 220px;
+  height: 320px;
   flex-shrink: 0;
-  padding: 6px 12px 0 8px;
+  padding: 12px var(--space-5) 0 var(--space-3);
   background: url('@/assets/friend-row-bg.webp') center/100% 100% no-repeat;
   position: relative;
-  margin-top: -136px;
+  margin-top: -260px;
 }
 .friend-row:first-child {
-  margin-top: 0;
+  margin-top: -130px;
 }
 
 .friend-avatar {
-  width: 56px;
-  height: 56px;
+  width: 72px;
+  height: 72px;
   border-radius: var(--radius-full);
   object-fit: cover;
   flex-shrink: 0;
@@ -761,8 +717,8 @@ async function leaveCurrentRoom() {
 .fname {
   flex: 1;
   color: #4a3520;
-  font-size: 20px;
-  margin-left: 8px;
+  font-size: 24px;
+  margin-left: calc(var(--space-3) - 1em);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -776,17 +732,17 @@ async function leaveCurrentRoom() {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  margin-left: -28px;
+  margin-left: -80px;
 }
 
 .status-icon {
-  height: 44px;
+  height: 54px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .invite-btn {
-  width: 44px; height: 44px;
+  width: 54px; height: 54px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -824,7 +780,7 @@ async function leaveCurrentRoom() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-4);
   min-height: 0;
 }
 
@@ -832,11 +788,10 @@ async function leaveCurrentRoom() {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 10px 12px;
+  padding: var(--space-4);
   border-radius: var(--radius-lg);
   transition: all var(--transition-base);
   flex-wrap: wrap;
-  flex-shrink: 0;
 }
 .slot.filled {
   background: rgba(196, 169, 98, 0.2);
@@ -873,7 +828,7 @@ async function leaveCurrentRoom() {
   white-space: nowrap;
 }
 .invite-wait-hint {
-  margin: 0 0 var(--space-3);
+  margin: var(--space-3) 0 0;
   text-align: center;
   color: #8b6914;
   font-size: var(--text-sm);
@@ -969,8 +924,7 @@ async function leaveCurrentRoom() {
   font-weight: var(--weight-bold);
   cursor: pointer;
   transition: all var(--transition-base);
-  margin-top: 0;
-  flex-shrink: 0;
+  margin-top: var(--space-5);
 }
 .ready-btn.disabled {
   background: rgba(0, 0, 0, 0.1);
@@ -1008,13 +962,6 @@ async function leaveCurrentRoom() {
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  flex-shrink: 0;
-}
-.room-actions {
-  flex-shrink: 0;
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
 }
 .leave-room-btn:hover {
   border-color: #e74c3c;
@@ -1027,10 +974,13 @@ async function leaveCurrentRoom() {
 
 @media (max-width: 767px) {
   .match-page {
-    gap: 24px;
-    padding: 64px 24px 32px;
+    flex-direction: column;
+    padding: var(--space-4);
+    gap: var(--space-4);
+    height: auto;
+    overflow: visible;
   }
-  .left-panel, .right-panel { min-height: 0; }
+  .left-panel, .right-panel { flex: none; min-height: 300px; }
 }
 </style>
 
