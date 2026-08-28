@@ -362,6 +362,7 @@
         @send="sendMatchChat"
       />
     </div>
+    <p v-if="liveTeammateChat" class="match-chat-live" aria-live="polite">{{ liveTeammateChat }}</p>
 
   </div>
 </template>
@@ -527,6 +528,8 @@ const showDeckModal = ref(false)
 const chatOpen = ref(false)
 const chatUnread = ref(0)
 const chatMessages = ref<MatchChatMessage[]>([])
+const liveTeammateChat = ref('')
+let liveTeammateTimer: ReturnType<typeof setTimeout> | null = null
 const activePlayer = ref<0 | 1>(0)
 const players = ref<BattlePlayer[]>([])
 const matchDetail = ref<any>(null)
@@ -1519,6 +1522,14 @@ function handleMatchChat(data: any, message?: any) {
   if (chatMessages.value.length > 40) {
     chatMessages.value.splice(0, chatMessages.value.length - 40)
   }
+  if (!mine) {
+    liveTeammateChat.value = text
+    if (liveTeammateTimer) clearTimeout(liveTeammateTimer)
+    liveTeammateTimer = setTimeout(() => {
+      liveTeammateChat.value = ''
+      liveTeammateTimer = null
+    }, 12000)
+  }
   if (!chatOpen.value && !mine) {
     chatUnread.value += 1
   }
@@ -2121,6 +2132,10 @@ onUnmounted(() => {
   stopFirstPlayerPoll()
   stopActionPhasePoll()
   stopReviveWatchHeartbeat()
+  if (liveTeammateTimer) {
+    clearTimeout(liveTeammateTimer)
+    liveTeammateTimer = null
+  }
   unsubscribeFns.splice(0).forEach((unsubscribe) => unsubscribe())
   // 离开对局页时重置游戏状态，确保下一局不会残留旧数据
   if (game.isGameOver) {
@@ -2721,6 +2736,32 @@ onUnmounted(() => {
   cursor: not-allowed;
   filter: grayscale(0.35) brightness(0.8);
   opacity: 0.72;
+}
+.match-chat-live {
+  position: absolute;
+  left: 72px;
+  bottom: 318px;
+  z-index: 48;
+  width: 260px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: #fff8e4;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-shadow: 0 1px 2px #1a1008, 0 0 8px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  word-break: break-word;
+  animation: match-chat-live-in 0.25s ease-out;
+}
+@keyframes match-chat-live-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .finish-btn {
   position: absolute;
