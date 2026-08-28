@@ -1,5 +1,6 @@
 <template>
-  <div class="match-wrapper" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
+  <div class="match-fit" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
+    <div class="match-page" :class="{ dimmed: showDeptModal }" :style="pageStyle">
     <!-- 部门选择遮罩层（独立于页面，不受 dim 影响） -->
     <Teleport to="body">
     <div v-if="showDeptModal" class="dept-modal-overlay" @click.self="">
@@ -34,11 +35,10 @@
     </div>
   </Teleport>
 
-  <div class="match-page" :class="{ dimmed: showDeptModal }">
     <BackButton to="" text="返回大厅" @click="leaveCurrentRoom" />
 
     <div class="left-panel" :style="{ '--friend-list-bg': `url(${matchBg})` }">
-      <h3>好友列表</h3>
+      <h3 class="panel-title">好友列表</h3>
       <div class="friend-list">
         <div v-for="f in displayFriends" :key="f.id" class="friend-row">
           <PlayerAvatar class="friend-avatar" :src="f.avatarUrl" :alt="f.displayName || f.username" />
@@ -59,7 +59,7 @@
     </div>
 
     <div class="right-panel" :style="{ '--team-bg': `url(${matchFriendListBg})` }">
-      <h3>队伍房间</h3>
+      <h3 class="panel-title">队伍房间</h3>
       <div class="room-slots">
         <div v-for="i in 2" :key="i" class="slot" :class="{ filled: room.players[i-1], empty: !room.players[i-1] }">
           <template v-if="room.players[i-1]">
@@ -109,7 +109,6 @@
       <button v-if="room.roomId" class="leave-room-btn" @click="leaveCurrentRoom">退出房间</button>
     </div>
   </div>
-
   </div>
 </template>
 
@@ -144,9 +143,32 @@ const route = useRoute()
 const room = useRoomStore()
 const user = useUserStore()
 
+const DESIGN_W = 1280
+const DESIGN_H = 800
+const stageScale = ref(1)
+
 const bgImage = ref('')
 const bgDay = bg2
 const bgNight = bg1
+
+const pageStyle = computed(() => ({
+  width: `${DESIGN_W}px`,
+  height: `${DESIGN_H}px`,
+  transform: `scale(${stageScale.value})`,
+}))
+
+function viewportSize() {
+  const view = window.visualViewport
+  return {
+    width: view?.width ?? window.innerWidth,
+    height: view?.height ?? window.innerHeight,
+  }
+}
+
+function updateStageScale() {
+  const { width, height } = viewportSize()
+  stageScale.value = Math.min(width / DESIGN_W, height / DESIGN_H)
+}
 
 interface DisplayFriend extends Friend {
   invited: boolean
@@ -405,6 +427,9 @@ async function handleGameStart(data: any) {
 }
 
 onMounted(async () => {
+  updateStageScale()
+  window.addEventListener('resize', updateStageScale)
+  window.visualViewport?.addEventListener('resize', updateStageScale)
   const hour = new Date().getHours()
   bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
   try {
@@ -464,6 +489,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateStageScale)
+  window.visualViewport?.removeEventListener('resize', updateStageScale)
   stopRoomPoll()
   unsubscribeFns.splice(0).forEach((unsubscribe) => unsubscribe())
 })
@@ -589,14 +616,17 @@ async function leaveCurrentRoom() {
 </script>
 
 <style scoped>
-.match-wrapper {
+.match-fit {
+  width: 100%;
   height: 100%;
+  overflow: hidden;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   isolation: isolate;
-  overflow-x: hidden;
-  overflow-y: auto;
 }
-.match-wrapper::before {
+.match-fit::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -604,25 +634,23 @@ async function leaveCurrentRoom() {
   filter: blur(12px);
   transform: scale(1.1);
   z-index: 0;
+  pointer-events: none;
 }
 
 .match-page {
   position: relative;
   z-index: 1;
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
   align-items: stretch;
-  gap: clamp(16px, 4vw, 48px);
-  padding: 12vh 4vw 10vh;
-  height: 100%;
-  width: 100%;
+  gap: 48px;
+  padding: 96px 48px 80px;
   box-sizing: border-box;
-  max-width: none;
-  margin: 0 auto;
   color: #4a3520;
   transition: filter var(--transition-base);
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
+  transform-origin: center center;
 }
 .match-page.dimmed {
   filter: brightness(0.35);
@@ -636,7 +664,7 @@ async function leaveCurrentRoom() {
   max-width: 520px;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-xl);
-  padding: var(--space-5);
+  padding: 56px 20px 20px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -677,10 +705,16 @@ async function leaveCurrentRoom() {
   z-index: -1;
   pointer-events: none;
 }
-.left-panel h3, .right-panel h3 {
-  margin-bottom: var(--space-5);
-  font-size: var(--text-xl);
-  color: #4a3520;
+.panel-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .friend-list {
   flex: 1;
@@ -974,13 +1008,9 @@ async function leaveCurrentRoom() {
 
 @media (max-width: 767px) {
   .match-page {
-    flex-direction: column;
-    padding: var(--space-4);
-    gap: var(--space-4);
-    height: auto;
-    overflow: visible;
+    gap: 32px;
+    padding: 80px 32px 56px;
   }
-  .left-panel, .right-panel { flex: none; min-height: 300px; }
 }
 </style>
 
