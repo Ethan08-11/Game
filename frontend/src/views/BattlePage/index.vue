@@ -399,7 +399,7 @@ import { useGameStore } from '@/store/game'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 //import { abandonMatch, endMatchTurn, getMatchDeck, getMatchDetail, playMatchCard, reconnectMatch } from '@/api'
-import { abandonMatch, chooseFirstPlayer, declineMatchRevive, endMatchTurn, findSettlementPlayer, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive, unlockedCardFromSettlement } from '@/api'
+import { abandonMatch, chooseFirstPlayer, declineMatchRevive, endMatchTurn, findSettlementPlayer, getCurrentMatch, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive, unlockedCardFromSettlement } from '@/api'
 import type { PlayCardPayload, UnlockedCollectibleCard } from '@/api'
 import { subscribeRoomEvent, sendRoomMessage } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
@@ -2024,6 +2024,20 @@ function handleMatchRecovered(data: any) {
   void handleMatchEvent(data)
 }
 
+async function recoverBattleAfterSocketReconnect() {
+  if (!activeMatchId.value || game.isGameOver) return
+  try {
+    const detail = await reconnectMatch(activeMatchId.value)
+    if (detail && typeof detail === 'object' && (detail.matchId || detail.phase || detail.bossCurrentHp != null)) {
+      syncToStore(detail)
+      syncRoomPlayers(detail)
+    }
+  } catch {
+    // 对局无需重连或后端拒绝重连时，继续以权威查询恢复页面。
+  }
+  await refreshBattleState().catch(() => {})
+}
+
 function normalizeActorId(v: unknown) {
   const id = String(v ?? '').trim()
   if (!id || id === 'undefined' || id === 'null') return ''
@@ -2176,8 +2190,13 @@ onMounted(async () => {
   activeMatchId.value = String(route.params.matchId || room.matchId || sessionStorage.getItem('activeMatchId') || '')
   if (!activeMatchId.value && room.matchId) activeMatchId.value = room.matchId
   if (!activeMatchId.value) {
+    const live = await getCurrentMatch().catch(() => null)
+    const liveId = live?.matchId != null && live.matchId !== '' ? String(live.matchId) : ''
+    if (liveId) activeMatchId.value = liveId
+  }
+  if (!activeMatchId.value) {
     ElMessage.error('缺少 matchId，无法进入对局')
-    router.push('/matchmaking')
+    router.push('/game-hall')
     return
   }
   room.setMatchId(activeMatchId.value)
@@ -2186,15 +2205,10 @@ onMounted(async () => {
     await user.loadFriends().catch(() => {})
   }
   try {
-    const detail = await reconnectMatch(activeMatchId.value)
-    if (detail && typeof detail === 'object' && (detail.matchId || detail.phase || detail.bossCurrentHp != null)) {
-      syncToStore(detail)
-      syncRoomPlayers(detail)
-    }
+    await recoverBattleAfterSocketReconnect()
   } catch {
-    // 对局无需重连或后端拒绝重连时，继续以权威查询恢复页面。
+    await refreshBattleState().catch(() => {})
   }
-  await refreshBattleState()
   if (isSelectingFirstPlayer.value) startFirstPlayerPoll()
   await nextTick()
   if (handCardsRef.value && typeof ResizeObserver !== 'undefined') {
@@ -2206,6 +2220,7 @@ onMounted(async () => {
     handAreaWidth.value = handCardsRef.value.clientWidth
   }
   unsubscribeFns.push(
+    subscribeRoomEvent('ws.connected', () => { void recoverBattleAfterSocketReconnect() }),
     subscribeRoomEvent('friend.presence.changed', handleTeammatePresence),
     subscribeRoomEvent('match.started', handleMatchEvent),
     subscribeRoomEvent('match.first_player.chosen', handleMatchEvent),

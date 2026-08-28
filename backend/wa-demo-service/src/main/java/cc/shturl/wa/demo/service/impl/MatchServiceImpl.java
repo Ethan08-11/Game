@@ -1207,24 +1207,91 @@ public class MatchServiceImpl implements MatchService {
     @Override
     @Transactional
     public MatchStateResp reconnect(Long currentUserId, Long matchId) {
+        applyReconnect(currentUserId, matchId);
+        return getMatchState(currentUserId, matchId);
+    }
+
+    @Override
+    @Transactional
+    public void recoverOnlinePlayer(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        List<MatchPlayers> rows = matchPlayersMapper.selectList(Wrappers.<MatchPlayers>lambdaQuery()
+                .eq(MatchPlayers::getUserId, userId)
+                .eq(MatchPlayers::getPlayerStatus, "RECONNECTING"));
+        for (MatchPlayers player : rows) {
+            if (player.getMatchId() == null) {
+                continue;
+            }
+            try {
+                applyReconnect(userId, player.getMatchId());
+            } catch (Exception e) {
+                logger.warn("Auto-recover reconnect failed userId={} matchId={}: {}",
+                        userId, player.getMatchId(), e.getMessage());
+            }
+        }
+    }
+
+    @Override
+    public Long findActiveMatchId(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        List<MatchPlayers> rows = matchPlayersMapper.selectList(Wrappers.<MatchPlayers>lambdaQuery()
+                .eq(MatchPlayers::getUserId, userId)
+                .in(MatchPlayers::getPlayerStatus, List.of("ACTIVE", "RECONNECTING", "DEAD"))
+                .orderByDesc(MatchPlayers::getUpdatedAt)
+                .orderByDesc(MatchPlayers::getId));
+        for (MatchPlayers player : rows) {
+            if (player.getMatchId() == null) {
+                continue;
+            }
+            Matches match = matchesMapper.selectById(player.getMatchId());
+            if (match != null && value(match.getStatus()) == 1
+                    && match.getEndedAt() == null && !"FINISHED".equals(match.getPhase())) {
+                return match.getId();
+            }
+        }
+        return null;
+    }
+
+    private void applyReconnect(Long currentUserId, Long matchId) {
         Matches match = requireMatch(matchId);
-        if (value(match.getStatus()) == 2) {
-            return getMatchState(currentUserId, matchId);
+        if (value(match.getStatus()) == 2 || "FINISHED".equals(match.getPhase())) {
+            return;
         }
         MatchPlayers player = requirePlayer(currentUserId, matchId);
-        if ("DEAD".equals(player.getPlayerStatus()) || value(player.getCurrentHp()) <= 0) {
-            return getMatchState(currentUserId, matchId);
+        if ("LEFT".equals(player.getPlayerStatus())) {
+            return;
         }
-        player.setPlayerStatus("ACTIVE");
+        if (!"RECONNECTING".equals(player.getPlayerStatus())) {
+            return;
+        }
+        if ("DEAD".equals(player.getPlayerStatus()) || value(player.getCurrentHp()) <= 0) {
+            player.setPlayerStatus("DEAD");
+        } else {
+            player.setPlayerStatus("ACTIVE");
+        }
         matchPlayersMapper.updateById(player);
-        boolean allRecovered = listPlayers(matchId).stream().noneMatch(item -> "RECONNECTING".equals(item.getPlayerStatus()));
-        if (allRecovered && "RECONNECT_WAIT".equals(match.getPhase())) {
+        restoreActionPhaseIfReconnectCleared(match);
+        notifyPlayers(matchId, "match.recovered", Map.of(
+                "matchId", matchId,
+                "userId", currentUserId,
+                "phase", match.getPhase()));
+        userPresenceService.broadcastPresence(currentUserId);
+    }
+
+    private void restoreActionPhaseIfReconnectCleared(Matches match) {
+        if (!"RECONNECT_WAIT".equals(match.getPhase())) {
+            return;
+        }
+        boolean stillWaiting = listPlayers(match.getId()).stream().anyMatch(item ->
+                "RECONNECTING".equals(item.getPlayerStatus()) && value(item.getCurrentHp()) > 0);
+        if (!stillWaiting) {
             match.setPhase(PLAYER_ACTION);
             matchesMapper.updateById(match);
         }
-        notifyPlayers(matchId, "match.recovered", Map.of("matchId", matchId, "userId", currentUserId, "phase", match.getPhase()));
-        userPresenceService.broadcastPresence(currentUserId);
-        return getMatchState(currentUserId, matchId);
     }
 
     @Override

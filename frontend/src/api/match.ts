@@ -283,6 +283,10 @@ export async function reconnectMatch(matchId: string | number): Promise<MatchDet
   return apiCall(`/matches/${matchId}/reconnect`, { method: 'POST' })
 }
 
+export async function getCurrentMatch(): Promise<{ matchId?: number | string | null } | null> {
+  return apiCall('/matches/current')
+}
+
 export async function abandonMatch(matchId: string | number): Promise<MatchDetailResp> {
   return apiCall(`/matches/${matchId}/abandon`, { method: 'POST' })
 }

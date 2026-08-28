@@ -13,6 +13,8 @@ public interface MatchService {
     MatchSettlementResp getMatchSettlement(Long currentUserId, Long matchId);
     MatchFirstPlayerResp chooseFirstPlayer(Long currentUserId, Long matchId, ChooseFirstPlayerReq request);
     MatchStateResp reconnect(Long currentUserId, Long matchId);
+    void recoverOnlinePlayer(Long userId);
+    Long findActiveMatchId(Long userId);
     void abandon(Long currentUserId, Long matchId);
     void markPlayerDisconnected(Long userId);
     void timeoutReconnectMatches();

@@ -4,6 +4,7 @@ import cc.shturl.wa.common.result.Result;
 import cc.shturl.wa.demo.dto.req.ChooseFirstPlayerReq;
 import cc.shturl.wa.demo.dto.req.EndTurnReq;
 import cc.shturl.wa.demo.dto.req.PlayCardReq;
+import cc.shturl.wa.demo.dto.resp.CurrentMatchResp;
 import cc.shturl.wa.demo.dto.resp.EndTurnResp;
 import cc.shturl.wa.demo.dto.resp.MatchActionResp;
 import cc.shturl.wa.demo.dto.resp.MatchDeckResp;
@@ -29,7 +30,13 @@ public class MatchController {
     private final MatchService matchService;
     private final AuthTokenSupport authTokenSupport;
 
-    @GetMapping("/{matchId}")
+    @GetMapping("/current")
+    public Result<CurrentMatchResp> getCurrentMatch(@RequestHeader("Authorization") String authorization) {
+        Long userId = authTokenSupport.requireUserIdFromAccessToken(authorization);
+        return Result.ok(new CurrentMatchResp(matchService.findActiveMatchId(userId)));
+    }
+
+    @GetMapping("/{matchId:\\d+}")
     public Result<MatchStateResp> getMatchState(@RequestHeader("Authorization") String authorization,
                                                 @PathVariable("matchId") Long matchId) {
         Long userId = authTokenSupport.requireUserIdFromAccessToken(authorization);

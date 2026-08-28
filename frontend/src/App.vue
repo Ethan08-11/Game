@@ -13,7 +13,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { acceptRoomInvite, extractRoomId, getPendingRoomInvites, getRoomDetail, getCurrentRoom, leaveRoom as leaveRoomApi, rejectRoomInvite } from '@/api'
+import { acceptRoomInvite, extractRoomId, getPendingRoomInvites, getRoomDetail, getCurrentRoom, getCurrentMatch, leaveRoom as leaveRoomApi, rejectRoomInvite } from '@/api'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 import { connectRoomSocket, disconnectRoomSocket, subscribeRoomEvent } from '@/utils/roomSocket'
@@ -204,8 +204,28 @@ async function handleWsConnected() {
   room.isConnected = true
   refreshFriends()
   startPendingInvitePoll()
-  if (String(route.name || '') === 'BattlePage') return
   const current = await getCurrentRoom().catch(() => null)
+  const fromRoom = current?.matchId != null && current.matchId !== '' ? String(current.matchId) : ''
+  let matchId = fromRoom
+  if (!matchId) {
+    const live = await getCurrentMatch().catch(() => null)
+    matchId = live?.matchId != null && live.matchId !== '' ? String(live.matchId) : ''
+  }
+  if (matchId) {
+    sessionStorage.setItem(ACTIVE_MATCH_KEY, matchId)
+    room.setMatchId(matchId)
+    if (current && Number(current.status) !== 3 && !current.closedAt) {
+      room.syncRoomDetail(current, String(user.userId), user.username, new Map(user.friends.map(f => [String(f.id), f.displayName || f.username])))
+    }
+    const routeName = String(route.name || '')
+    if (routeName !== 'BattlePage' && routeName !== 'ResultPage' && !isPreGameRoute.value) {
+      if (String(route.params.matchId || '') !== matchId) {
+        await router.replace(`/battle/${matchId}`)
+      }
+    }
+    return
+  }
+  if (String(route.name || '') === 'BattlePage') return
   const status = Number(current?.status)
   if (current && status !== 3 && !current.closedAt && (current.members?.length || current.players?.length)) {
     room.syncRoomDetail(current, String(user.userId), user.username, new Map(user.friends.map(f => [String(f.id), f.displayName || f.username])))

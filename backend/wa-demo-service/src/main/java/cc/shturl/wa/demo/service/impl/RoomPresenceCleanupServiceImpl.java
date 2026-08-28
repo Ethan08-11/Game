@@ -13,6 +13,8 @@ import cc.shturl.wa.demo.service.RoomWebSocketSessionService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class RoomPresenceCleanupServiceImpl implements RoomPresenceCleanupService {
+    private static final Logger log = LoggerFactory.getLogger(RoomPresenceCleanupServiceImpl.class);
     private static final long HEARTBEAT_TIMEOUT_MILLIS = 60_000L;
     private static final long DISCONNECT_GRACE_MILLIS = 8_000L;
 
@@ -49,6 +52,11 @@ public class RoomPresenceCleanupServiceImpl implements RoomPresenceCleanupServic
     @Override
     public void handleUserConnected(Long userId) {
         cancelPendingDisconnect(userId);
+        try {
+            matchService.recoverOnlinePlayer(userId);
+        } catch (Exception e) {
+            log.warn("Recover online player failed userId={}: {}", userId, e.getMessage());
+        }
         userPresenceService.broadcastPresence(userId);
     }
 

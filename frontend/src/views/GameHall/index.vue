@@ -99,7 +99,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useRoomStore } from '@/store/room'
-import { leaveRoom, abandonMatch, getMatchDetail, getCurrentRoom, releaseIdleRoom, fetchMyTaskBoard } from '@/api'
+import { leaveRoom, abandonMatch, getMatchDetail, getCurrentMatch, getCurrentRoom, releaseIdleRoom, fetchMyTaskBoard } from '@/api'
 import { clearMatchCache } from '@/utils/matchCache'
 import FriendPanel from '@/components/FriendPanel.vue'
 import AnnouncementBar from '@/components/AnnouncementBar.vue'
@@ -196,28 +196,64 @@ async function doReconnect() {
   }
 }
 
-async function checkActiveMatch() {
-  const savedMatchId = sessionStorage.getItem('activeMatchId')
+function persistActiveMatch(matchId: string) {
+  if (!matchId) return
+  room.setMatchId(matchId)
+  sessionStorage.setItem('activeMatchId', matchId)
+}
+
+function matchIdFrom(value: unknown) {
+  if (value == null || value === '') return ''
+  return String(value)
+}
+
+async function resolveResumeMatchId(current: Awaited<ReturnType<typeof getCurrentRoom>> | null) {
+  const fromRoom = matchIdFrom(current?.matchId)
+  if (fromRoom) return fromRoom
+  try {
+    const live = await getCurrentMatch()
+    const fromLive = matchIdFrom(live?.matchId)
+    if (fromLive) return fromLive
+  } catch {
+    // 对局查询失败时退回本地缓存
+  }
+  if (current) return ''
+  return sessionStorage.getItem('activeMatchId') || matchIdFrom(room.matchId)
+}
+
+async function checkActiveMatch(current: Awaited<ReturnType<typeof getCurrentRoom>> | null) {
+  const savedMatchId = await resolveResumeMatchId(current)
   if (!savedMatchId) return
 
   try {
     const detail = await getMatchDetail(savedMatchId)
-    if (detail.phase === 'FINISHED' || detail.status === 2) {
+    if (detail.phase === 'FINISHED' || Number(detail.status) === 2) {
       sessionStorage.removeItem('activeMatchId')
       room.resetMatchMaking()
       clearMatchCache()
       return
     }
+    persistActiveMatch(savedMatchId)
     router.replace(`/battle/${savedMatchId}`)
   } catch {
+    if (matchIdFrom(current?.matchId) === savedMatchId) {
+      persistActiveMatch(savedMatchId)
+      router.replace(`/battle/${savedMatchId}`)
+      return
+    }
     sessionStorage.removeItem('activeMatchId')
-    room.resetMatchMaking()
-    clearMatchCache()
   }
 }
 
 async function startGame() {
   ElMessage.closeAll()
+  const current = await getCurrentRoom().catch(() => null)
+  const liveMatchId = await resolveResumeMatchId(current)
+  if (liveMatchId) {
+    persistActiveMatch(liveMatchId)
+    router.push(`/battle/${liveMatchId}`)
+    return
+  }
   await releaseIdleRoom().catch(() => {})
   room.resetMatchMaking()
   clearMatchCache()
@@ -268,12 +304,28 @@ onMounted(async () => {
   user.loadFriends()
   user.loadPoints()
   loadQuestBadge()
-  const current = await getCurrentRoom().catch(() => null)
-  if (!current) {
+  let current: Awaited<ReturnType<typeof getCurrentRoom>> | null = null
+  let roomLookupFailed = false
+  try {
+    current = await getCurrentRoom()
+  } catch {
+    roomLookupFailed = true
+  }
+  if (current) {
+    room.syncRoomDetail(
+      current,
+      String(user.userId),
+      user.username,
+      new Map(user.friends.map(f => [String(f.id), f.displayName || f.username])),
+    )
+    const matchId = matchIdFrom(current.matchId)
+    if (matchId) persistActiveMatch(matchId)
+  }
+  await checkActiveMatch(current)
+  if (!current && !roomLookupFailed && !room.matchId && !sessionStorage.getItem('activeMatchId')) {
     room.resetMatchMaking()
     clearMatchCache()
   }
-  checkActiveMatch()
 })
 
 onActivated(() => {
