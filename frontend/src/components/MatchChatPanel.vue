@@ -80,9 +80,9 @@ function submitDraft() {
 
 <style scoped>
 .match-chat-panel {
-  position: absolute;
-  left: 12px;
-  bottom: 16px;
+  position: relative;
+  left: auto;
+  bottom: auto;
   z-index: 50;
   width: 248px;
   max-height: min(320px, 46vh);

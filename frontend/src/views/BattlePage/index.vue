@@ -67,10 +67,6 @@
             <div class="funds-indicator"><img class="funds-icon" :src="fundsIcon" alt="" />调用机会 {{ currentFunds }}/{{ fundsCap }}</div>
           </div>
           <div class="hand-actions-row">
-            <button class="match-chat-btn" type="button" :disabled="game.isGameOver" @click="toggleMatchChat" aria-label="对局聊天">
-              <span class="match-chat-btn-text">对局聊天</span>
-              <span v-if="chatUnread > 0" class="match-chat-unread">{{ chatUnread > 9 ? '9+' : chatUnread }}</span>
-            </button>
             <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying" @click="endTurn" aria-label="结束回合" />
           </div>
 
@@ -352,14 +348,20 @@
       >{{ hit.text }}</div>
     </div>
 
-    <MatchChatPanel
-      v-if="chatOpen"
-      :messages="chatMessages"
-      :phrases="MATCH_CHAT_PHRASES"
-      :disabled="game.isGameOver"
-      @close="chatOpen = false"
-      @send="sendMatchChat"
-    />
+    <div class="match-chat-dock">
+      <button class="match-chat-btn" type="button" :disabled="game.isGameOver" @click="toggleMatchChat" aria-label="对局聊天">
+        <span class="match-chat-btn-text">对局聊天</span>
+        <span v-if="chatUnread > 0" class="match-chat-unread">{{ chatUnread > 9 ? '9+' : chatUnread }}</span>
+      </button>
+      <MatchChatPanel
+        v-if="chatOpen"
+        :messages="chatMessages"
+        :phrases="MATCH_CHAT_PHRASES"
+        :disabled="game.isGameOver"
+        @close="chatOpen = false"
+        @send="sendMatchChat"
+      />
+    </div>
 
   </div>
 </template>
@@ -2658,11 +2660,21 @@ onUnmounted(() => {
   height: 176px;
   margin-bottom: 4px;
 }
-.match-chat-btn {
+.match-chat-dock {
   position: absolute;
-  left: -94px;
-  bottom: -235px;
-  width: 60px;
+  left: 8px;
+  bottom: 268px;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.match-chat-btn {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  width: 56px;
   height: 152px;
   display: flex;
   align-items: center;
@@ -2671,6 +2683,7 @@ onUnmounted(() => {
   cursor: pointer;
   flex: 0 0 auto;
   overflow: visible;
+  pointer-events: auto;
   z-index: 2;
   transition: transform 0.2s ease;
   border: 1px solid rgba(93, 58, 26, 0.45);
