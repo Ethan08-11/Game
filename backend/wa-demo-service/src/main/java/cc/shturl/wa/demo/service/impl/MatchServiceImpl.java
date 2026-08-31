@@ -1090,11 +1090,10 @@ public class MatchServiceImpl implements MatchService {
         if (members.stream().anyMatch(member -> member.getReadyStatus() == null || member.getReadyStatus() != 1)) {
             throw new BusinessException("双方尚未全部准备");
         }
-        long deptCount = members.stream().map(RoomMembers::getDeptType).filter(dept -> dept != null && !dept.isBlank()).distinct().count();
-        boolean legal = deptCount == PLAYER_COUNT && members.stream()
+        boolean allHaveDept = members.stream()
                 .allMatch(member -> SALES.equals(member.getDeptType()) || PURCHASE.equals(member.getDeptType()));
-        if (!legal) {
-            throw new BusinessException("双方必须分别选择销售部和采购部");
+        if (!allHaveDept) {
+            throw new BusinessException("请先选择部门");
         }
     }
 

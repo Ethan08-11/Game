@@ -27,6 +27,7 @@ import java.util.List;
 public class LeaderboardServiceImpl implements LeaderboardService {
     private static final Logger log = LoggerFactory.getLogger(LeaderboardServiceImpl.class);
     private static final ZoneId LEADERBOARD_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final int MIN_WINRATE_MATCHES = 20;
 
     private final UserProfileMapper userProfileMapper;
     private final UserMapper userMapper;
@@ -40,6 +41,9 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         List<LeaderboardResp> ranked = new ArrayList<>();
         for (UserProfile profile : profiles) {
             if (profile.getUserId() == null) {
+                continue;
+            }
+            if (winRateBoard && totalMatches(profile) < MIN_WINRATE_MATCHES) {
                 continue;
             }
             ranked.add(toResp(0, profile));
@@ -82,6 +86,12 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 .filter(item -> currentUserId.equals(item.userId()))
                 .findFirst()
                 .orElseGet(() -> {
+                    UserProfile profile = userProfileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery()
+                            .eq(UserProfile::getUserId, currentUserId)
+                            .last("LIMIT 1"));
+                    if (profile != null) {
+                        return toResp(ranked.size() + 1, profile);
+                    }
                     User user = userMapper.selectById(currentUserId);
                     return new LeaderboardResp(ranked.size() + 1, currentUserId,
                             user == null ? null : user.getUsername(),
@@ -134,6 +144,13 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 winRatePercent(profile),
                 wins,
                 losses);
+    }
+
+    private int totalMatches(UserProfile profile) {
+        int wins = profile.getWinCount() == null ? 0 : profile.getWinCount();
+        int losses = profile.getLoseCount() == null ? 0 : profile.getLoseCount();
+        int draws = profile.getDrawCount() == null ? 0 : profile.getDrawCount();
+        return wins + losses + draws;
     }
 
     private int winRatePercent(UserProfile profile) {

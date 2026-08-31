@@ -83,7 +83,7 @@
           </template>
           <template v-else>
             <div class="avatar empty-slot">
-              <el-icon :size="18"><QuestionFilled /></el-icon>
+              <el-icon :size="28"><QuestionFilled /></el-icon>
             </div>
             <span class="nickname">{{ pendingInvite && i === 2 ? '等待对方接受...' : '等待加入...' }}</span>
           </template>
@@ -824,8 +824,9 @@ async function leaveCurrentRoom() {
 .slot {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: 14px;
+  padding: 18px 20px;
+  min-height: 96px;
   border-radius: var(--radius-lg);
   transition: all var(--transition-base);
   flex-wrap: wrap;
@@ -840,8 +841,8 @@ async function leaveCurrentRoom() {
 }
 
 .avatar {
-  width: 44px;
-  height: 44px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   flex-shrink: 0;
   display: flex;
@@ -853,14 +854,21 @@ async function leaveCurrentRoom() {
   background: rgba(0, 0, 0, 0.08);
   color: #8b7a65;
 }
-.nickname { flex: 1; font-size: var(--text-md); min-width: 80px; color: #4a3520; }
+.nickname {
+  flex: 1;
+  font-size: 22px;
+  font-weight: var(--weight-semibold);
+  min-width: 96px;
+  color: #4a3520;
+  line-height: 1.2;
+}
 .slot.empty .nickname { color: #8b7a65; }
 .host-badge {
-  padding: 2px 10px;
+  padding: 5px 14px;
   border-radius: var(--radius-full);
   background: #5a8a6a;
   color: #fff;
-  font-size: var(--text-xs);
+  font-size: 15px;
   font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
@@ -872,10 +880,10 @@ async function leaveCurrentRoom() {
 }
 
 .dept-badge {
-  padding: 2px var(--space-3);
+  padding: 5px 14px;
   border-radius: var(--radius-full);
   color: #fff;
-  font-size: var(--text-xs);
+  font-size: 15px;
   font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
@@ -888,16 +896,16 @@ async function leaveCurrentRoom() {
 }
 .dept-pending {
   color: #6a5338;
-  font-size: var(--text-sm);
+  font-size: 16px;
   font-weight: var(--weight-medium);
 }
 .dept-pending.clickable {
   cursor: pointer;
-  padding: 4px 12px;
+  padding: 6px 14px;
   border-radius: var(--radius-full);
   background: #c47a2c;
   color: #fff8ee;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: var(--weight-bold);
   letter-spacing: 0.04em;
   text-decoration: none;
@@ -910,11 +918,11 @@ async function leaveCurrentRoom() {
 }
 
 .ready-badge {
-  padding: var(--space-1) var(--space-3);
+  padding: 5px 14px;
   border-radius: var(--radius-full);
   background: rgba(125, 163, 138, 0.2);
   color: #5a8a6a;
-  font-size: var(--text-base);
+  font-size: 16px;
   font-weight: var(--weight-semibold);
   flex-shrink: 0;
 }
