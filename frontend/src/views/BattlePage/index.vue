@@ -16,11 +16,6 @@
             <span v-if="bullyActionText" class="status-pill">{{ bullyActionText }}</span>
             <span v-if="isSelectingFirstPlayer" class="status-pill">先手状态：{{ firstPlayerStatusText }}</span>
           </div>
-          <div class="entity-row">
-            <div class="entity-outline entity-outline-customer" :style="customerBoxStyle">
-              <EmployerCard />
-            </div>
-          </div>
           <div class="bully-status-hud" :class="{ 'is-flash': bullyHpFlash }">
             <BullyCard />
           </div>
@@ -337,6 +332,9 @@
       <div class="pos-rect pos-rect-bully" ref="bullyRectRef" :class="{ 'is-charging': bullyCharging, 'is-struck': bullyStruck }" :style="{ width: '188px', height: '289px', left: '51%', top: '16%' }">
         <img :src="bullyImg" alt="霸凌者" />
       </div>
+    </div>
+    <div v-if="!isSelectingFirstPlayer" class="customer-intro-anchor">
+      <EmployerCard />
     </div>
 
     <div ref="bullyFxLayerRef" class="bully-fx-layer" aria-hidden="true">
@@ -673,7 +671,6 @@ const titleTop = ref(15)
 const titleLeft = ref(0)
 const descTop = ref(68)
 const descLeft = ref(0)
-const customerBoxPos = reactive({ top: 344, left: 118 })
 const finishBtn = reactive({ w: 167, h: 83, bottom: -176, right: -170, imgW: 248, imgH: 64 })
 const p1RectW = ref(270)
 const p1RectH = ref(234)
@@ -690,12 +687,6 @@ const teammateId = computed(() => {
   const teammate = players.value.find(p => p.userId !== selfId)
   return teammate?.userId || ''
 })
-const customerBoxStyle = computed(() => ({
-  position: 'relative' as const,
-  zIndex: 20,
-  top: px(customerBoxPos.top),
-  left: px(customerBoxPos.left),
-}))
 const finishBtnStyle = computed(() => ({
   right: px(finishBtn.right),
   bottom: px(finishBtn.bottom),
@@ -2362,7 +2353,6 @@ onUnmounted(() => {
   border-color: rgba(240, 192, 64, 0.7);
   animation: revivePulse 1.5s ease-in-out infinite;
 }
-.entity-row { display: flex; align-items: center; justify-content: center; gap: var(--space-6); overflow: visible; }
 .vs-divider { font-size: var(--text-3xl); font-weight: var(--weight-bold); }
 .bully-status-hud {
   position: absolute;
@@ -3117,6 +3107,23 @@ onUnmounted(() => {
   overflow: hidden;
   clip-path: inset(0 0 240px 0);
 }
+.customer-intro-anchor {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 188px;
+  height: 289px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 3;
+}
+.customer-intro-anchor :deep(.employer-card) {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, calc(-100% - 4px));
+  pointer-events: auto;
+}
 .pos-rect {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -3456,10 +3463,6 @@ onUnmounted(() => {
 }
 .funds-indicator {
   font-size: calc(var(--text-base) * 2);
-}
-/* —— 组件轮廓 —— */
-.entity-outline {
-  position: relative;
 }
 
 </style>
