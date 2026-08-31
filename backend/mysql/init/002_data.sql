@@ -26,7 +26,7 @@ INSERT INTO `achievement_defs` VALUES (5, 'ACH-005', '隐藏彩蛋', 'hidden', '
 -- ----------------------------
 -- Table data for bullies
 -- ----------------------------
-INSERT INTO `bullies` VALUES (1, 'BULLY_BASIC_001', '普通霸凌者', '当前版本唯一的霸凌者模板，后续可扩展为多个难度与行为模板。', 120, 5, 0, 1, 0, '{"targetRule": "both_players", "canCritical": true, "attackPattern": "single_target"}', 1, '2026-07-22 13:04:31', '2026-07-22 13:04:31');
+INSERT INTO `bullies` VALUES (1, 'BULLY_BASIC_001', '普通霸凌者', '当前版本唯一的霸凌者模板，后续可扩展为多个难度与行为模板。', 110, 5, 0, 1, 0, '{"targetRule": "both_players", "canCritical": true, "attackPattern": "single_target"}', 1, '2026-07-22 13:04:31', '2026-07-22 13:04:31');
 
 -- ----------------------------
 -- Table data for card_depts

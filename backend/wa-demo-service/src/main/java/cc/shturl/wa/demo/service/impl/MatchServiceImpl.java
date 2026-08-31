@@ -101,7 +101,8 @@ public class MatchServiceImpl implements MatchService {
     private static final int DEFEAT_EXP = 30;
     private static final long VICTORY_MONEY = 50L;
     private static final long DEFEAT_MONEY = 40L;
-    private static final int BOSS_HP = 120;
+    private static final int BOSS_HP_MIN = 100;
+    private static final int BOSS_HP_MAX = 110;
     private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
     private static final long REVIVE_TIMEOUT_MILLIS = 90_000L;
     private static final long REVIVE_MAX_WAIT_MILLIS = 180_000L;
@@ -729,8 +730,9 @@ public class MatchServiceImpl implements MatchService {
         match.setStatus(1);
         match.setPhase(PLAYER_ACTION);
         match.setCurrentRound(1);
-        match.setBossMaxHp(BOSS_HP);
-        match.setBossCurrentHp(BOSS_HP);
+        int bossHp = ThreadLocalRandom.current().nextInt(BOSS_HP_MIN, BOSS_HP_MAX + 1);
+        match.setBossMaxHp(bossHp);
+        match.setBossCurrentHp(bossHp);
         match.setBossBaseAttack(bully.getAttackPower());
         match.setBossCurrentAttack(bully.getAttackPower());
         match.setWinnerType(0);

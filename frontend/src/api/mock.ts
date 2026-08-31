@@ -93,7 +93,7 @@ export const mockApiTasks: ApiTask[] = [
 export const mockGameConfig = {
   turnFunds: 3,
   initialStamina: 100,
-  maxBullyHP: 120,
+  maxBullyHP: 110,
   handSize: 5,
   bossMinDamage: 5,
   bossMaxDamage: 14,

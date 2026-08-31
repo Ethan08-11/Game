@@ -8,8 +8,8 @@ import type { EmployerTrait } from '@/types/gameEntities'
 
 export const useGameStore = defineStore('game', () => {
   const teamFunds = ref<number>(0)
-  const bullyHP = ref<number>(120)
-  const maxBullyHP = ref<number>(120)
+  const bullyHP = ref<number>(110)
+  const maxBullyHP = ref<number>(110)
   const totalDamageDealt = ref<number>(0)
   const turnFunds = ref<number>(3)
   const currentTurnFunds = ref<number>(3)
