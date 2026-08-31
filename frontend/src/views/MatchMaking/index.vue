@@ -61,10 +61,10 @@
     <div class="right-panel" :style="{ '--team-bg': `url(${matchFriendListBg})` }">
       <h3 class="panel-title">队伍房间</h3>
       <div class="room-slots">
-        <div v-for="i in 2" :key="i" class="slot" :class="{ filled: room.players[i-1], empty: !room.players[i-1] }">
-          <template v-if="room.players[i-1]">
-            <PlayerAvatar class="avatar" :src="slotAvatar(room.players[i-1])" :alt="room.players[i-1].username" />
-            <span class="nickname">{{ room.players[i-1].username }}</span>
+        <div v-for="i in 2" :key="i" class="slot" :class="{ filled: displayPlayers[i-1], empty: !displayPlayers[i-1] }">
+          <template v-if="displayPlayers[i-1]">
+            <PlayerAvatar class="avatar" :src="slotAvatar(displayPlayers[i-1])" :alt="displayPlayers[i-1].username" />
+            <span class="nickname">{{ displayPlayers[i-1].username }}</span>
             <span v-if="isHostSlot(i - 1)" class="host-badge">房主</span>
             <span
               v-if="getSlotDept(i - 1)"
@@ -188,7 +188,17 @@ const displayFriends = computed<DisplayFriend[]>(() =>
     invited: !!invitedIds.value[String(f.id)],
   })),
 )
-const selfIndex = computed(() => room.players.findIndex(p => room.isSelfPlayer(p.id)))
+const displayPlayers = computed(() => {
+  if (room.players.length > 0) return room.players
+  const id = String(user.userId || '')
+  if (!id) return []
+  return [{
+    id,
+    username: formatPlayerName(user.username) || '我',
+    avatarUrl: user.avatar || user.profile?.avatarUrl || null,
+  }]
+})
+const selfIndex = computed(() => displayPlayers.value.findIndex(p => String(p.id) === String(user.userId)))
 const mySeatIndex = computed<0 | 1>(() => (selfIndex.value === 1 ? 1 : 0))
 const isSelfReady = computed(() => (mySeatIndex.value === 0 ? room.player1Ready : room.player2Ready))
 
@@ -219,8 +229,10 @@ function isSelfSlot(index: number): boolean {
 }
 
 function isHostSlot(index: number): boolean {
-  const player = room.players[index]
-  return !!player && String(room.hostUserId) === String(player.id)
+  const player = displayPlayers.value[index]
+  if (!player) return false
+  if (room.hostUserId) return String(room.hostUserId) === String(player.id)
+  return index === 0 && String(player.id) === String(user.userId)
 }
 
 function getSlotDept(index: number): string {
@@ -440,6 +452,7 @@ onMounted(async () => {
   if (user.userId) {
     room.setCurrentUser(user.userId)
   }
+  void user.loadMe().catch(() => {})
   if (user.token) {
     connectRoomSocket(user.token)
   }
