@@ -315,15 +315,6 @@ public class RoomServiceImpl implements RoomService {
         requireOpenRoom(roomId);
         RoomMembers member = requireMember(roomId, currentUserId);
         String deptType = normalizeDeptType(request.deptType());
-        if (DEPT_SALES.equals(deptType) || DEPT_PURCHASE.equals(deptType)) {
-            RoomMembers other = roomMembersMapper.selectOne(Wrappers.<RoomMembers>lambdaQuery()
-                    .eq(RoomMembers::getRoomId, roomId)
-                    .ne(RoomMembers::getUserId, currentUserId)
-                    .eq(RoomMembers::getDeptType, deptType));
-            if (other != null) {
-                throw new BusinessException("该部门已被选择");
-            }
-        }
         member.setDeptType(deptType);
         roomMembersMapper.updateById(member);
         roomEventPublisher.publishDepartmentChanged(new RoomMemberDepartmentChangedEvent(

@@ -25,7 +25,7 @@
           </div>
           <div
             class="card"
-            :class="{ 'card-hero': entry.task.taskCode === 'T-DAILY-FIRST-WIN' }"
+            :class="{ 'card-hero': entry.task.taskType === 'weekly' }"
             :style="{ animationDelay: `${idx * 0.08}s` }"
           >
             <QuestTaskIcon class="task-medal" :code="entry.task.taskCode" />
@@ -137,7 +137,7 @@ const bgUrl = ref('')
 const claimingId = ref<number | null>(null)
 let resetTimer: ReturnType<typeof setInterval> | null = null
 
-const typeOrder = ['daily', 'growth', 'event']
+const typeOrder = ['daily', 'weekly', 'growth', 'event']
 
 const taskGroups = computed<TaskGroup[]>(() => {
   const map = new Map<string, UserTask[]>()
@@ -258,6 +258,7 @@ const eventY = ref(0)
 
 const tagBgMap: Record<string, string> = {
   daily: dailyTagBg,
+  weekly: eventTagBg,
   growth: growthTagBg,
   event: eventTagBg,
 }
@@ -283,6 +284,7 @@ function tagBgStyle(type: string) {
 function typeLabel(type: string): string {
   const labels: Record<string, string> = {
     daily: '每日',
+    weekly: '每周',
     growth: '成长',
     event: '事件',
   }
@@ -384,6 +386,7 @@ function rewardText(task: UserTask): string {
   min-height: 40px;
 }
 .tag-daily { color: #4a3520; }
+.tag-weekly { color: #4a3520; }
 .tag-growth { color: #4a3520; }
 .tag-event { color: #4a3520; }
 .type-count {

@@ -15,6 +15,7 @@ public interface TaskService {
 
     void recordLogin(Long userId);
     void recordMatchResult(Long userId, String resultType, Long teammateId);
+    void recordAdWatch(Long userId);
     void recordRoomFormation(Long userId, Long teammateId);
     void recordBattleAction(Long userId, String deptType, int cardsPlayed, int damageDealt);
 }

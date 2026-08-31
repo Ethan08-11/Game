@@ -15,7 +15,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.sql.Date;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
@@ -35,25 +34,33 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     @Override
     public List<LeaderboardResp> listLeaderboard(Long currentUserId, String type, int page, int size) {
-        ensureCurrentWeek();
-        boolean weekly = isWeekly(type);
+        ensureCurrentMonth();
+        boolean winRateBoard = isWinRateBoard(type);
         List<UserProfile> profiles = userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery());
         List<LeaderboardResp> ranked = new ArrayList<>();
         for (UserProfile profile : profiles) {
             if (profile.getUserId() == null) {
                 continue;
             }
-            ranked.add(toResp(0, profile, weekly));
+            ranked.add(toResp(0, profile));
         }
-        ranked.sort(Comparator
-                .comparing(LeaderboardResp::money, Comparator.nullsLast(Comparator.reverseOrder()))
-                .thenComparing(LeaderboardResp::winRate, Comparator.nullsLast(Comparator.reverseOrder()))
-                .thenComparing(LeaderboardResp::userId, Comparator.nullsLast(Comparator.naturalOrder())));
+        if (winRateBoard) {
+            ranked.sort(Comparator
+                    .comparing(LeaderboardResp::winRate, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(LeaderboardResp::winCount, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(LeaderboardResp::userId, Comparator.nullsLast(Comparator.naturalOrder())));
+        } else {
+            ranked.sort(Comparator
+                    .comparing(LeaderboardResp::money, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(LeaderboardResp::winRate, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(LeaderboardResp::userId, Comparator.nullsLast(Comparator.naturalOrder())));
+        }
         int displayRank = 1;
         List<LeaderboardResp> withRank = new ArrayList<>();
         for (LeaderboardResp item : ranked) {
             withRank.add(new LeaderboardResp(displayRank++, item.userId(), item.username(),
-                    item.displayName(), item.avatarUrl(), item.money(), item.winRate()));
+                    item.displayName(), item.avatarUrl(), item.money(), item.winRate(),
+                    item.winCount(), item.loseCount()));
         }
 
         if (size <= 0) {
@@ -80,41 +87,43 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                             user == null ? null : user.getUsername(),
                             user == null ? null : user.getUsername(),
                             user == null ? null : user.getAvatarUrl(),
-                            0L, 0);
+                            0L, 0, 0, 0);
                 });
     }
 
     @Override
-    @Scheduled(cron = "0 0 0 * * MON", zone = "Asia/Shanghai")
-    public void ensureCurrentWeek() {
-        LocalDate weekStart = currentWeekStart();
+    @Scheduled(cron = "0 0 0 1 * *", zone = "Asia/Shanghai")
+    public void ensureCurrentMonth() {
+        LocalDate monthStart = currentMonthStart();
         try {
             int claimed = jdbcTemplate.update(
                     "UPDATE leaderboard_week SET week_start = ? WHERE id = 1 AND week_start < ?",
-                    Date.valueOf(weekStart), Date.valueOf(weekStart));
+                    Date.valueOf(monthStart), Date.valueOf(monthStart));
             if (claimed > 0) {
-                userProfileMapper.update(null, Wrappers.<UserProfile>lambdaUpdate()
-                        .set(UserProfile::getWeeklyMoney, 0L));
-                log.info("Weekly leaderboard reset for week starting {}.", weekStart);
+                log.info("Leaderboard month rolled to {}.", monthStart);
             }
         } catch (Exception e) {
-            log.warn("Skip weekly leaderboard reset: {}", e.getMessage());
+            log.warn("Skip monthly leaderboard roll: {}", e.getMessage());
         }
     }
 
-    public static LocalDate currentWeekStart() {
-        return LocalDate.now(LEADERBOARD_ZONE).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    public static LocalDate currentMonthStart() {
+        return LocalDate.now(LEADERBOARD_ZONE).with(TemporalAdjusters.firstDayOfMonth());
     }
 
-    private boolean isWeekly(String type) {
-        return type != null && "weekly".equalsIgnoreCase(type.trim());
+    private boolean isWinRateBoard(String type) {
+        if (type == null) {
+            return false;
+        }
+        String normalized = type.trim();
+        return "weekly".equalsIgnoreCase(normalized) || "winrate".equalsIgnoreCase(normalized);
     }
 
-    private LeaderboardResp toResp(int rank, UserProfile profile, boolean weekly) {
+    private LeaderboardResp toResp(int rank, UserProfile profile) {
         User user = userMapper.selectById(profile.getUserId());
-        long money = weekly
-                ? (profile.getWeeklyMoney() == null ? 0L : profile.getWeeklyMoney())
-                : (profile.getMoney() == null ? 0L : profile.getMoney());
+        long money = profile.getMoney() == null ? 0L : profile.getMoney();
+        int wins = profile.getWinCount() == null ? 0 : profile.getWinCount();
+        int losses = profile.getLoseCount() == null ? 0 : profile.getLoseCount();
         return new LeaderboardResp(
                 rank,
                 profile.getUserId(),
@@ -122,7 +131,9 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 profile.getDisplayName() == null ? (user == null ? null : user.getUsername()) : profile.getDisplayName(),
                 user == null ? null : user.getAvatarUrl(),
                 money,
-                winRatePercent(profile));
+                winRatePercent(profile),
+                wins,
+                losses);
     }
 
     private int winRatePercent(UserProfile profile) {

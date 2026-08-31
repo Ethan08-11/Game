@@ -229,6 +229,8 @@ interface BackendLeaderboardEntry {
   rank: number
 }
 
+export type LeaderboardType = 'total' | 'winrate' | 'weekly'
+
 export interface LeaderboardEntry {
   userId: number
   username: string
@@ -236,15 +238,19 @@ export interface LeaderboardEntry {
   avatarUrl?: string | null
   money: number
   winRate: number
+  winCount: number
+  loseCount: number
   level: number
   rank: number
 }
 
 function transformLeaderboardEntry(be: BackendLeaderboardEntry): LeaderboardEntry {
-  const games = (be.winCount ?? 0) + (be.loseCount ?? 0) + (be.drawCount ?? 0)
+  const winCount = Math.max(0, Number(be.winCount) || 0)
+  const loseCount = Math.max(0, Number(be.loseCount) || 0)
+  const games = winCount + loseCount + (be.drawCount ?? 0)
   const winRate = Number.isFinite(Number(be.winRate))
     ? Math.max(0, Math.round(Number(be.winRate)))
-    : (games <= 0 ? 0 : Math.round(((be.winCount ?? 0) * 100) / games))
+    : (games <= 0 ? 0 : Math.round((winCount * 100) / games))
   return {
     userId: be.userId,
     username: formatPlayerName(be.username),
@@ -252,17 +258,19 @@ function transformLeaderboardEntry(be: BackendLeaderboardEntry): LeaderboardEntr
     avatarUrl: be.avatarUrl,
     money: be.money,
     winRate,
+    winCount,
+    loseCount,
     level: be.level ?? 1,
     rank: be.rank,
   }
 }
 
-export async function getLeaderboard(type: 'total' | 'weekly' = 'total', page = 1, size = 10000): Promise<LeaderboardEntry[]> {
+export async function getLeaderboard(type: LeaderboardType = 'total', page = 1, size = 10000): Promise<LeaderboardEntry[]> {
   const list = await apiCall<BackendLeaderboardEntry[]>(`/leaderboard?type=${type}&page=${page}&size=${size}`)
   return list.map(transformLeaderboardEntry)
 }
 
-export async function getMyLeaderboardRank(type: 'total' | 'weekly' = 'total'): Promise<LeaderboardEntry> {
+export async function getMyLeaderboardRank(type: LeaderboardType = 'total'): Promise<LeaderboardEntry> {
   const entry = await apiCall<BackendLeaderboardEntry>(`/leaderboard/me?type=${type}`)
   return transformLeaderboardEntry(entry)
 }

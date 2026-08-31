@@ -99,8 +99,9 @@ public class MatchServiceImpl implements MatchService {
     private static final String PLAYER_ACTION = "PLAYER_ACTION";
     private static final int VICTORY_EXP = 100;
     private static final int DEFEAT_EXP = 30;
-    private static final long VICTORY_MONEY = 50L;
-    private static final long DEFEAT_MONEY = 40L;
+    /** 对局不再发放金币，金币只通过任务领取。 */
+    private static final long VICTORY_MONEY = 0L;
+    private static final long DEFEAT_MONEY = 0L;
     private static final int BOSS_HP_MIN = 100;
     private static final int BOSS_HP_MAX = 110;
     private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
@@ -471,6 +472,13 @@ public class MatchServiceImpl implements MatchService {
         log.setVerifyStatus(1);
         log.setReviveReason(request.reviveReason());
         matchReviveLogMapper.insert(log);
+
+        try {
+            taskService.recordAdWatch(currentUserId);
+        } catch (Exception e) {
+            logger.warn("Skip ad-watch task progress userId={} matchId={}: {}",
+                    currentUserId, matchId, e.getMessage());
+        }
 
         match.setVersion(match.getVersion() + 1);
         matchesMapper.updateById(match);
@@ -2179,7 +2187,7 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards) {
-        leaderboardService.ensureCurrentWeek();
+        leaderboardService.ensureCurrentMonth();
         int winDelta = winnerType == 1 ? 1 : 0;
         int loseDelta = winnerType == 2 ? 1 : 0;
         int drawDelta = winnerType == 1 || winnerType == 2 ? 0 : 1;

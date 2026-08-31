@@ -13,6 +13,7 @@ public class UserTask extends BaseEntity {
     private String periodKey;
     private Integer progressValue;
     private Integer targetValue;
+    private String extraData;
     private Integer status;
     private java.time.LocalDateTime completedAt;
     private java.time.LocalDateTime claimedAt;

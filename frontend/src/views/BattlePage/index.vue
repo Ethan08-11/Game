@@ -1849,13 +1849,8 @@ function captureUnlockFromPlayers(list: any[] | undefined) {
 function pickRewardMoney(detail: any): number {
   const list = detail?.players ?? []
   const mine = findSettlementPlayer(list, currentBattleUserId()) || list[0]
-  if (detail?.moneyAwarded != null || mine?.moneyAwarded != null) {
-    const awarded = Number(detail?.moneyAwarded ?? mine?.moneyAwarded)
-    return Number.isFinite(awarded) ? awarded : 0
-  }
-  const reason = String(detail?.reason ?? '')
-  if (reason === 'abandon' || reason === 'reconnect_timeout') return 0
-  return resolveIsVictory(detail) ? 50 : 40
+  const awarded = Number(detail?.moneyAwarded ?? mine?.moneyAwarded ?? 0)
+  return Number.isFinite(awarded) ? awarded : 0
 }
 
 function applyGameOver(detail: any) {
@@ -1866,10 +1861,8 @@ function applyGameOver(detail: any) {
   applyBossHp(detail)
   resultPlayers.value = normalizeResultPlayers(detail.players)
   const reward = pickRewardMoney(detail)
-  if (reward > 0 || game.isVictory) {
-    resultRewardMoney.value = reward
-    game.pointsEarned = reward
-  }
+  resultRewardMoney.value = reward
+  game.pointsEarned = reward
   if (game.isVictory) {
     captureUnlockFromPlayers(detail.players)
   } else {

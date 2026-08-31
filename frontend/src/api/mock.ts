@@ -37,9 +37,14 @@ export const mockLeaderboard = {
     { userId: 5, username: 'qiang', displayName: 'IT阿强', money: 140, level: 2, rank: 5 },
   ],
   weekly: [
-    { userId: 2, username: 'li', displayName: '销冠小李', money: 95, level: 4, rank: 1 },
-    { userId: 1, username: 'wang', displayName: '外贸达人小王', money: 80, level: 5, rank: 2 },
-    { userId: 3, username: 'player_c', displayName: '玩家C', money: 60, level: 3, rank: 3 },
+    { userId: 2, username: 'li', displayName: '销冠小李', money: 380, winRate: 80, winCount: 8, loseCount: 2, level: 4, rank: 1 },
+    { userId: 1, username: 'wang', displayName: '外贸达人小王', money: 520, winRate: 70, winCount: 7, loseCount: 3, level: 5, rank: 2 },
+    { userId: 3, username: 'player_c', displayName: '玩家C', money: 210, winRate: 60, winCount: 3, loseCount: 2, level: 3, rank: 3 },
+  ],
+  winrate: [
+    { userId: 2, username: 'li', displayName: '销冠小李', money: 380, winRate: 80, winCount: 8, loseCount: 2, level: 4, rank: 1 },
+    { userId: 1, username: 'wang', displayName: '外贸达人小王', money: 520, winRate: 70, winCount: 7, loseCount: 3, level: 5, rank: 2 },
+    { userId: 3, username: 'player_c', displayName: '玩家C', money: 210, winRate: 60, winCount: 3, loseCount: 2, level: 3, rank: 3 },
   ],
 }
 
@@ -55,11 +60,13 @@ export const mockSkins = [
 
 // ==================== Quests ====================
 export const mockQuests = [
-  { id: 'q1', icon: 'attack', name: '每日对战', description: '完成2场对战', progress: 1, target: 2, reward: 30, type: 'daily' as const },
-  { id: 'q2', icon: 'promotion', name: '组队达人', description: '与好友组队完成对战', progress: 0, target: 1, reward: 50, type: 'daily' as const },
-  { id: 'q3', icon: 'trophy', name: '签约高手', description: '单次对战胜率满意度达到100', progress: 0, target: 1, reward: 100, type: 'weekly' as const },
-  { id: 'q4', icon: 'box', name: '卡牌收藏家', description: '收集20张不同卡牌', progress: 10, target: 20, reward: 80, type: 'weekly' as const },
-  { id: 'q5', icon: 'star', name: '社交达人', description: '添加5位好友', progress: 2, target: 5, reward: 60, type: 'weekly' as const },
+  { id: 'q1', icon: 'attack', name: '完成第 1 局', description: '今天打完第 1 局即可，输赢都算', progress: 0, target: 1, reward: 30, type: 'daily' as const },
+  { id: 'q2', icon: 'trophy', name: '赢第 1 局', description: '今天第 1 局获胜，看广告复活也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
+  { id: 'q3', icon: 'attack', name: '完成第 2 局', description: '今天打完第 2 局即可，输赢都算', progress: 0, target: 1, reward: 40, type: 'daily' as const },
+  { id: 'q4', icon: 'trophy', name: '赢第 2 局', description: '今天第 2 局获胜，看广告复活也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
+  { id: 'q5', icon: 'attack', name: '完成第 3 局', description: '今天打完第 3 局即可，输赢都算', progress: 0, target: 1, reward: 50, type: 'daily' as const },
+  { id: 'q6', icon: 'trophy', name: '赢第 3 局', description: '今天第 3 局获胜，看广告复活也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
+  { id: 'q7', icon: 'promotion', name: '跟 10 位不同同事组合', description: '本周在每日前 3 局里，和 10 个不同的人组过队', progress: 0, target: 10, reward: 500, type: 'weekly' as const },
 ]
 
 // ==================== Cards（数据源: utils/cardData.ts） ====================
@@ -83,10 +90,13 @@ export const mockCardList: ApiCard[] = [
 import type { ApiTask } from './social'
 
 export const mockApiTasks: ApiTask[] = [
-  { id: 1, taskCode: 'T-LOGIN-001', taskName: '每日登录', taskType: 'daily', description: '每日登录一次即可完成', conditionType: 'login_count', conditionValue: '{"days": 1}', rewardType: 'money', rewardValue: '{"amount": 100}', targetCount: 1, sortNo: 1, status: 1 },
-  { id: 2, taskCode: 'T-BATTLE-001', taskName: '完成一场对局', taskType: 'daily', description: '完成任意一场对局', conditionType: 'match_count', conditionValue: '{"count": 1}', rewardType: 'exp', rewardValue: '{"amount": 50}', targetCount: 1, sortNo: 2, status: 1 },
-  { id: 3, taskCode: 'T-CARD-001', taskName: '使用卡牌', taskType: 'growth', description: '累计使用 200 张卡牌', conditionType: 'card_play_count', conditionValue: '{"count": 200}', rewardType: 'money', rewardValue: '{"amount": 200}', targetCount: 200, sortNo: 3, status: 1 },
-  { id: 4, taskCode: 'T-FRIEND-001', taskName: '添加好友', taskType: 'event', description: '成功添加 1 位好友', conditionType: 'friend_count', conditionValue: '{"count": 1}', rewardType: 'item', rewardValue: '{"count": 1, "itemCode": "FRIEND_COIN"}', targetCount: 1, sortNo: 4, status: 1 },
+  { id: 1, taskCode: 'T-DAILY-MATCH-1', taskName: '完成第 1 局', taskType: 'daily', description: '今天打完第 1 局即可，输赢都算', conditionType: 'match_count', conditionValue: '{}', rewardType: 'money', rewardValue: '{"amount":30}', targetCount: 1, sortNo: 10, status: 1 },
+  { id: 2, taskCode: 'T-DAILY-WIN-1', taskName: '赢第 1 局', taskType: 'daily', description: '今天第 1 局获胜，看广告复活也算', conditionType: 'match_slot_win', conditionValue: '{"slot":1}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 11, status: 1 },
+  { id: 3, taskCode: 'T-DAILY-MATCH-2', taskName: '完成第 2 局', taskType: 'daily', description: '今天打完第 2 局即可，输赢都算', conditionType: 'match_count', conditionValue: '{}', rewardType: 'money', rewardValue: '{"amount":40}', targetCount: 2, sortNo: 20, status: 1 },
+  { id: 4, taskCode: 'T-DAILY-WIN-2', taskName: '赢第 2 局', taskType: 'daily', description: '今天第 2 局获胜，看广告复活也算', conditionType: 'match_slot_win', conditionValue: '{"slot":2}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 21, status: 1 },
+  { id: 5, taskCode: 'T-DAILY-MATCH-3', taskName: '完成第 3 局', taskType: 'daily', description: '今天打完第 3 局即可，输赢都算', conditionType: 'match_count', conditionValue: '{}', rewardType: 'money', rewardValue: '{"amount":50}', targetCount: 3, sortNo: 30, status: 1 },
+  { id: 6, taskCode: 'T-DAILY-WIN-3', taskName: '赢第 3 局', taskType: 'daily', description: '今天第 3 局获胜，看广告复活也算', conditionType: 'match_slot_win', conditionValue: '{"slot":3}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 31, status: 1 },
+  { id: 7, taskCode: 'T-WEEKLY-TEAM-10', taskName: '跟 10 位不同同事组合', taskType: 'weekly', description: '本周在每日前 3 局里，和 10 个不同的人组过队', conditionType: 'distinct_teammate', conditionValue: '{}', rewardType: 'money', rewardValue: '{"amount":500}', targetCount: 10, sortNo: 90, status: 1 },
 ]
 
 // ==================== Game Config ====================

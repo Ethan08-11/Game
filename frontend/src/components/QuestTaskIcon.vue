@@ -133,21 +133,13 @@ const props = defineProps<{
 }>()
 
 const KIND_BY_CODE: Record<string, string> = {
-  'T-DAILY-LOGIN': 'sun',
-  'T-DAILY-FIRST-WIN': 'crown',
   'T-DAILY-MATCH-1': 'sword',
+  'T-DAILY-WIN-1': 'crown',
   'T-DAILY-MATCH-2': 'shield',
+  'T-DAILY-WIN-2': 'chalice',
   'T-DAILY-MATCH-3': 'castle',
-  'T-CARD-001': 'sword',
-  'T-DAILY-ROTATE-0': 'scales',
-  'T-DAILY-ROTATE-1': 'crate',
-  'T-DAILY-ROTATE-2': 'axe',
-  'T-DAILY-ROTATE-3': 'scroll',
-  'T-DAILY-ROTATE-4': 'owl',
-  'T-DAILY-ROTATE-5': 'chalice',
-  'T-DAILY-ROTATE-6': 'bow',
-  'T-STREAK-3': 'candles',
-  'T-STREAK-7': 'sundial',
+  'T-DAILY-WIN-3': 'candles',
+  'T-WEEKLY-TEAM-10': 'helms',
 }
 
 const FALLBACKS = ['potion', 'horn', 'anvil', 'key', 'sword', 'shield', 'owl']

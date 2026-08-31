@@ -32,7 +32,9 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.time.YearMonth;
 
 @Slf4j
@@ -40,7 +42,7 @@ import java.time.YearMonth;
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
-    private static final String FIRST_WIN_CODE = "T-DAILY-FIRST-WIN";
+    private static final String WEEKLY_TEAM_CODE = "T-WEEKLY-TEAM-10";
 
     private final TaskMapper taskMapper;
     private final UserTaskMapper userTaskMapper;
@@ -69,26 +71,21 @@ public class TaskServiceImpl implements TaskService {
         if (!userExists(userId)) {
             return new MyTaskBoardResp(List.of(), 0, 0, false, secondsUntilDailyReset());
         }
-        activateTodayRotateTask();
         ensureDefaultTasks(userId);
         recordLogin(userId);
         List<UserTaskResp> visible = currentVisibleTasks(userId);
         int remainingMoney = 0;
         int claimable = 0;
-        boolean firstWinIncomplete = false;
         for (UserTaskResp item : visible) {
             int status = item.status() == null ? 0 : item.status();
             if (status < 3 && "daily".equalsIgnoreCase(item.taskType()) && "money".equalsIgnoreCase(item.rewardType())) {
                 remainingMoney += rewardAmount(item.rewardValue());
             }
-            if (status == 2 && "daily".equalsIgnoreCase(item.taskType())) {
+            if (status == 2) {
                 claimable++;
             }
-            if (FIRST_WIN_CODE.equals(item.taskCode()) && status < 2) {
-                firstWinIncomplete = true;
-            }
         }
-        return new MyTaskBoardResp(visible, remainingMoney, claimable, firstWinIncomplete, secondsUntilDailyReset());
+        return new MyTaskBoardResp(visible, remainingMoney, claimable, false, secondsUntilDailyReset());
     }
 
     @Override
@@ -119,7 +116,7 @@ public class TaskServiceImpl implements TaskService {
             }
         }
         if (money > 0 || exp > 0) {
-            leaderboardService.ensureCurrentWeek();
+            leaderboardService.ensureCurrentMonth();
             userProfileMapper.applyMatchSettlement(userId, 0, 0, 0, exp, money);
         }
         userTask.setStatus(3);
@@ -135,7 +132,6 @@ public class TaskServiceImpl implements TaskService {
         if (!userExists(userId)) {
             return;
         }
-        activateTodayRotateTask();
         ensureDefaultTasks(userId);
         LocalDate today = LocalDate.now(ZONE);
         UserProfile profile = userProfileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery()
@@ -174,14 +170,34 @@ public class TaskServiceImpl implements TaskService {
             log.warn("Skip match task progress for missing user {}", userId);
             return;
         }
+        int previous = dailyMatchProgress(userId);
         bumpByProgressType(userId, "MATCH_COUNT", 1, null);
-        if ("WIN".equalsIgnoreCase(resultType)) {
-            bumpByProgressType(userId, "WIN_COUNT", 1, null);
-        } else if ("LOSE".equalsIgnoreCase(resultType)) {
+        int slot = previous + 1;
+        if (slot <= 3) {
+            if ("WIN".equalsIgnoreCase(resultType)) {
+                completeMatchSlotWin(userId, slot);
+            }
+            if (teammateId != null) {
+                addUniqueTeammate(userId, teammateId);
+            }
+        }
+        if ("LOSE".equalsIgnoreCase(resultType)) {
             bumpByProgressType(userId, "LOSE_COUNT", 1, null);
         }
         if (teammateId != null) {
             bumpByProgressType(userId, "COOP_MATCH_COUNT", 1, null);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void recordAdWatch(Long userId) {
+        if (!userExists(userId)) {
+            return;
+        }
+        int slot = dailyMatchProgress(userId) + 1;
+        if (slot >= 1 && slot <= 3) {
+            completeMatchSlotWin(userId, slot);
         }
     }
 
@@ -192,7 +208,6 @@ public class TaskServiceImpl implements TaskService {
             log.warn("Skip room task progress for missing user {}", userId);
             return;
         }
-        bumpByProgressType(userId, "DISTINCT_TEAMMATE_COUNT", 1, null);
         bumpByProgressType(userId, "TEAM_COUNT", 1, null);
     }
 
@@ -221,6 +236,9 @@ public class TaskServiceImpl implements TaskService {
                 continue;
             }
             if ("PLAY_DEPT".equals(progressType) && !deptMatches(task, deptType)) {
+                continue;
+            }
+            if ("MATCH_SLOT_WIN".equals(progressType)) {
                 continue;
             }
             UserTask userTask = findOrCreateUserTask(userId, task, periodKeyFor(task));
@@ -253,6 +271,12 @@ public class TaskServiceImpl implements TaskService {
         }
         if ("MATCH_COUNT".equals(progressType)) {
             return "match_count".equalsIgnoreCase(condition);
+        }
+        if ("MATCH_SLOT_WIN".equals(progressType)) {
+            return "match_slot_win".equalsIgnoreCase(condition);
+        }
+        if ("DISTINCT_TEAMMATE_COUNT".equals(progressType)) {
+            return "distinct_teammate".equalsIgnoreCase(condition);
         }
         if ("LOGIN_COUNT".equals(progressType)) {
             return "login_count".equalsIgnoreCase(condition) || "login_days".equalsIgnoreCase(condition);
@@ -312,17 +336,85 @@ public class TaskServiceImpl implements TaskService {
         userTaskMapper.updateById(userTask);
     }
 
-    private void activateTodayRotateTask() {
-        int todayIndex = LocalDate.now(ZONE).getDayOfWeek().getValue() - 1;
-        List<Tasks> rotates = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
-                .likeRight(Tasks::getTaskCode, "T-DAILY-ROTATE-"));
-        for (Tasks task : rotates) {
-            boolean active = task.getTaskCode() != null && task.getTaskCode().endsWith("-" + todayIndex);
-            int nextStatus = active ? 1 : 0;
-            if (task.getStatus() == null || task.getStatus() != nextStatus) {
-                task.setStatus(nextStatus);
-                taskMapper.updateById(task);
+    private int dailyMatchProgress(Long userId) {
+        List<Tasks> tasks = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
+                .eq(Tasks::getStatus, 1)
+                .eq(Tasks::getProgressType, "MATCH_COUNT"));
+        int max = 0;
+        for (Tasks task : tasks) {
+            UserTask userTask = userTaskMapper.selectOne(Wrappers.<UserTask>lambdaQuery()
+                    .eq(UserTask::getUserId, userId)
+                    .eq(UserTask::getTaskId, task.getId())
+                    .eq(UserTask::getPeriodKey, periodKeyFor(task)));
+            if (userTask == null || userTask.getProgressValue() == null) {
+                continue;
             }
+            max = Math.max(max, userTask.getProgressValue());
+        }
+        return max;
+    }
+
+    private void completeMatchSlotWin(Long userId, int slot) {
+        List<Tasks> tasks = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
+                .eq(Tasks::getStatus, 1)
+                .eq(Tasks::getProgressType, "MATCH_SLOT_WIN"));
+        for (Tasks task : tasks) {
+            if (jsonInt(task.getConditionValue(), "slot") != slot) {
+                continue;
+            }
+            UserTask userTask = findOrCreateUserTask(userId, task, periodKeyFor(task));
+            if (userTask == null || userTask.getId() == null) {
+                continue;
+            }
+            if (userTask.getStatus() != null && userTask.getStatus() >= 2) {
+                continue;
+            }
+            applyProgress(userTask, task, 1);
+        }
+    }
+
+    private void addUniqueTeammate(Long userId, Long teammateId) {
+        Tasks task = taskMapper.selectOne(Wrappers.<Tasks>lambdaQuery()
+                .eq(Tasks::getTaskCode, WEEKLY_TEAM_CODE)
+                .eq(Tasks::getStatus, 1)
+                .last("LIMIT 1"));
+        if (task == null) {
+            return;
+        }
+        UserTask userTask = findOrCreateUserTask(userId, task, periodKeyFor(task));
+        if (userTask == null || userTask.getId() == null) {
+            return;
+        }
+        if (userTask.getStatus() != null && userTask.getStatus() >= 2) {
+            return;
+        }
+        Set<Long> ids = parseIdSet(userTask.getExtraData());
+        if (!ids.add(teammateId)) {
+            return;
+        }
+        userTask.setExtraData(writeIdSet(ids));
+        applyProgress(userTask, task, ids.size());
+    }
+
+    private Set<Long> parseIdSet(String json) {
+        Set<Long> ids = new LinkedHashSet<>();
+        JsonNode node = readJson(json);
+        if (node == null || !node.isArray()) {
+            return ids;
+        }
+        for (JsonNode item : node) {
+            if (item.isNumber()) {
+                ids.add(item.longValue());
+            }
+        }
+        return ids;
+    }
+
+    private String writeIdSet(Set<Long> ids) {
+        try {
+            return objectMapper.writeValueAsString(ids);
+        } catch (Exception e) {
+            return "[]";
         }
     }
 
@@ -345,6 +437,7 @@ public class TaskServiceImpl implements TaskService {
         List<UserTask> userTasks = userTaskMapper.selectList(Wrappers.<UserTask>lambdaQuery()
                 .eq(UserTask::getUserId, userId));
         List<UserTaskResp> result = new ArrayList<>();
+        java.util.Map<Long, Integer> sortNos = new java.util.HashMap<>();
         for (UserTask userTask : userTasks) {
             Tasks task = taskMapper.selectById(userTask.getTaskId());
             if (task == null || task.getStatus() == null || task.getStatus() != 1) {
@@ -353,19 +446,20 @@ public class TaskServiceImpl implements TaskService {
             if (!periodKeyFor(task).equals(userTask.getPeriodKey())) {
                 continue;
             }
+            sortNos.put(task.getId(), task.getSortNo() == null ? 0 : task.getSortNo());
             result.add(toUserTaskResp(userTask, task));
         }
         result.sort(Comparator
                 .comparing((UserTaskResp item) -> typeOrder(item.taskType()))
-                .thenComparing(item -> item.targetCount() == null ? 0 : item.targetCount())
-                .thenComparing(item -> item.taskId() == null ? 0L : item.taskId()));
+                .thenComparing(item -> sortNos.getOrDefault(item.taskId(), 0)));
         return result;
     }
 
     private int typeOrder(String type) {
         if ("daily".equalsIgnoreCase(type)) return 0;
-        if ("growth".equalsIgnoreCase(type)) return 1;
-        return 2;
+        if ("weekly".equalsIgnoreCase(type)) return 1;
+        if ("growth".equalsIgnoreCase(type)) return 2;
+        return 3;
     }
 
     private UserTask findOrCreateUserTask(Long userId, Tasks task, String periodKey) {
@@ -459,6 +553,14 @@ public class TaskServiceImpl implements TaskService {
             return 0;
         }
         return node.path("amount").asInt(0);
+    }
+
+    private int jsonInt(String json, String field) {
+        JsonNode node = readJson(json);
+        if (node == null || node.path(field).isMissingNode()) {
+            return 0;
+        }
+        return node.path(field).asInt(0);
     }
 
     private String jsonText(String json, String field) {

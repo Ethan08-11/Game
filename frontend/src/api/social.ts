@@ -9,7 +9,7 @@ export interface ApiTask {
   id: number
   taskCode: string
   taskName: string
-  taskType: 'daily' | 'growth' | 'event'
+  taskType: 'daily' | 'weekly' | 'growth' | 'event'
   description: string
   conditionType: string
   conditionValue: string
@@ -25,7 +25,7 @@ export interface UserTask {
   taskId: number
   taskCode: string
   taskName: string
-  taskType: 'daily' | 'growth' | 'event'
+  taskType: 'daily' | 'weekly' | 'growth' | 'event'
   resetType?: string
   periodScope?: string
   progressType?: string

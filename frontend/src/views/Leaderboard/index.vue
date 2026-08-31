@@ -4,17 +4,23 @@
     <div class="title-bar" :style="{ '--title-bg': `url(${titleBg})` }">排行榜</div>
     <div class="tabs">
       <button :class="{ active: tab === 'total' }" @click="tab = 'total'">总榜</button>
-      <button :class="{ active: tab === 'weekly' }" @click="tab = 'weekly'">周榜</button>
+      <button :class="{ active: tab === 'winrate' }" @click="tab = 'winrate'">胜率榜</button>
     </div>
-    <p v-if="tab === 'weekly'" class="week-hint">本周金币 · 下周一 0:00 重置后重新累计</p>
+    <p class="week-hint">{{ tab === 'total' ? '累计金币 · 每月更新' : '累计胜率 · 每月更新' }}</p>
     <div ref="listRef" class="list" :key="tab">
       <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${Math.min(idx * 0.03, 0.4)}s` }">
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
         <PlayerAvatar class="row-avatar" :src="item.avatarUrl" :alt="item.displayName || item.username" />
         <span class="name">{{ item.displayName || item.username }}</span>
         <div class="stats">
-          <span class="pts">{{ item.money }} 金币</span>
-          <span class="rate">胜率 {{ item.winRate }}%</span>
+          <template v-if="tab === 'total'">
+            <span class="pts">{{ item.money }} 金币</span>
+            <span class="rate">胜率 {{ item.winRate }}%</span>
+          </template>
+          <template v-else>
+            <span class="pts">胜率 {{ item.winRate }}%</span>
+            <span class="rate">{{ item.winCount }}胜 {{ item.loseCount }}负</span>
+          </template>
         </div>
       </div>
       <div v-if="list.length === 0" class="empty">暂无排行数据</div>
@@ -34,7 +40,7 @@ import pageBg from '@/assets/beijing0.webp'
 import hallDay from '@/assets/hall-bg2.webp'
 import hallNight from '@/assets/hall-bg.webp'
 
-const tab = ref<'total' | 'weekly'>('total')
+const tab = ref<'total' | 'winrate'>('total')
 const list = ref<LeaderboardEntry[]>([])
 const listRef = ref<HTMLElement | null>(null)
 const hour = new Date().getHours()
@@ -127,7 +133,7 @@ watch(tab, loadLeaderboard)
 .list { max-width: 760px; margin: 0 auto; flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 120px; width: 100%; }
 .row {
   display: grid;
-  grid-template-columns: 48px 56px minmax(0, 1fr) 118px;
+  grid-template-columns: 48px 56px minmax(0, 1fr) 132px;
   align-items: center;
   column-gap: 12px;
   padding: 8px 96px 8px 20px;

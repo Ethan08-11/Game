@@ -13,7 +13,7 @@ import java.sql.Date;
 import java.time.LocalDate;
 
 /**
- * 周榜：本周金币列 + 当前周起始日。每周一 0 点（Asia/Shanghai）刷新。
+ * 排行榜周期：总榜与胜率榜均按月计。每月 1 日 0 点（Asia/Shanghai）进入新月。
  */
 @Component
 @Order(2)
@@ -30,14 +30,14 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (!tableExists("user_profiles")) {
-            log.info("user_profiles missing; skip weekly leaderboard schema.");
+            log.info("user_profiles missing; skip leaderboard schema.");
             return;
         }
         ensureWeeklyMoneyColumn();
         ensureWeekStateTable();
         ensureAlignedFlagColumn();
         alignWeeklyToTotalOnce();
-        log.info("Weekly leaderboard schema ready, week starting {}.", LeaderboardServiceImpl.currentWeekStart());
+        log.info("Leaderboard schema ready, month starting {}.", LeaderboardServiceImpl.currentMonthStart());
     }
 
     private boolean ensureWeeklyMoneyColumn() {
@@ -47,7 +47,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
         jdbcTemplate.execute("""
                 ALTER TABLE `user_profiles`
                 ADD COLUMN `weekly_money` bigint NOT NULL DEFAULT 0
-                COMMENT '本周获得金币，每周一0点清零'
+                COMMENT '历史周榜金币列，胜率榜已改按月、不再使用'
                 AFTER `money`
                 """);
         log.info("Added user_profiles.weekly_money column.");
@@ -61,9 +61,9 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
                   week_start date NOT NULL,
                   aligned_to_total tinyint NOT NULL DEFAULT 0,
                   PRIMARY KEY (id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='周榜当前周起始日（周一）'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='排行榜当前月起始日'
                 """);
-        LocalDate weekStart = LeaderboardServiceImpl.currentWeekStart();
+        LocalDate weekStart = LeaderboardServiceImpl.currentMonthStart();
         Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM leaderboard_week WHERE id = 1", Integer.class);
         if (count == null || count == 0) {
             jdbcTemplate.update("INSERT INTO leaderboard_week(id, week_start) VALUES (1, ?)", Date.valueOf(weekStart));
@@ -83,7 +83,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
     }
 
     /**
-     * 一次性把周榜金币对齐总榜，本周两边数字一致；下周一 0 点再按原逻辑清零周榜。
+     * 历史一次性对齐；胜率榜已不再读 weekly_money。
      */
     private void alignWeeklyToTotalOnce() {
         Integer aligned = jdbcTemplate.queryForObject(
@@ -92,12 +92,12 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
             return;
         }
         int updated = jdbcTemplate.update("UPDATE user_profiles SET weekly_money = IFNULL(money, 0)");
-        LocalDate weekStart = LeaderboardServiceImpl.currentWeekStart();
+        LocalDate monthStart = LeaderboardServiceImpl.currentMonthStart();
         jdbcTemplate.update(
                 "UPDATE leaderboard_week SET week_start = ?, aligned_to_total = 1 WHERE id = 1",
-                Date.valueOf(weekStart));
-        log.info("Aligned weekly_money to total money for {} profiles; next reset is Monday after {}.",
-                updated, weekStart);
+                Date.valueOf(monthStart));
+        log.info("Aligned leftover weekly_money for {} profiles; leaderboard month starts {}.",
+                updated, monthStart);
     }
 
     private boolean tableExists(String tableName) {

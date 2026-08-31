@@ -78,13 +78,8 @@ const isVictory = computed(() => {
 const rewardMoney = computed(() => {
   const list = settlement.value?.players ?? []
   const mine = findSettlementPlayer(list, user.userId) || list[0]
-  if (mine?.moneyAwarded != null) {
-    const awarded = Number(mine.moneyAwarded)
-    return Number.isFinite(awarded) ? awarded : 0
-  }
-  const awarded = Number(game.pointsEarned)
-  if (Number.isFinite(awarded) && awarded > 0) return awarded
-  return isVictory.value ? 50 : 40
+  const awarded = Number(mine?.moneyAwarded ?? 0)
+  return Number.isFinite(awarded) ? awarded : 0
 })
 const mySettlement = computed(() => findSettlementPlayer(settlement.value?.players, user.userId))
 const unlockedCard = computed(() => unlockedCardFromSettlement(mySettlement.value))
@@ -99,8 +94,8 @@ onMounted(async () => {
     game.maxBullyHP = settlement.value.bossMaxHp ?? game.maxBullyHP
     game.bullyHP = settlement.value.bossRemainingHp ?? game.bullyHP
     game.pointsEarned = rewardMoney.value
-  } else if (game.pointsEarned <= 0) {
-    game.pointsEarned = game.isVictory ? 50 : 40
+  } else {
+    game.pointsEarned = 0
   }
   void user.loadMe().catch(() => {})
 })

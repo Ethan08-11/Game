@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { calcPointsFromDamage } from '@/utils/gameCalc'
 import { getCurrentCustomer, getGameConfig, submitGameResult } from '@/api'
 import { rollEmployerTrait, getEmployerAction } from '@/utils/employerTraits'
 import { randomBullyName, randomEmployerName } from '@/utils/bullyData'
@@ -86,7 +85,7 @@ export const useGameStore = defineStore('game', () => {
     if (bullyHP.value <= 0) {
       isVictory.value = true
       isGameOver.value = true
-      pointsEarned.value = calcPointsFromDamage(totalDamageDealt.value, true)
+      pointsEarned.value = 0
     }
   }
 
@@ -148,18 +147,18 @@ export const useGameStore = defineStore('game', () => {
 
   async function submitResult(rounds: number): Promise<number> {
     try {
-      const res = await submitGameResult({
+      await submitGameResult({
         totalDamage: totalDamageDealt.value,
         player1Stamina: player1Stamina.value,
         player2Stamina: player2Stamina.value,
         rounds,
         isVictory: isVictory.value,
       })
-      pointsEarned.value = res.pointsEarned
-      return res.pointsEarned
+      pointsEarned.value = 0
+      return 0
     } catch {
-      pointsEarned.value = isVictory.value ? calcPointsFromDamage(totalDamageDealt.value, true) : 0
-      return pointsEarned.value
+      pointsEarned.value = 0
+      return 0
     }
   }
 

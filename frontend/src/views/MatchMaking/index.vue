@@ -887,17 +887,26 @@ async function leaveCurrentRoom() {
   opacity: 0.8;
 }
 .dept-pending {
-  color: #8b7a65;
-  font-size: var(--text-xs);
+  color: #6a5338;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
 }
 .dept-pending.clickable {
   cursor: pointer;
-  color: var(--color-accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: #c47a2c;
+  color: #fff8ee;
+  font-size: 13px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  box-shadow: 0 1px 0 rgba(74, 53, 32, 0.28);
+  white-space: nowrap;
 }
 .dept-pending.clickable:hover {
-  color: var(--color-accent-hover);
+  background: #a86420;
+  color: #fff;
 }
 
 .ready-badge {
