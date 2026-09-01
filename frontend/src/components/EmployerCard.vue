@@ -19,6 +19,11 @@
         <span>顾客效果</span>
         <strong>{{ effectText }}</strong>
       </p>
+      <p v-if="game.employerTrait.bullyName" class="attr-row">
+        <span>对应霸凌者</span>
+        <strong>{{ game.employerTrait.bullyName }}</strong>
+      </p>
+      <p v-if="game.employerTrait.bullySkillSummary" class="attr-desc">{{ game.employerTrait.bullySkillSummary }}</p>
     </div>
   </div>
 </template>

@@ -26,6 +26,12 @@ public record MatchStateResp(
         Integer reconnectRemainingSeconds,
         List<MatchPlayerStateResp> players,
         List<MatchCardResp> hand,
-        Integer winnerType
+        Integer winnerType,
+        Integer bossShield,
+        String bullySkillType,
+        String bullySkillSummary,
+        Integer bullySkillTriggered,
+        String bullyTarget,
+        String bossActionText
 ) {
 }

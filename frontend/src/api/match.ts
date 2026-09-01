@@ -17,6 +17,7 @@ export interface MatchPlayerResp {
 
 export interface MatchCustomerResp {
   id?: number | string
+  customerTypeId?: number | string
   customerCode?: string
   customerName?: string
   description?: string
@@ -25,6 +26,11 @@ export interface MatchCustomerResp {
   triggerChance?: number
   status?: number
   imageUrl?: string | null
+  bullyCode?: string | null
+  bullyName?: string | null
+  bullyDescription?: string | null
+  bullySkillSummary?: string | null
+  bullySkillChance?: number | null
 }
 
 export interface MatchHandCardResp {
@@ -67,6 +73,13 @@ export interface MatchDetailResp {
   winnerType?: number
   players?: MatchPlayerResp[]
   hand?: MatchHandCardResp[]
+  bossShield?: number
+  bossDefense?: number
+  bullySkillType?: string
+  bullySkillSummary?: string
+  bullySkillTriggered?: number
+  bullyTarget?: string
+  bossActionText?: string
 }
 
 export interface MatchSettlementPlayer {

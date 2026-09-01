@@ -115,7 +115,7 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         int n = jdbcTemplate.update("""
                 UPDATE `cards`
                 SET `image_url` = '/images/cards/技术_Ethan.webp'
-                WHERE (`card_code` = 'O-13' OR `card_name` = 'Ethan')
+                WHERE `card_code` = 'O-13'
                   AND (`image_url` IS NULL OR `image_url` <> '/images/cards/技术_Ethan.webp')
                 """);
         if (n > 0) {

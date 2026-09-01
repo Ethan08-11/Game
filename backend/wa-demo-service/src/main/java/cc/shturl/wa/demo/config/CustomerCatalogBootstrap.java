@@ -35,12 +35,39 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
             log.info("Skip customer catalog bootstrap: customer_types missing.");
             return;
         }
+        ensureBossCurrentShieldColumn();
+        ensureBullyRoundDataColumn();
         runScript("db/015_window_couple_customer.sql");
+        runScript("db/019_customer_bound_bullies.sql");
         update("CUSTOMER_KIND", -1, 30, 32);
         update("CUSTOMER_TIMID", 2, 65, 38);
         update("CUSTOMER_ANXIOUS", 2, 60, 30);
         update("CUSTOMER_WINDOW", 2, 20, 10);
         log.info("Customer catalog difficulty tuned.");
+    }
+
+    private void ensureBossCurrentShieldColumn() {
+        if (!tableExists("matches") || columnExists("matches", "boss_current_shield")) {
+            return;
+        }
+        jdbcTemplate.execute("""
+                ALTER TABLE `matches`
+                ADD COLUMN `boss_current_shield` int NOT NULL DEFAULT 0
+                COMMENT '霸凌者本回合可打掉的护盾' AFTER `boss_current_attack`
+                """);
+        log.info("Added matches.boss_current_shield column.");
+    }
+
+    private void ensureBullyRoundDataColumn() {
+        if (!tableExists("matches") || columnExists("matches", "bully_round_data")) {
+            return;
+        }
+        jdbcTemplate.execute("""
+                ALTER TABLE `matches`
+                ADD COLUMN `bully_round_data` json NULL
+                COMMENT '本回合霸凌者特效状态' AFTER `boss_current_shield`
+                """);
+        log.info("Added matches.bully_round_data column.");
     }
 
     private void update(String code, int effectValue, int triggerChance, int selectionWeight) {
@@ -73,6 +100,16 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
                 Integer.class, table);
+        return count != null && count > 0;
+    }
+
+    private boolean columnExists(String table, String column) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM information_schema.columns
+                        WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?
+                        """,
+                Integer.class, table, column);
         return count != null && count > 0;
     }
 }

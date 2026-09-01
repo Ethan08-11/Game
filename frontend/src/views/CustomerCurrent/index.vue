@@ -27,6 +27,18 @@
           <span>顾客效果</span>
           <strong>{{ effectText }}</strong>
         </div>
+        <div v-if="trait?.bullyName" class="info-item">
+          <span>对应霸凌者</span>
+          <strong>{{ trait.bullyName }}</strong>
+        </div>
+        <div v-if="trait?.bullySkillSummary" class="info-item">
+          <span>霸凌者特效</span>
+          <strong>{{ trait.bullySkillSummary }}</strong>
+        </div>
+        <div v-if="trait?.bullyName" class="info-item">
+          <span>霸凌者特效概率</span>
+          <strong>{{ bullyChanceText }}</strong>
+        </div>
       </div>
 
       <button type="button" class="primary-btn" :disabled="jumping" :style="{ backgroundImage: `url(${titleBanner})` }" @click.stop.prevent="goMatchMaking">
@@ -66,6 +78,11 @@ const effectText = computed(() => {
       : '霸凌者基础攻击'
   const value = trait.value.effectValue ?? 0
   return `${target}${value >= 0 ? '+' : ''}${value}`
+})
+const bullyChanceText = computed(() => {
+  const chance = trait.value?.bullySkillChance
+  if (chance == null) return '常驻'
+  return formatRate(chance)
 })
 
 function formatRate(value?: number) {
@@ -220,6 +237,10 @@ h1 {
 .info-item strong {
   color: #4a2c1a;
   font-size: var(--text-md);
+  text-align: right;
+  max-width: 60%;
+  white-space: normal;
+  line-height: 1.35;
 }
 .primary-btn {
   display: block;

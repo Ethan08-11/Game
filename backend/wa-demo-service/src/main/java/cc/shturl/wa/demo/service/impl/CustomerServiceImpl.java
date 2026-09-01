@@ -1,9 +1,12 @@
 package cc.shturl.wa.demo.service.impl;
 
 import cc.shturl.wa.demo.dto.resp.CustomerInfoResp;
+import cc.shturl.wa.demo.entity.Bullies;
 import cc.shturl.wa.demo.entity.CustomerTypes;
+import cc.shturl.wa.demo.mapper.BulliesMapper;
 import cc.shturl.wa.demo.mapper.CustomerTypesMapper;
 import cc.shturl.wa.demo.service.CustomerService;
+import cc.shturl.wa.demo.service.support.BullyCatalog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,6 +18,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 public class CustomerServiceImpl implements CustomerService {
     private final CustomerTypesMapper customerTypesMapper;
+    private final BulliesMapper bulliesMapper;
 
     @Override
     public CustomerInfoResp getCurrentCustomer() {
@@ -22,21 +26,29 @@ public class CustomerServiceImpl implements CustomerService {
                 .eq(CustomerTypes::getStatus, 1)
                 .orderByAsc(CustomerTypes::getSortNo, CustomerTypes::getId));
         if (customers == null || customers.isEmpty()) {
-            return new CustomerInfoResp(null, null, null, null, null, null, null, null, null, 0);
+            return BullyCatalog.toCustomerResp(null, null);
         }
         CustomerTypes customer = pickWeightedCustomer(customers);
-        return new CustomerInfoResp(customer.getId(), customer.getCustomerCode(), customer.getCustomerName(),
-                customer.getDescription(), customer.getImageUrl(), customer.getEffectType(), customer.getEffectValue(),
-                customer.getTriggerChance(), customer.getSelectionWeight(), customer.getStatus());
+        return BullyCatalog.toCustomerResp(customer, findBullyForCustomer(customer.getCustomerCode()));
     }
 
     @Override
     public List<CustomerInfoResp> listCustomers() {
         List<CustomerTypes> customers = customerTypesMapper.selectList(Wrappers.<CustomerTypes>lambdaQuery()
                 .orderByAsc(CustomerTypes::getSortNo, CustomerTypes::getId));
-        return customers.stream().map(customer -> new CustomerInfoResp(customer.getId(), customer.getCustomerCode(),
-                customer.getCustomerName(), customer.getDescription(), customer.getImageUrl(), customer.getEffectType(),
-                customer.getEffectValue(), customer.getTriggerChance(), customer.getSelectionWeight(), customer.getStatus())).toList();
+        return customers.stream()
+                .map(customer -> BullyCatalog.toCustomerResp(customer, findBullyForCustomer(customer.getCustomerCode())))
+                .toList();
+    }
+
+    private Bullies findBullyForCustomer(String customerCode) {
+        String bullyCode = BullyCatalog.bullyCodeForCustomer(customerCode);
+        if (bullyCode == null) {
+            return null;
+        }
+        return bulliesMapper.selectOne(Wrappers.<Bullies>lambdaQuery()
+                .eq(Bullies::getBullyCode, bullyCode)
+                .last("LIMIT 1"));
     }
 
     private CustomerTypes pickWeightedCustomer(List<CustomerTypes> customers) {

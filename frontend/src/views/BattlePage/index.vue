@@ -1019,7 +1019,10 @@ function syncToStore(detail: any) {
   customerTriggered.value = detail.customerTriggered ?? customerTriggered.value
   customerEffectType.value = detail.customerEffectType ?? customerEffectType.value
   customerEffectValue.value = detail.customerEffectValue ?? customerEffectValue.value
-  bullyDefense.value = detail.bossShield ?? detail.bossDefense ?? detail.bullyShield ?? detail.bullyDefense ?? bullyDefense.value
+  bullyDefense.value = Number(detail.bossShield ?? detail.bossDefense ?? detail.bullyShield ?? detail.bullyDefense ?? 0)
+  game.bullyDefense = bullyDefense.value
+  game.bullyDebuff = detail.bullySkillSummary ?? detail.bossActionText ?? game.bullyDebuff
+  game.bullyTarget = detail.bullyTarget ?? ''
   bullyActionText.value = detail.bossActionText ?? detail.bullyActionText ?? detail.lastBossActionText ?? bullyActionText.value
   applyBossHp(detail)
   console.log(`[调试] syncToStore 服务端返回 bossCurrentHp: ${detail.bossCurrentHp}, bossMaxHp: ${detail.bossMaxHp}, 当前本地 bullyHP: ${game.bullyHP}`)
@@ -1045,6 +1048,12 @@ function syncToStore(detail: any) {
         : 'attack',
     effectValue: detail.customer.effectValue ?? 0,
     effectTriggerRate: (detail.customer.triggerChance ?? 40) / 100,
+    bullyName: detail.customer.bullyName ?? null,
+    bullyDescription: detail.customer.bullyDescription ?? null,
+    bullySkillSummary: detail.customer.bullySkillSummary ?? null,
+    bullySkillChance: detail.customer.bullySkillChance == null
+      ? null
+      : (detail.customer.bullySkillChance > 1 ? detail.customer.bullySkillChance / 100 : detail.customer.bullySkillChance),
   } : game.employerTrait
 
   const backendPlayers = (detail.players ?? []).slice(0, 2)

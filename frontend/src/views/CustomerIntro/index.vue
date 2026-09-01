@@ -32,6 +32,18 @@
                 <span>效果数值</span>
                 <strong>{{ formatEffectValue(customer.effectType, customer.effectValue) }}</strong>
               </div>
+              <div v-if="customer.bullyName" class="customer-meta">
+                <span>对应霸凌者</span>
+                <strong>{{ customer.bullyName }}</strong>
+              </div>
+              <div v-if="customer.bullySkillSummary" class="customer-meta customer-meta-skill">
+                <span>霸凌者特效</span>
+                <strong>{{ customer.bullySkillSummary }}</strong>
+              </div>
+              <div v-if="customer.bullyName" class="customer-meta">
+                <span>霸凌者特效概率</span>
+                <strong>{{ formatBullyChance(customer.bullySkillChance) }}</strong>
+              </div>
             </div>
           </article>
 
@@ -81,6 +93,11 @@ const traitsTop = ref(180)
 function formatRate(value?: number) {
   if (value == null) return '后端未配置'
   return `${Math.round((value > 1 ? value / 100 : value) * 100)}%`
+}
+
+function formatBullyChance(value?: number | null) {
+  if (value == null) return '常驻'
+  return formatRate(value)
 }
 
 function effectLabel(effectType?: string) {
@@ -268,7 +285,7 @@ h1 {
   position: relative;
   z-index: 1;
   padding: var(--space-5);
-  padding-bottom: 136px;
+  padding-bottom: 168px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -352,6 +369,15 @@ h2 {
 }
 .customer-meta strong {
   color: #3a1f0d;
+  text-align: right;
+}
+.customer-meta-skill {
+  align-items: flex-start;
+}
+.customer-meta-skill strong {
+  white-space: normal;
+  max-width: 11em;
+  line-height: 1.35;
 }
 .placeholder-card .name-section {
   position: absolute;

@@ -41,7 +41,9 @@ const hpPercent = computed(() => {
 const targetText = computed(() => {
   if (game.bullyTarget === 'self') return '防御自身'
   if (game.bullyTarget === 'all') return '攻击全体'
-  return `目标: ${game.bullyTarget === 'player1' ? 'P1' : 'P2'}`
+  if (game.bullyTarget === 'player1') return '目标: P1'
+  if (game.bullyTarget === 'player2') return '目标: P2'
+  return `目标: ${game.bullyTarget}`
 })
 </script>
 

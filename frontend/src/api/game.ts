@@ -82,6 +82,11 @@ export interface CustomerApiItem {
   triggerChance?: number
   status?: number
   imageUrl?: string | null
+  bullyCode?: string | null
+  bullyName?: string | null
+  bullyDescription?: string | null
+  bullySkillSummary?: string | null
+  bullySkillChance?: number | null
 }
 
 function normalizeRate(value?: number) {
@@ -113,6 +118,10 @@ export function transformCustomer(customer: CustomerApiItem): EmployerTrait {
     typeTriggerRate,
     effectTriggerRate,
     imageUrl: customer.imageUrl ?? null,
+    bullyName: customer.bullyName ?? null,
+    bullyDescription: customer.bullyDescription ?? null,
+    bullySkillSummary: customer.bullySkillSummary ?? null,
+    bullySkillChance: customer.bullySkillChance == null ? null : normalizeRate(customer.bullySkillChance),
   }
 }
 

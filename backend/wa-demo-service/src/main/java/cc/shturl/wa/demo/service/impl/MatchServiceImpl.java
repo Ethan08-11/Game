@@ -53,6 +53,7 @@ import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
+import cc.shturl.wa.demo.service.support.BullyCatalog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -91,8 +92,8 @@ public class MatchServiceImpl implements MatchService {
     private static final int DEPT_STARTER_UNIQUE_CAP = 10;
     private static final int DEPT_STARTER_COPIES = 2;
     private static final int DEPT_COLLECTIBLE_SLOTS = 8;
-    private static final int SHARED_COLLECTIBLE_SLOTS = 6;
-    private static final int SHARED_STARTER_SLOTS = 2;
+    private static final int SHARED_COLLECTIBLE_SLOTS = 0;
+    private static final int SHARED_STARTER_SLOTS = 0;
     private static final int INITIAL_HAND_SIZE = 5;
     private static final String SALES = "sales";
     private static final String PURCHASE = "purchase";
@@ -164,7 +165,7 @@ public class MatchServiceImpl implements MatchService {
                 .orderByAsc(RoomMembers::getSeatNo));
         validateReadyMembers(members);
         CustomerTypes customer = pickCustomer();
-        Bullies bully = requireEnabledBully();
+        Bullies bully = requireBullyForCustomer(customer);
 
         Matches match = buildMatch(roomId, customer, bully);
         try {
@@ -226,13 +227,16 @@ public class MatchServiceImpl implements MatchService {
             long remainMillis = Math.max(RECONNECT_TIMEOUT_MILLIS - elapsedMillis, 0L);
             reconnectRemainingSeconds = (int) Math.ceil(remainMillis / 1000.0);
         }
+        Bullies bully = match.getBullyId() == null ? null : bulliesMapper.selectById(match.getBullyId());
+        BullyHud hud = describeBullyHud(match, bully, players);
         return new MatchStateResp(match.getId(), match.getMatchCode(), match.getRoomId(), match.getStatus(),
-                match.getPhase(), match.getCurrentRound(), match.getVersion(), toCustomerResp(customer),
+                match.getPhase(), match.getCurrentRound(), match.getVersion(), toCustomerResp(customer, bully),
                 match.getBullyId(), match.getBossName(), match.getBossMaxHp(), match.getBossCurrentHp(),
                 match.getBossBaseAttack(), match.getBossCurrentAttack(), round == null ? 0 : round.getCustomerTriggered(),
                 round == null ? null : round.getCustomerEffectType(), round == null ? 0 : round.getCustomerEffectValue(),
                 round == null ? null : round.getFirstPlayerUserId(), round == null ? null : round.getChosenByUserId(),
-                waitingReconnect, reconnectRemainingSeconds, playerStates, hand, match.getWinnerType());
+                waitingReconnect, reconnectRemainingSeconds, playerStates, hand, match.getWinnerType(),
+                hud.shield(), hud.skillType(), hud.summary(), hud.triggered(), hud.target(), hud.actionText());
     }
 
     @Override
@@ -743,6 +747,8 @@ public class MatchServiceImpl implements MatchService {
         match.setBossCurrentHp(bossHp);
         match.setBossBaseAttack(bully.getAttackPower());
         match.setBossCurrentAttack(bully.getAttackPower());
+        match.setBossCurrentShield(0);
+        match.setBullyRoundData(BullyCatalog.writeRoundState(BullyCatalog.RoundState.empty()));
         match.setWinnerType(0);
         match.setVersion(1L);
         match.setDurationSeconds(0);
@@ -825,7 +831,7 @@ public class MatchServiceImpl implements MatchService {
     }
 
     /**
-     * 销售满编 30 张：本部门基础 14（7 种 × 2）+ 本部门收藏 8 种各 1 张 + 公共收藏 6 + 公共基础 2。
+     * 只用本部门成员卡组牌：基础每种 2 张 + 本部门收藏各 1 张。公共部/中立卡已停用，不再补公共牌。
      * 采购基础卡更少时，多出的空位优先加本部门收藏。收藏名额优先给最近没上场过的已解锁卡。
      * 解锁不足时可以少于 30 张；够填满时必须正好 30 张。
      */
@@ -1078,6 +1084,7 @@ public class MatchServiceImpl implements MatchService {
         round.setFundsPerPlayer(3);
         round.setStartedAt(LocalDateTime.now());
         matchRoundsMapper.insert(round);
+        applyBullyRoundSkills(match, listPlayers(match.getId()));
         match.setStatus(1);
         match.setPhase("SELECT_FIRST_PLAYER");
         matchesMapper.updateById(match);
@@ -1116,6 +1123,20 @@ public class MatchServiceImpl implements MatchService {
             }
         }
         return customers.get(0);
+    }
+
+    private Bullies requireBullyForCustomer(CustomerTypes customer) {
+        String bullyCode = BullyCatalog.bullyCodeForCustomer(customer == null ? null : customer.getCustomerCode());
+        if (bullyCode != null) {
+            Bullies bound = bulliesMapper.selectOne(Wrappers.<Bullies>lambdaQuery()
+                    .eq(Bullies::getBullyCode, bullyCode)
+                    .eq(Bullies::getStatus, 1)
+                    .last("LIMIT 1"));
+            if (bound != null) {
+                return bound;
+            }
+        }
+        return requireEnabledBully();
     }
 
     private Bullies requireEnabledBully() {
@@ -1439,12 +1460,23 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private CustomerInfoResp toCustomerResp(CustomerTypes customer) {
+        Bullies bully = null;
+        if (customer != null) {
+            String bullyCode = BullyCatalog.bullyCodeForCustomer(customer.getCustomerCode());
+            if (bullyCode != null) {
+                bully = bulliesMapper.selectOne(Wrappers.<Bullies>lambdaQuery()
+                        .eq(Bullies::getBullyCode, bullyCode)
+                        .last("LIMIT 1"));
+            }
+        }
+        return toCustomerResp(customer, bully);
+    }
+
+    private CustomerInfoResp toCustomerResp(CustomerTypes customer, Bullies bully) {
         if (customer == null) {
             return null;
         }
-        return new CustomerInfoResp(customer.getId(), customer.getCustomerCode(), customer.getCustomerName(),
-                customer.getDescription(), customer.getImageUrl(), customer.getEffectType(), customer.getEffectValue(),
-                customer.getTriggerChance(), customer.getSelectionWeight(), customer.getStatus());
+        return BullyCatalog.toCustomerResp(customer, bully);
     }
 
     private boolean canUseCardInCurrentDept(String actorDept, String cardDept) {
@@ -1485,21 +1517,22 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
-    private void applyImmediateEffect(Matches match, Bullies bully, MatchPlayers actor, MatchPlayers target, CardEffects effect,
+    private void applyImmediateEffect(Matches match, @SuppressWarnings("unused") Bullies bully, MatchPlayers actor, MatchPlayers target, CardEffects effect,
                                       int multiplier, List<CardEffectResp> results, MatchCards instance) {
         int rawValue = value(effect.getValue());
         int baseValue = "ADD_SHIELD".equals(effect.getEffectType()) ? rawValue : Math.max(rawValue, 0);
         int actualValue = applyTriggerChance(effect.getExtraData(), baseValue * multiplier);
         switch (effect.getEffectType()) {
             case "DAMAGE_BOSS" -> {
-                int beforeValue = value(match.getBossCurrentHp());
-                int defense = bully == null ? 0 : value(bully.getDefenseValue());
-                int finalDamage = Math.max(0, actualValue - defense);
-                int afterValue = Math.max(0, beforeValue - finalDamage);
-                match.setBossCurrentHp(afterValue);
-                actor.setDamageDealt(value(actor.getDamageDealt()) + beforeValue - afterValue);
-                results.add(effectResult(effect, "BOSS", null, baseValue, beforeValue - afterValue,
-                        beforeValue, afterValue, match.getCurrentRound()));
+                int hpBefore = value(match.getBossCurrentHp());
+                int shieldBefore = value(match.getBossCurrentShield());
+                int hpLoss = applyBossHpDamage(match, actualValue);
+                if (hpLoss > 0) {
+                    actor.setDamageDealt(value(actor.getDamageDealt()) + hpLoss);
+                }
+                int landed = hpLoss + shieldBefore - value(match.getBossCurrentShield());
+                results.add(effectResult(effect, "BOSS", null, baseValue, landed,
+                        hpBefore, value(match.getBossCurrentHp()), match.getCurrentRound()));
             }
             case "REDUCE_BOSS_ATTACK" -> {
                 int beforeValue = value(match.getBossCurrentAttack());
@@ -1870,28 +1903,60 @@ public class MatchServiceImpl implements MatchService {
 
     private List<BossAttackTargetResp> resolveBossAttack(Matches match, MatchRounds round, List<MatchPlayers> players) {
         int attack = Math.max(value(match.getBossCurrentAttack()), 0);
+        Bullies bully = match.getBullyId() == null ? null : bulliesMapper.selectById(match.getBullyId());
+        BullyCatalog.BullySkill skill = BullyCatalog.parse(bully);
+        BullyCatalog.RoundState roundState = BullyCatalog.readRoundState(match.getBullyRoundData());
         Map<Long, MatchPlayers> byUserId = new LinkedHashMap<>();
         for (MatchPlayers player : players) {
             byUserId.put(player.getUserId(), player);
         }
+        Set<Long> livingIds = new HashSet<>();
+        for (MatchPlayers player : players) {
+            if (value(player.getCurrentHp()) > 0) {
+                livingIds.add(player.getUserId());
+            }
+        }
+        Set<Long> intended = new HashSet<>();
+        if (skill.is(BullyCatalog.PATTERN_FOCUS_LOW_HP)) {
+            MatchPlayers focused = pickLowestHpTarget(players);
+            if (focused != null) {
+                intended.add(focused.getUserId());
+            }
+        } else {
+            intended.addAll(livingIds);
+        }
+        Long revengeUserId = null;
+        int revengeBonus = 0;
+        if (skill.is(BullyCatalog.PATTERN_FOCUS_TOP_DAMAGE) && roundState.focusRolled()) {
+            revengeUserId = pickHighestRoundDamageTarget(players, roundState.snapshots());
+            revengeBonus = Math.max(skill.bonusAttack(), 0);
+        }
+        int halfAttack = skill.is(BullyCatalog.PATTERN_BOTH_HALF_SWING) && roundState.halfSwingThisRound()
+                ? attack / 2 : 0;
+
         Map<Long, MatchPendingEffects> guardByWard = loadAllyGuards(match.getId());
         Map<Long, Integer> extraAttack = new HashMap<>();
         Set<Long> redirectedWards = new HashSet<>();
-        for (MatchPlayers player : players) {
+        for (Long targetId : intended) {
+            MatchPlayers player = byUserId.get(targetId);
+            if (player == null) {
+                continue;
+            }
+            int hit = attack + (Objects.equals(targetId, revengeUserId) ? revengeBonus : 0);
             MatchPendingEffects guard = guardByWard.get(player.getUserId());
-            if (guard == null) {
-                continue;
+            MatchPlayers guardian = guard == null ? null : byUserId.get(guard.getSourceUserId());
+            if (guard != null && guardian != null && value(guardian.getCurrentHp()) > 0
+                    && !guardian.getUserId().equals(player.getUserId())) {
+                redirectedWards.add(player.getUserId());
+                extraAttack.merge(guardian.getUserId(), hit, Integer::sum);
+                consumePendingGuard(guard);
+            } else {
+                extraAttack.merge(player.getUserId(), hit, Integer::sum);
             }
-            MatchPlayers guardian = byUserId.get(guard.getSourceUserId());
-            if (guardian == null || value(guardian.getCurrentHp()) <= 0
-                    || guardian.getUserId().equals(player.getUserId())) {
-                continue;
-            }
-            redirectedWards.add(player.getUserId());
-            extraAttack.merge(guardian.getUserId(), attack, Integer::sum);
-            consumePendingGuard(guard);
         }
+
         List<BossAttackTargetResp> results = new ArrayList<>();
+        Map<Long, Integer> hpLoss = new HashMap<>();
         for (MatchPlayers player : players) {
             if (redirectedWards.contains(player.getUserId())) {
                 int hp = value(player.getCurrentHp());
@@ -1899,11 +1964,36 @@ public class MatchServiceImpl implements MatchService {
                 insertBossAttackAction(match, round, player, hp, hp,
                         "{\"attack\":0,\"redirected\":true,\"absorbedDamage\":0}");
                 results.add(new BossAttackTargetResp(player.getUserId(), 0, shieldBefore, 0, hp, 0, hp, false));
+                hpLoss.merge(player.getUserId(), 0, Integer::sum);
                 continue;
             }
-            int totalAttack = attack + extraAttack.getOrDefault(player.getUserId(), 0);
-            results.add(applyBossHit(match, round, player, totalAttack));
+            int totalAttack = extraAttack.getOrDefault(player.getUserId(), 0);
+            if (totalAttack <= 0) {
+                if (value(player.getCurrentHp()) > 0) {
+                    int hp = value(player.getCurrentHp());
+                    insertBossAttackAction(match, round, player, hp, hp,
+                            "{\"attack\":0,\"skipped\":true,\"absorbedDamage\":0}");
+                    results.add(new BossAttackTargetResp(player.getUserId(), 0, value(player.getShield()), 0, hp, 0, hp, false));
+                }
+                continue;
+            }
+            BossAttackTargetResp hit = applyBossHit(match, round, player, totalAttack);
+            results.add(hit);
+            hpLoss.merge(player.getUserId(), value(hit.hpDamage()), Integer::sum);
         }
+
+        if (halfAttack > 0) {
+            for (Long targetId : intended) {
+                MatchPlayers player = byUserId.get(targetId);
+                if (player == null || value(player.getCurrentHp()) <= 0) {
+                    continue;
+                }
+                BossAttackTargetResp hit = applyBossHit(match, round, player, halfAttack);
+                results.add(hit);
+                hpLoss.merge(player.getUserId(), value(hit.hpDamage()), Integer::sum);
+            }
+        }
+        maybeSchedulePairHalfSwing(match, skill, livingIds, hpLoss);
         return results;
     }
 
@@ -2016,6 +2106,7 @@ public class MatchServiceImpl implements MatchService {
             matchPlayersMapper.updateById(player);
         }
         resolvePendingEffects(match, nextRoundNo);
+        applyBullyRoundSkills(match, listPlayers(match.getId()));
         if (value(match.getBossCurrentHp()) <= 0) {
             finishMatch(match, 1);
             return;
@@ -2047,18 +2138,24 @@ public class MatchServiceImpl implements MatchService {
         List<MatchPendingEffects> pendingEffects = matchPendingEffectsMapper.selectList(
                 Wrappers.<MatchPendingEffects>lambdaQuery().eq(MatchPendingEffects::getMatchId, match.getId())
                         .eq(MatchPendingEffects::getTriggerRound, roundNo).eq(MatchPendingEffects::getStatus, "PENDING"));
-        int defense = resolveBossDefense(match.getBullyId());
         for (MatchPendingEffects pending : pendingEffects) {
             if ("MULTIPLY_NEXT_CARD".equals(pending.getEffectType()) || "GUARD_ALLY".equals(pending.getEffectType())) {
                 continue;
             }
             if ("DAMAGE_BOSS".equals(pending.getEffectType())) {
                 int rolled = applyTriggerChance(pending.getExtraData(), value(pending.getEffectValue()));
-                int finalDamage = Math.max(0, rolled - defense);
-                match.setBossCurrentHp(Math.max(0, value(match.getBossCurrentHp()) - finalDamage));
-                if (finalDamage > 0 && pending.getSourceUserId() != null) {
+                int hpLoss = applyBossHpDamage(match, rolled);
+                if (hpLoss > 0 && pending.getSourceUserId() != null) {
+                    MatchPlayers source = matchPlayersMapper.selectOne(Wrappers.<MatchPlayers>lambdaQuery()
+                            .eq(MatchPlayers::getMatchId, match.getId())
+                            .eq(MatchPlayers::getUserId, pending.getSourceUserId())
+                            .last("LIMIT 1"));
+                    if (source != null) {
+                        source.setDamageDealt(value(source.getDamageDealt()) + hpLoss);
+                        matchPlayersMapper.updateById(source);
+                    }
                     try {
-                        taskService.recordBattleAction(pending.getSourceUserId(), null, 0, finalDamage);
+                        taskService.recordBattleAction(pending.getSourceUserId(), null, 0, hpLoss);
                     } catch (Exception e) {
                         logger.warn("Skip delayed damage task progress userId={} matchId={}: {}",
                                 pending.getSourceUserId(), match.getId(), e.getMessage());
@@ -2553,6 +2650,157 @@ public class MatchServiceImpl implements MatchService {
             notificationService.notifyUser(player.getUserId(), payload);
             userPresenceService.broadcastPresence(player.getUserId());
         }
+    }
+
+    private int applyBossHpDamage(Matches match, int rawDamage) {
+        int damage = Math.max(rawDamage, 0);
+        int shield = value(match.getBossCurrentShield());
+        int blocked = Math.min(shield, damage);
+        match.setBossCurrentShield(shield - blocked);
+        int hpLoss = damage - blocked;
+        int before = value(match.getBossCurrentHp());
+        match.setBossCurrentHp(Math.max(0, before - hpLoss));
+        return before - value(match.getBossCurrentHp());
+    }
+
+    private void applyBullyRoundSkills(Matches match, List<MatchPlayers> players) {
+        Bullies bully = match.getBullyId() == null ? null : bulliesMapper.selectById(match.getBullyId());
+        BullyCatalog.BullySkill skill = BullyCatalog.parse(bully);
+        BullyCatalog.RoundState previous = BullyCatalog.readRoundState(match.getBullyRoundData());
+        boolean shieldRolled = skill.is(BullyCatalog.PATTERN_ROUND_SHIELD) && BullyCatalog.roll(skill.chance());
+        boolean focusRolled = skill.is(BullyCatalog.PATTERN_FOCUS_TOP_DAMAGE) && BullyCatalog.roll(skill.chance());
+        Map<Long, Integer> snapshots = new LinkedHashMap<>();
+        for (MatchPlayers player : players) {
+            snapshots.put(player.getUserId(), value(player.getDamageDealt()));
+        }
+        BullyCatalog.RoundState next = new BullyCatalog.RoundState(
+                shieldRolled,
+                focusRolled,
+                previous.halfSwingNextRound(),
+                false,
+                snapshots);
+        match.setBossCurrentShield(shieldRolled ? Math.max(skill.shield(), 0) : 0);
+        match.setBullyRoundData(BullyCatalog.writeRoundState(next));
+    }
+
+    private void maybeSchedulePairHalfSwing(Matches match, BullyCatalog.BullySkill skill,
+                                            Set<Long> livingAtStart, Map<Long, Integer> hpLoss) {
+        if (!skill.is(BullyCatalog.PATTERN_BOTH_HALF_SWING) || livingAtStart.size() != 2) {
+            return;
+        }
+        boolean allBlocked = true;
+        for (Long userId : livingAtStart) {
+            if (hpLoss.getOrDefault(userId, 0) > 0) {
+                allBlocked = false;
+                break;
+            }
+        }
+        if (!allBlocked || !BullyCatalog.roll(skill.chance())) {
+            return;
+        }
+        BullyCatalog.RoundState state = BullyCatalog.readRoundState(match.getBullyRoundData());
+        match.setBullyRoundData(BullyCatalog.writeRoundState(state.withHalfSwingNextRound(true)));
+    }
+
+    private MatchPlayers pickLowestHpTarget(List<MatchPlayers> players) {
+        MatchPlayers chosen = null;
+        for (MatchPlayers player : players) {
+            if (value(player.getCurrentHp()) <= 0) {
+                continue;
+            }
+            if (chosen == null) {
+                chosen = player;
+                continue;
+            }
+            int cmp = Integer.compare(value(player.getCurrentHp()), value(chosen.getCurrentHp()));
+            if (cmp < 0 || (cmp == 0 && isSales(player) && !isSales(chosen))) {
+                chosen = player;
+            }
+        }
+        return chosen;
+    }
+
+    private Long pickHighestRoundDamageTarget(List<MatchPlayers> players, Map<Long, Integer> snapshots) {
+        MatchPlayers chosen = null;
+        int bestDelta = Integer.MIN_VALUE;
+        for (MatchPlayers player : players) {
+            if (value(player.getCurrentHp()) <= 0) {
+                continue;
+            }
+            int delta = value(player.getDamageDealt()) - snapshots.getOrDefault(player.getUserId(), 0);
+            if (chosen == null || delta > bestDelta || (delta == bestDelta && isSales(player) && !isSales(chosen))) {
+                chosen = player;
+                bestDelta = delta;
+            }
+        }
+        return chosen == null ? null : chosen.getUserId();
+    }
+
+    private boolean isSales(MatchPlayers player) {
+        return player != null && SALES.equals(player.getDeptType());
+    }
+
+    private String deptLabel(MatchPlayers player) {
+        if (player == null) {
+            return "护卫";
+        }
+        if (SALES.equals(player.getDeptType())) {
+            return "销售部";
+        }
+        if (PURCHASE.equals(player.getDeptType())) {
+            return "采购部";
+        }
+        return "护卫";
+    }
+
+    private String uiTarget(MatchPlayers player) {
+        if (player == null) {
+            return "all";
+        }
+        return value(player.getSeatNo()) <= 1 ? "player1" : "player2";
+    }
+
+    private BullyHud describeBullyHud(Matches match, Bullies bully, List<MatchPlayers> players) {
+        BullyCatalog.BullySkill skill = BullyCatalog.parse(bully);
+        BullyCatalog.RoundState state = BullyCatalog.readRoundState(match.getBullyRoundData());
+        int shield = value(match.getBossCurrentShield());
+        if (skill.pattern().isBlank()) {
+            return new BullyHud(shield, null, null, 0, "", "");
+        }
+        int triggered = 0;
+        String target = "all";
+        String actionText = skill.summary();
+        if (skill.is(BullyCatalog.PATTERN_FOCUS_LOW_HP)) {
+            MatchPlayers focused = pickLowestHpTarget(players);
+            target = uiTarget(focused);
+            triggered = 1;
+            actionText = "本回合点名" + deptLabel(focused);
+        } else if (skill.is(BullyCatalog.PATTERN_ROUND_SHIELD)) {
+            triggered = state.shieldRolled() ? 1 : 0;
+            actionText = state.shieldRolled() ? "本回合护盾 " + shield : "本回合没有护盾";
+        } else if (skill.is(BullyCatalog.PATTERN_FOCUS_TOP_DAMAGE)) {
+            triggered = state.focusRolled() ? 1 : 0;
+            if (state.focusRolled()) {
+                Long userId = pickHighestRoundDamageTarget(players, state.snapshots());
+                MatchPlayers focused = players.stream()
+                        .filter(player -> Objects.equals(player.getUserId(), userId))
+                        .findFirst().orElse(null);
+                target = uiTarget(focused);
+                actionText = "本回合盯" + deptLabel(focused) + "输出";
+            } else {
+                actionText = "本回合普通双打";
+            }
+        } else if (skill.is(BullyCatalog.PATTERN_BOTH_HALF_SWING)) {
+            triggered = state.halfSwingThisRound() ? 1 : 0;
+            actionText = state.halfSwingThisRound() ? "本回合追加半伤" : "挡住双人会再抽刀";
+        }
+        String summary = skill.summary().isBlank() ? null : skill.summary();
+        String skillType = skill.pattern().isBlank() ? null : skill.pattern();
+        return new BullyHud(shield, skillType, summary, triggered, target, actionText);
+    }
+
+    private record BullyHud(Integer shield, String skillType, String summary, Integer triggered,
+                            String target, String actionText) {
     }
 
     private int value(Integer number) {

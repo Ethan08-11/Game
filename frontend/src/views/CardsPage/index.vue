@@ -93,7 +93,7 @@ const deptMap: Record<string, string> = {
   // zero: '你的0来了',
 }
 
-const deptOrder = ['销售部', '采购部', '物流部', '营销部', '设计部', '技术部', '财务部', '人事部', /* '你的0来了', */ '公共部', '中立']
+const deptOrder = ['销售部', '采购部', '物流部', '营销部', '设计部', '技术部', '财务部', '人事部', /* '你的0来了', */ '公共部']
 
 const cardGroups = computed<DeptGroup[]>(() => {
   const map = new Map<string, ApiCard[]>()

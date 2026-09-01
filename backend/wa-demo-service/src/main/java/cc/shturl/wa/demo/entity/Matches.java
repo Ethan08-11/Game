@@ -24,6 +24,8 @@ public class Matches extends BaseEntity {
     private Integer bossCurrentHp;
     private Integer bossBaseAttack;
     private Integer bossCurrentAttack;
+    private Integer bossCurrentShield;
+    private String bullyRoundData;
     private Integer winnerType;
     private Long version;
     private Integer durationSeconds;

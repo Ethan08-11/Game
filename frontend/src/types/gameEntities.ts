@@ -12,6 +12,10 @@ export interface EmployerTrait {
   typeTriggerRate?: number
   effectTriggerRate?: number
   imageUrl?: string | null
+  bullyName?: string | null
+  bullyDescription?: string | null
+  bullySkillSummary?: string | null
+  bullySkillChance?: number | null
 }
 
 export interface BullyState {

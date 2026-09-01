@@ -26,7 +26,11 @@ INSERT INTO `achievement_defs` VALUES (5, 'ACH-005', '隐藏彩蛋', 'hidden', '
 -- ----------------------------
 -- Table data for bullies
 -- ----------------------------
-INSERT INTO `bullies` VALUES (1, 'BULLY_BASIC_001', '普通霸凌者', '当前版本唯一的霸凌者模板，后续可扩展为多个难度与行为模板。', 110, 5, 0, 1, 0, '{"targetRule": "both_players", "canCritical": true, "attackPattern": "single_target"}', 1, '2026-07-22 13:04:31', '2026-07-22 13:04:31');
+INSERT INTO `bullies` VALUES (1, 'BULLY_BASIC_001', '普通霸凌者', '旧通用模板，已停用。对局按顾客绑定专属霸凌者。', 110, 5, 0, 1, 0, '{"targetRule": "both_players", "canCritical": true, "attackPattern": "single_target"}', 0, '2026-07-22 13:04:31', '2026-07-22 13:04:31');
+INSERT INTO `bullies` VALUES (2, 'BULLY_FOCUS_001', '点名恶霸', '专挑更弱的护卫下手。血量持平时打销售。', 110, 5, 0, 1, 0, '{"customerCode":"CUSTOMER_KIND","pattern":"FOCUS_LOW_HP","chance":100,"shield":0,"bonusAttack":0,"catalogSummary":"每回合专打更弱的护卫。"}', 1, '2026-07-22 13:04:31', '2026-07-22 13:04:31');
+INSERT INTO `bullies` VALUES (3, 'BULLY_SHIELD_001', '硬扛恶霸', '偶发在胸口撑起一层薄盾，打掉就没。', 110, 5, 0, 1, 0, '{"customerCode":"CUSTOMER_TIMID","pattern":"ROUND_SHIELD","chance":40,"shield":4,"bonusAttack":0,"catalogSummary":"约四成回合胸口会多一层 4 点盾。"}', 1, '2026-07-22 13:04:31', '2026-07-22 13:04:31');
+INSERT INTO `bullies` VALUES (4, 'BULLY_REVENGE_001', '针对恶霸', '仍打两人。约一半回合会盯本回合打得最疼的人加一刀。', 110, 5, 0, 1, 0, '{"customerCode":"CUSTOMER_ANXIOUS","pattern":"FOCUS_TOP_DAMAGE","chance":50,"shield":0,"bonusAttack":2,"catalogSummary":"约一半回合会盯打得最疼的人加一刀。"}', 1, '2026-07-22 13:04:31', '2026-07-22 13:04:31');
+INSERT INTO `bullies` VALUES (5, 'BULLY_PAIR_001', '不落单恶霸', '仍打两人。若两人都没掉血，约三成会在下一拍再抽一次半伤。', 110, 5, 0, 1, 0, '{"customerCode":"CUSTOMER_WINDOW","pattern":"BOTH_HALF_SWING","chance":35,"shield":0,"bonusAttack":0,"catalogSummary":"两人都挡住时，约三成会在下一拍再抽一次。"}', 1, '2026-07-22 13:04:31', '2026-07-22 13:04:31');
 
 -- ----------------------------
 -- Table data for card_depts

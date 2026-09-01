@@ -85,7 +85,7 @@ CREATE TABLE `bullies`  (
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_bully_code`(`bully_code` ASC) USING BTREE COMMENT '霸凌者编码唯一索引'
-) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '霸凌者配置表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '霸凌者配置表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for card_combo_rules
@@ -599,6 +599,8 @@ CREATE TABLE `matches`  (
   `boss_current_hp` int NOT NULL DEFAULT 50 COMMENT '霸凌者当前血量',
   `boss_base_attack` int NOT NULL DEFAULT 5 COMMENT '本局霸凌者基础攻击快照',
   `boss_current_attack` int NOT NULL DEFAULT 5 COMMENT '霸凌者本回合最终攻击力',
+  `boss_current_shield` int NOT NULL DEFAULT 0 COMMENT '霸凌者本回合可打掉的护盾',
+  `bully_round_data` json NULL COMMENT '本回合霸凌者特效状态',
   `winner_type` tinyint NOT NULL DEFAULT 0 COMMENT '对局结果：0未结束 1玩家胜 2玩家负 3异常中断',
   `version` bigint NOT NULL DEFAULT 0 COMMENT '对局状态版本号，用于并发控制和前端状态同步',
   `duration_seconds` int NOT NULL DEFAULT 0 COMMENT '对局耗时(秒)',
