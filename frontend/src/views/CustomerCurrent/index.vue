@@ -5,39 +5,41 @@
     <section class="customer-card" :style="{ '--panel-bg': `url(${panelBg})` }">
       <img :src="getImageUrl(game.employerTrait?.imageUrl) || characterImg" alt="顾客形象" class="customer-avatar" />
       <div class="card-title" :style="{ backgroundImage: `url(${titleBanner})` }">顾客来访</div>
-      <h1>{{ game.employerName || '顾客加载中' }}</h1>
-      <p class="story">顾客长期遭受霸凌者欺凌，已向 HIH 发起求助。请先了解本局顾客属性，再进入部门选择。</p>
+      <div class="card-body">
+        <h1>{{ game.employerName || '顾客加载中' }}</h1>
+        <p class="story">顾客长期遭受霸凌者欺凌，已向 HIH 发起求助。请先了解本局顾客属性，再进入部门选择。</p>
 
-      <div class="trait-panel">
-        <span class="trait-label">顾客属性</span>
-        <strong>{{ trait?.name || '加载中' }}</strong>
-        <p>{{ trait?.description || '顾客状态加载中...' }}</p>
-      </div>
+        <div class="trait-panel">
+          <span class="trait-label">顾客属性</span>
+          <strong>{{ trait?.name || '加载中' }}</strong>
+          <p>{{ trait?.description || '顾客状态加载中...' }}</p>
+        </div>
 
-      <div class="info-grid">
-        <div class="info-item">
-          <span>顾客类型触发概率</span>
-          <strong>{{ formatRate(trait?.typeTriggerRate) }}</strong>
-        </div>
-        <div class="info-item">
-          <span>效果触发概率</span>
-          <strong>{{ formatRate(trait?.effectTriggerRate) }}</strong>
-        </div>
-        <div class="info-item">
-          <span>顾客效果</span>
-          <strong>{{ effectText }}</strong>
-        </div>
-        <div v-if="trait?.bullyName" class="info-item">
-          <span>对应霸凌者</span>
-          <strong>{{ trait.bullyName }}</strong>
-        </div>
-        <div v-if="trait?.bullySkillSummary" class="info-item">
-          <span>霸凌者特效</span>
-          <strong>{{ trait.bullySkillSummary }}</strong>
-        </div>
-        <div v-if="trait?.bullyName" class="info-item">
-          <span>霸凌者特效概率</span>
-          <strong>{{ bullyChanceText }}</strong>
+        <div class="info-grid">
+          <div class="info-item">
+            <span>顾客类型触发概率</span>
+            <strong>{{ formatRate(trait?.typeTriggerRate) }}</strong>
+          </div>
+          <div class="info-item">
+            <span>效果触发概率</span>
+            <strong>{{ formatRate(trait?.effectTriggerRate) }}</strong>
+          </div>
+          <div class="info-item">
+            <span>顾客效果</span>
+            <strong>{{ effectText }}</strong>
+          </div>
+          <div v-if="trait?.bullyName" class="info-item">
+            <span>对应霸凌者</span>
+            <strong>{{ trait.bullyName }}</strong>
+          </div>
+          <div v-if="trait?.bullySkillSummary" class="info-item info-item-skill">
+            <span>霸凌者特效</span>
+            <strong>{{ trait.bullySkillSummary }}</strong>
+          </div>
+          <div v-if="trait?.bullyName" class="info-item">
+            <span>霸凌者特效概率</span>
+            <strong>{{ bullyChanceText }}</strong>
+          </div>
         </div>
       </div>
 
@@ -109,15 +111,19 @@ async function goMatchMaking() {
 
 <style scoped>
 .customer-page {
-  min-height: 100%;
-  padding: var(--space-10);
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-8) var(--space-4);
+  box-sizing: border-box;
   color: var(--color-text-primary);
   position: relative;
   isolation: isolate;
 }
 .customer-page::before {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: -20px;
   background: var(--hall-bg, var(--color-bg-base)) center/cover no-repeat;
   filter: blur(6px);
@@ -130,34 +136,33 @@ async function goMatchMaking() {
 }
 .customer-card {
   position: relative;
-  width: 75%;
-  min-height: 520px;
-  margin: var(--space-6) auto 0;
-  padding: var(--space-10) var(--space-12);
+  width: min(78%, 960px);
+  min-height: 0;
+  margin: 36px auto 12px;
+  padding: 36px 40px 36px;
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   isolation: isolate;
+  overflow: visible;
 }
 .customer-card::before {
   content: '';
   position: absolute;
-  width: 105%;
-  height: 105%;
-  left: -2.5%;
-  top: -2.5%;
+  inset: -18px -3% -48px;
   background: var(--panel-bg, var(--color-surface-02)) center/100% 100% no-repeat;
   z-index: -1;
   pointer-events: none;
 }
 .customer-avatar {
   position: absolute;
-  right: -180px;
-  top: -62px;
-  width: 480px;
+  right: -110px;
+  top: -28px;
+  width: 400px;
   height: auto;
-  z-index: 1;
+  z-index: 0;
+  pointer-events: none;
 }
 .card-title {
   position: absolute;
@@ -177,6 +182,11 @@ async function goMatchMaking() {
   color: #4a3520;
   z-index: 2;
 }
+.card-body {
+  position: relative;
+  z-index: 1;
+  max-width: 58%;
+}
 .eyebrow {
   color: #8b6914;
   font-size: var(--text-sm);
@@ -184,53 +194,57 @@ async function goMatchMaking() {
   letter-spacing: 0.2em;
 }
 h1 {
-  margin: var(--space-2) 0 var(--space-4);
-  font-size: var(--text-4xl);
+  margin: 4px 0 8px;
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
   color: #3a1f0d;
 }
 .story {
+  margin: 0 0 16px;
   color: #5c3d2e;
-  font-size: var(--text-md);
-  line-height: var(--leading-relaxed);
-  max-width: 55%;
+  font-size: var(--text-sm);
+  line-height: 1.55;
 }
 .trait-panel {
-  margin-top: var(--space-4);
-  padding: var(--space-3) 0;
-  border-radius: var(--radius-lg);
+  margin: 0 0 8px;
+  padding: 0;
   background: transparent;
-  max-width: 50%;
 }
 .trait-label {
   display: block;
-  margin-bottom: var(--space-2);
+  margin-bottom: 4px;
   color: #5c3d2e;
   font-size: var(--text-xs);
 }
 .trait-panel strong {
+  display: block;
   color: #4a2c1a;
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
+  line-height: 1.3;
 }
 .trait-panel p {
-  margin-top: var(--space-2);
+  margin: 6px 0 0;
   color: #5c3d2e;
+  font-size: var(--text-sm);
+  line-height: 1.5;
 }
 .info-grid {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  margin: var(--space-5) 0;
-  max-width: 50%;
+  gap: 0;
+  margin: 0 0 16px;
 }
 .info-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  gap: var(--space-3);
+  padding: 6px 0;
+  border-top: 1px solid rgba(92, 61, 46, 0.14);
   background: transparent;
 }
 .info-item span {
+  flex-shrink: 0;
   color: #5c3d2e;
   font-size: var(--text-sm);
 }
@@ -238,15 +252,20 @@ h1 {
   color: #4a2c1a;
   font-size: var(--text-md);
   text-align: right;
-  max-width: 60%;
+  max-width: 62%;
   white-space: normal;
   line-height: 1.35;
 }
+.info-item-skill {
+  align-items: flex-start;
+}
 .primary-btn {
   display: block;
-  width: 50%;
+  position: relative;
+  z-index: 2;
+  width: min(420px, 52%);
   margin: 0 auto;
-  padding: var(--space-4);
+  padding: 10px 16px;
   border: none;
   border-radius: 0;
   background-color: transparent;
@@ -255,7 +274,7 @@ h1 {
   background-repeat: no-repeat;
   color: #4a3520;
   cursor: pointer;
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   transition: all var(--transition-fast);
 }
@@ -264,15 +283,25 @@ h1 {
   filter: brightness(1.1);
 }
 .slogan {
+  position: relative;
+  z-index: 2;
   text-align: center;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: var(--weight-bold);
   color: #4a2c1a;
-  margin-top: var(--space-3);
+  margin: 8px 0 8px;
 }
 
 @media (max-width: 767px) {
   .customer-page { padding: var(--space-4); }
-  .customer-card { padding: var(--space-5); }
+  .customer-card { padding: var(--space-5) var(--space-4) var(--space-4); }
+  .card-body { max-width: 100%; }
+  .customer-avatar { display: none; }
+}
+
+@media (max-height: 780px) {
+  .customer-card { margin-top: 28px; padding: 28px 36px 22px; }
+  h1 { font-size: var(--text-2xl); }
+  .slogan { font-size: 18px; }
 }
 </style>
