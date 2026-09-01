@@ -955,6 +955,7 @@ function effectLabel(effectType?: string) {
     DRAW_CARDS: '抽牌',
     ADD_SHIELD: '增加防御',
     HEAL_PLAYER: '恢复血值',
+    GUARD_ALLY: '替队友挡刀',
   }
   return map[effectType || ''] || effectType || '未知效果'
 }
@@ -1172,6 +1173,9 @@ function notifyPlayCardEffects(res: any) {
   }
   if (effects.some((e: any) => e.effectType === 'ADD_SHIELD' && e.targetType === 'ALL_PLAYERS')) {
     ElMessage.success('双方获得护盾')
+  }
+  if (effects.some((e: any) => e.effectType === 'GUARD_ALLY')) {
+    ElMessage.success('已替队友挡下一次攻击')
   }
   if (effects.some((e: any) => e.effectType === 'HEAL_PLAYER' && e.targetType === 'ALL_PLAYERS')) {
     ElMessage.success('双方恢复血值')

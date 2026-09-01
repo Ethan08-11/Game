@@ -105,7 +105,7 @@ const cardGroups = computed<DeptGroup[]>(() => {
   }
   const ordered = [...deptOrder.filter(d => map.has(d)), ...[...map.keys()].filter(d => !deptOrder.includes(d)).sort()]
   return ordered.map(dept => {
-      const list = [...map.get(dept)!].sort((a, b) => Number(Boolean(b.unlocked)) - Number(Boolean(a.unlocked)))
+      const list = [...map.get(dept)!].sort(compareGalleryCards)
       return {
         dept,
         cards: list,
@@ -113,6 +113,21 @@ const cardGroups = computed<DeptGroup[]>(() => {
       }
     })
 })
+
+function isCollectibleCard(card: ApiCard): boolean {
+  return Number(card.requireUnlock ?? 0) === 1
+}
+
+/** 基础卡在前、收藏卡在后；不用解锁状态参与排序，翻面不换位。 */
+function compareGalleryCards(a: ApiCard, b: ApiCard): number {
+  const byKind = Number(isCollectibleCard(a)) - Number(isCollectibleCard(b))
+  if (byKind !== 0) return byKind
+  const byCost = (a.cost ?? 0) - (b.cost ?? 0)
+  if (byCost !== 0) return byCost
+  const byCode = (a.cardCode || '').localeCompare(b.cardCode || '', 'zh')
+  if (byCode !== 0) return byCode
+  return (a.id || 0) - (b.id || 0)
+}
 
 onMounted(async () => {
   const hour = new Date().getHours()

@@ -27,7 +27,7 @@ public class CardQueryServiceImpl implements CardQueryService {
     public List<CardBasicResp> listAllCards(Long userId) {
         List<Cards> cards = cardsMapper.selectList(Wrappers.<Cards>lambdaQuery()
                 .eq(Cards::getStatus, 1)
-                .orderByAsc(Cards::getDeptType, Cards::getCost, Cards::getCardCode));
+                .orderByAsc(Cards::getRequireUnlock, Cards::getDeptType, Cards::getCost, Cards::getCardCode, Cards::getId));
         Set<Long> playable = cardCollectionService.listPlayableCardIds(userId);
         return cards.stream().map(card -> toCardBasicResp(card, playable.contains(card.getId()))).toList();
     }
@@ -64,8 +64,8 @@ public class CardQueryServiceImpl implements CardQueryService {
 
     private CardBasicResp toCardBasicResp(Cards card, boolean unlocked) {
         if (!unlocked) {
-            return new CardBasicResp(card.getId(), "???", "???", card.getDeptId(),
-                    card.getDeptType(), null, null, "胜利后随机解锁",
+            return new CardBasicResp(card.getId(), card.getCardCode(), "???", card.getDeptId(),
+                    card.getDeptType(), card.getCost(), card.getCardType(), "胜利后随机解锁",
                     CardCollectionService.LOCKED_IMAGE_URL, null, card.getIsUnique(), card.getStatus(),
                     List.of(), card.getRequireUnlock(), false);
         }

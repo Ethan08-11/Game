@@ -53,6 +53,9 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         runScript("db/012_it_medieval_character_cards.sql");
         runScript("db/013_boss_medieval_character_cards.sql");
         runScript("db/014_sales_purchase_medieval_character_cards.sql");
+        runScript("db/016_sales_member_attack_cards.sql");
+        runScript("db/017_purchase_member_defend_cards.sql");
+        runScript("db/018_keep_today_and_public_cards.sql");
         log.info("Card collection schema bootstrap finished.");
     }
 

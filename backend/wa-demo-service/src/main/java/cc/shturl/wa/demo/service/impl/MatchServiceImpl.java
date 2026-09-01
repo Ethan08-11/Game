@@ -653,7 +653,7 @@ public class MatchServiceImpl implements MatchService {
         actor.setCardsPlayedCount(value(actor.getCardsPlayedCount()) + 1);
         for (CardEffects effect : configuredEffects) {
             if ("IMMEDIATE".equals(effect.getTriggerTiming())) {
-                applyImmediateEffect(match, bully, actor, target, effect, multiplier, effectResults);
+                applyImmediateEffect(match, bully, actor, target, effect, multiplier, effectResults, instance);
             }
         }
         schedulePendingEffects(match, actor, instance, target, configuredEffects, multiplier, effectResults);
@@ -1486,9 +1486,10 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void applyImmediateEffect(Matches match, Bullies bully, MatchPlayers actor, MatchPlayers target, CardEffects effect,
-                                      int multiplier, List<CardEffectResp> results) {
-        int baseValue = Math.max(value(effect.getValue()), 0);
-        int actualValue = baseValue * multiplier;
+                                      int multiplier, List<CardEffectResp> results, MatchCards instance) {
+        int rawValue = value(effect.getValue());
+        int baseValue = "ADD_SHIELD".equals(effect.getEffectType()) ? rawValue : Math.max(rawValue, 0);
+        int actualValue = applyTriggerChance(effect.getExtraData(), baseValue * multiplier);
         switch (effect.getEffectType()) {
             case "DAMAGE_BOSS" -> {
                 int beforeValue = value(match.getBossCurrentHp());
@@ -1530,12 +1531,15 @@ public class MatchServiceImpl implements MatchService {
             case "ADD_SHIELD" -> {
                 for (MatchPlayers recipient : resolveEffectTargets(match.getId(), actor, target, effect)) {
                     int beforeValue = value(recipient.getShield());
-                    int afterValue = beforeValue + actualValue;
+                    int afterValue = Math.max(0, beforeValue + actualValue);
+                    int applied = afterValue - beforeValue;
                     recipient.setShield(afterValue);
-                    actor.setShieldGranted(value(actor.getShieldGranted()) + actualValue);
+                    if (applied > 0) {
+                        actor.setShieldGranted(value(actor.getShieldGranted()) + applied);
+                    }
                     persistPlayerIfNotActor(actor, recipient);
                     results.add(effectResult(effect, resultTargetType(effect), recipient.getUserId(), baseValue,
-                            actualValue, beforeValue, afterValue, match.getCurrentRound()));
+                            applied, beforeValue, afterValue, match.getCurrentRound()));
                 }
             }
             case "ADD_ACTION_POINTS" -> {
@@ -1572,7 +1576,56 @@ public class MatchServiceImpl implements MatchService {
                 results.add(effectResult(effect, "BOSS", null, baseValue, actualValue,
                         beforeValue, afterValue, match.getCurrentRound()));
             }
+            case "GUARD_ALLY" -> {
+                MatchPlayers ward = findOtherLivingPlayer(match.getId(), actor);
+                if (ward == null) {
+                    results.add(effectResult(effect, "PLAYER", actor.getUserId(), 1, 0, 0, 0, match.getCurrentRound()));
+                    break;
+                }
+                MatchPendingEffects pending = new MatchPendingEffects();
+                pending.setMatchId(match.getId());
+                pending.setMatchPlayerId(actor.getId());
+                pending.setSourceUserId(actor.getUserId());
+                pending.setSourceCardInstanceId(instance == null ? null : instance.getId());
+                pending.setEffectType("GUARD_ALLY");
+                pending.setTargetType("PLAYER");
+                pending.setTargetUserId(ward.getUserId());
+                pending.setEffectValue(1);
+                pending.setTriggerRound(match.getCurrentRound());
+                pending.setRemainingTriggers(Math.max(value(effect.getRemainingTriggers()), 1));
+                pending.setStatus("PENDING");
+                pending.setExtraData(effect.getExtraData());
+                matchPendingEffectsMapper.insert(pending);
+                results.add(new CardEffectResp("GUARD_ALLY", "IMMEDIATE", "PLAYER", ward.getUserId(),
+                        1, 1, null, null, true, match.getCurrentRound(), pending.getId()));
+            }
             default -> throw new BusinessException("不支持的立即效果类型：" + effect.getEffectType());
+        }
+    }
+
+    private int applyTriggerChance(String extraData, int actualValue) {
+        int chance = parseExtraChance(extraData);
+        if (chance >= 100) {
+            return actualValue;
+        }
+        if (chance <= 0 || ThreadLocalRandom.current().nextInt(100) >= chance) {
+            return 0;
+        }
+        return actualValue;
+    }
+
+    private int parseExtraChance(String extraData) {
+        if (extraData == null || extraData.isBlank()) {
+            return 100;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\"chance\"\\s*:\\s*(\\d+)").matcher(extraData);
+        if (!matcher.find()) {
+            return 100;
+        }
+        try {
+            return Math.min(100, Math.max(0, Integer.parseInt(matcher.group(1))));
+        } catch (NumberFormatException ignored) {
+            return 100;
         }
     }
 
@@ -1623,6 +1676,10 @@ public class MatchServiceImpl implements MatchService {
             }
             return targets;
         }
+        if ("OTHER_PLAYER".equals(scope) || "TEAMMATE".equals(scope)) {
+            MatchPlayers other = findOtherLivingPlayer(matchId, actor);
+            return other == null ? List.of() : List.of(other);
+        }
         if ("SELF".equals(scope) || selected == null) {
             if ("ANY_PLAYER".equals(scope)) {
                 requireEffectTarget(null);
@@ -1667,7 +1724,7 @@ public class MatchServiceImpl implements MatchService {
     private void schedulePendingEffects(Matches match, MatchPlayers actor, MatchCards instance, MatchPlayers target,
                                         List<CardEffects> effects, int multiplier, List<CardEffectResp> results) {
         for (CardEffects effect : effects) {
-            if ("IMMEDIATE".equals(effect.getTriggerTiming())) {
+            if ("IMMEDIATE".equals(effect.getTriggerTiming()) || "GUARD_ALLY".equals(effect.getEffectType())) {
                 continue;
             }
             int triggerRound;
@@ -1813,37 +1870,108 @@ public class MatchServiceImpl implements MatchService {
 
     private List<BossAttackTargetResp> resolveBossAttack(Matches match, MatchRounds round, List<MatchPlayers> players) {
         int attack = Math.max(value(match.getBossCurrentAttack()), 0);
+        Map<Long, MatchPlayers> byUserId = new LinkedHashMap<>();
+        for (MatchPlayers player : players) {
+            byUserId.put(player.getUserId(), player);
+        }
+        Map<Long, MatchPendingEffects> guardByWard = loadAllyGuards(match.getId());
+        Map<Long, Integer> extraAttack = new HashMap<>();
+        Set<Long> redirectedWards = new HashSet<>();
+        for (MatchPlayers player : players) {
+            MatchPendingEffects guard = guardByWard.get(player.getUserId());
+            if (guard == null) {
+                continue;
+            }
+            MatchPlayers guardian = byUserId.get(guard.getSourceUserId());
+            if (guardian == null || value(guardian.getCurrentHp()) <= 0
+                    || guardian.getUserId().equals(player.getUserId())) {
+                continue;
+            }
+            redirectedWards.add(player.getUserId());
+            extraAttack.merge(guardian.getUserId(), attack, Integer::sum);
+            consumePendingGuard(guard);
+        }
         List<BossAttackTargetResp> results = new ArrayList<>();
         for (MatchPlayers player : players) {
-            int shieldBefore = value(player.getShield());
-            int absorbed = Math.min(shieldBefore, attack);
-            int hpDamage = Math.max(attack - shieldBefore, 0);
-            int hpBefore = value(player.getCurrentHp());
-            int hpAfter = Math.max(hpBefore - hpDamage, 0);
-            player.setShield(0);
-            player.setCurrentHp(hpAfter);
-            player.setDamageTaken(value(player.getDamageTaken()) + hpBefore - hpAfter);
-            if (hpAfter <= 0) {
-                player.setPlayerStatus("DEAD");
-                player.setReviveStatus(1);
+            if (redirectedWards.contains(player.getUserId())) {
+                int hp = value(player.getCurrentHp());
+                int shieldBefore = value(player.getShield());
+                insertBossAttackAction(match, round, player, hp, hp,
+                        "{\"attack\":0,\"redirected\":true,\"absorbedDamage\":0}");
+                results.add(new BossAttackTargetResp(player.getUserId(), 0, shieldBefore, 0, hp, 0, hp, false));
+                continue;
             }
-            matchPlayersMapper.updateById(player);
-            MatchActions action = new MatchActions();
-            action.setMatchId(match.getId());
-            action.setRoundId(round == null ? null : round.getId());
-            action.setActorType("boss");
-            action.setActionType("boss_attack");
-            action.setTargetUserId(player.getUserId());
-            action.setBeforeValue(hpBefore);
-            action.setAfterValue(hpAfter);
-            action.setDeltaValue(hpAfter - hpBefore);
-            action.setExtraData("{\"attack\":" + attack + ",\"shieldBefore\":" + shieldBefore
-                    + ",\"absorbedDamage\":" + absorbed + "}");
-            matchActionsMapper.insert(action);
-            results.add(new BossAttackTargetResp(player.getUserId(), attack, shieldBefore, absorbed, hpBefore,
-                    hpBefore - hpAfter, hpAfter, hpAfter <= 0));
+            int totalAttack = attack + extraAttack.getOrDefault(player.getUserId(), 0);
+            results.add(applyBossHit(match, round, player, totalAttack));
         }
         return results;
+    }
+
+    private Map<Long, MatchPendingEffects> loadAllyGuards(Long matchId) {
+        List<MatchPendingEffects> guards = matchPendingEffectsMapper.selectList(
+                Wrappers.<MatchPendingEffects>lambdaQuery()
+                        .eq(MatchPendingEffects::getMatchId, matchId)
+                        .eq(MatchPendingEffects::getEffectType, "GUARD_ALLY")
+                        .eq(MatchPendingEffects::getStatus, "PENDING"));
+        Map<Long, MatchPendingEffects> byWard = new LinkedHashMap<>();
+        for (MatchPendingEffects guard : guards) {
+            if (value(guard.getRemainingTriggers()) <= 0 || guard.getTargetUserId() == null) {
+                continue;
+            }
+            byWard.putIfAbsent(guard.getTargetUserId(), guard);
+        }
+        return byWard;
+    }
+
+    private void consumePendingGuard(MatchPendingEffects guard) {
+        guard.setRemainingTriggers(0);
+        guard.setStatus("RESOLVED");
+        matchPendingEffectsMapper.updateById(guard);
+    }
+
+    private MatchPlayers findOtherLivingPlayer(Long matchId, MatchPlayers actor) {
+        for (MatchPlayers player : listPlayers(matchId)) {
+            if (!Objects.equals(player.getId(), actor.getId()) && value(player.getCurrentHp()) > 0) {
+                return player;
+            }
+        }
+        return null;
+    }
+
+    private BossAttackTargetResp applyBossHit(Matches match, MatchRounds round, MatchPlayers player, int attack) {
+        int shieldBefore = value(player.getShield());
+        int absorbed = Math.min(shieldBefore, attack);
+        int hpDamage = Math.max(attack - shieldBefore, 0);
+        int hpBefore = value(player.getCurrentHp());
+        int hpAfter = Math.max(hpBefore - hpDamage, 0);
+        player.setShield(0);
+        player.setCurrentHp(hpAfter);
+        player.setDamageTaken(value(player.getDamageTaken()) + hpBefore - hpAfter);
+        if (hpAfter <= 0) {
+            player.setPlayerStatus("DEAD");
+            player.setReviveStatus(1);
+        }
+        matchPlayersMapper.updateById(player);
+        insertBossAttackAction(match, round, player, hpBefore, hpAfter,
+                "{\"attack\":" + attack + ",\"shieldBefore\":" + shieldBefore
+                        + ",\"absorbedDamage\":" + absorbed + "}");
+        return new BossAttackTargetResp(player.getUserId(), attack, shieldBefore, absorbed, hpBefore,
+                hpBefore - hpAfter, hpAfter, hpAfter <= 0);
+    }
+
+    private void insertBossAttackAction(Matches match, MatchRounds round, MatchPlayers player,
+                                        int hpBefore, int hpAfter, String extraData) {
+        MatchActions action = new MatchActions();
+        action.setMatchId(match.getId());
+        action.setRoundId(round == null ? null : round.getId());
+        action.setActorType("boss");
+        action.setActionType("boss_attack");
+        action.setTargetUserId(player.getUserId());
+        action.setBeforeValue(hpBefore);
+        action.setAfterValue(hpAfter);
+        action.setDeltaValue(hpAfter - hpBefore);
+        action.setExtraData(extraData);
+        matchActionsMapper.insert(action);
     }
 
     private void finishRoundAndStartNext(Matches match, MatchRounds currentRound, List<MatchPlayers> players) {
@@ -1921,11 +2049,12 @@ public class MatchServiceImpl implements MatchService {
                         .eq(MatchPendingEffects::getTriggerRound, roundNo).eq(MatchPendingEffects::getStatus, "PENDING"));
         int defense = resolveBossDefense(match.getBullyId());
         for (MatchPendingEffects pending : pendingEffects) {
-            if ("MULTIPLY_NEXT_CARD".equals(pending.getEffectType())) {
+            if ("MULTIPLY_NEXT_CARD".equals(pending.getEffectType()) || "GUARD_ALLY".equals(pending.getEffectType())) {
                 continue;
             }
             if ("DAMAGE_BOSS".equals(pending.getEffectType())) {
-                int finalDamage = Math.max(0, value(pending.getEffectValue()) - defense);
+                int rolled = applyTriggerChance(pending.getExtraData(), value(pending.getEffectValue()));
+                int finalDamage = Math.max(0, rolled - defense);
                 match.setBossCurrentHp(Math.max(0, value(match.getBossCurrentHp()) - finalDamage));
                 if (finalDamage > 0 && pending.getSourceUserId() != null) {
                     try {
