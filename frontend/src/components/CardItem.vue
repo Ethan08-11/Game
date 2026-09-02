@@ -114,18 +114,18 @@ const typeIcon = computed(() => {
 
 const typeLabel = computed(() => {
   const labels: Record<string, string> = {
-    defend: '???',
-    attack: '???',
-    draw: '???',
-    consume: '????,
-    support: '???',
-    attack_defend: '???',
-    special: '???',
-    trigger: '???',
-    heal: '???',
-    buff: '???',
+    defend: '防御',
+    attack: '攻击',
+    draw: '过牌',
+    consume: '消耗',
+    support: '辅助',
+    attack_defend: '攻防',
+    special: '特殊',
+    trigger: '触发',
+    heal: '治疗',
+    buff: '增益',
   }
-  return labels[props.type] || props.type || '???'
+  return labels[props.type] || props.type || '特殊'
 })
 
 onMounted(() => {
