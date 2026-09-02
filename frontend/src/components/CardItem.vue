@@ -2,11 +2,9 @@
   <div
     class="card-item"
     :class="[`card-${type}`, { disabled }]"
+    :style="cardRootStyle"
     @click="!disabled && $emit('play')"
   >
-    <div class="card-art" :style="cardArtStyle"></div>
-    <div class="card-name-ribbon" aria-hidden="true"></div>
-    <div class="card-desc-plate" aria-hidden="true"></div>
     <span class="card-cost">{{ cost }}</span>
     <span class="card-dept">{{ displayDept }}</span>
     <strong class="card-name">{{ name }}</strong>
@@ -31,9 +29,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Switch, Aim, Download, Delete, MagicStick, Lightning, FirstAidKit, CirclePlus } from '@element-plus/icons-vue'
 import { getImageUrl } from '@/utils/imageUrl'
 import { displayCardDept } from '@/utils/cardDept'
+import { cardNameTopPercent } from '@/utils/cardOverlay'
 import fallbackBg from '@/assets/card-background1.webp'
 
-const DESC_MAX_PX = 16
+const DESC_MAX_PX = 18
 const DESC_MIN_PX = 9
 const DESC_LINE_HEIGHT = 1.2
 
@@ -56,9 +55,18 @@ const descRef = ref<HTMLElement | null>(null)
 const descFontPx = ref(DESC_MAX_PX)
 let resizeObserver: ResizeObserver | null = null
 
-const cardArtStyle = computed(() => {
+const cardBgStyle = computed(() => {
   const img = getImageUrl(props.imageUrl) || fallbackBg
-  return { backgroundImage: `url('${img}')` }
+  return { background: `url('${img}') center/100% 100% no-repeat` }
+})
+
+const cardRootStyle = computed(() => {
+  const nameTop = cardNameTopPercent(props.imageUrl, props.name)
+  return {
+    ...cardBgStyle.value,
+    '--card-name-top': `${nameTop}%`,
+    '--card-desc-top': `${Math.min(nameTop + 3.9, 82)}%`,
+  }
 })
 
 const displayDept = computed(() => displayCardDept(props.dept, props.imageUrl, props.dept))
@@ -106,18 +114,18 @@ const typeIcon = computed(() => {
 
 const typeLabel = computed(() => {
   const labels: Record<string, string> = {
-    defend: '防御',
-    attack: '攻击',
-    draw: '过牌',
-    consume: '消耗',
-    support: '辅助',
-    attack_defend: '攻防',
-    special: '特殊',
-    trigger: '触发',
-    heal: '治疗',
-    buff: '增益',
+    defend: '???',
+    attack: '???',
+    draw: '???',
+    consume: '????,
+    support: '???',
+    attack_defend: '???',
+    special: '???',
+    trigger: '???',
+    heal: '???',
+    buff: '???',
   }
-  return labels[props.type] || props.type || '特殊'
+  return labels[props.type] || props.type || '???'
 })
 
 onMounted(() => {
@@ -151,7 +159,6 @@ onBeforeUnmount(() => {
   user-select: none;
   position: relative;
   overflow: hidden;
-  background: #e6d4a8;
 }
 .card-item:hover:not(.disabled) {
   transform: translateY(-6px);
@@ -161,58 +168,6 @@ onBeforeUnmount(() => {
 .card-item.disabled {
   opacity: 0.38;
   cursor: not-allowed;
-}
-
-.card-art {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background-position: center;
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  pointer-events: none;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 64%,
-    rgba(0, 0, 0, 0.55) 68%,
-    transparent 72.5%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 64%,
-    rgba(0, 0, 0, 0.55) 68%,
-    transparent 72.5%
-  );
-}
-
-.card-name-ribbon {
-  position: absolute;
-  top: 68.8%;
-  left: 16%;
-  right: 16%;
-  height: 6.2%;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(180deg, #f3e6c8 0%, #e6d3a8 52%, #d7c08c 100%);
-  border: 1px solid rgba(122, 86, 40, 0.35);
-  border-radius: 40% / 70%;
-  box-shadow: 0 1px 2px rgba(40, 24, 8, 0.22);
-}
-
-.card-desc-plate {
-  position: absolute;
-  top: 74.2%;
-  left: 10.5%;
-  right: 10.5%;
-  bottom: 7.2%;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(180deg, #e2cfab 0%, #d4bc90 100%);
-  border: 1px solid rgba(90, 62, 36, 0.32);
-  border-radius: 6px;
-  box-shadow: inset 0 0 0 1px rgba(255, 244, 214, 0.28);
 }
 
 .card-cost {
@@ -244,11 +199,11 @@ onBeforeUnmount(() => {
 
 .card-name {
   position: absolute;
-  top: 71.9%;
+  top: var(--card-name-top, 72.2%);
   left: 50%;
   transform: translate(-50%, -50%);
   width: 62%;
-  font-size: calc(var(--text-base) * 1.55);
+  font-size: calc(var(--text-base) * 1.7);
   line-height: 1;
   color: #3E2723;
   text-align: center;
@@ -257,13 +212,12 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   z-index: 2;
   pointer-events: none;
-  text-shadow: 0 0 4px rgba(243, 230, 200, 0.9);
 }
 
 .card-desc-box {
   position: absolute;
-  top: 75.6%;
-  bottom: 10.5%;
+  top: var(--card-desc-top, 76%);
+  bottom: 8%;
   left: 13%;
   right: 13%;
   display: flex;
@@ -273,7 +227,7 @@ onBeforeUnmount(() => {
   z-index: 2;
   pointer-events: none;
   box-sizing: border-box;
-  padding: 2px 4px;
+  padding: 4px 3px;
 }
 
 .card-desc {
@@ -329,7 +283,7 @@ onBeforeUnmount(() => {
 .tag-support      { background: rgba(22, 160, 133, 0.72); color: #3E2723; }
 .tag-attack_defend{ background: rgba(201, 107, 43, 0.72); color: #3E2723; }
 .tag-special      { background: rgba(155, 89, 182, 0.72); color: #3E2723; }
+.tag-trigger      { background: rgba(230, 126, 34, 0.72); color: #3E2723; }
 .tag-heal         { background: rgba(39, 174, 96, 0.72); color: #3E2723; }
 .tag-buff         { background: rgba(41, 128, 185, 0.72); color: #3E2723; }
-.tag-trigger      { background: rgba(230, 126, 34, 0.72); color: #3E2723; }
 </style>
