@@ -20,7 +20,7 @@ export function getImageUrl(path: string | null | undefined): string | null {
   const url = `${BACKEND_HTTP_BASE}${webpPath}`
   // 顾客立绘、卡面曾被长缓存；换 query 才能立刻拿到新图
   if (/\/images\/(customer|cards)\//i.test(webpPath)) {
-    return `${url}?v=20260902a`
+    return `${url}?v=20260902b`
   }
   return url
 }
