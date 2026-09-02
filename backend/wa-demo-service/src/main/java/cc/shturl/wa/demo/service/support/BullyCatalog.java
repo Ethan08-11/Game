@@ -31,12 +31,15 @@ public final class BullyCatalog {
     public static final String PATTERN_FOCUS_TOP_DAMAGE = "FOCUS_TOP_DAMAGE";
     public static final String PATTERN_BOTH_HALF_SWING = "BOTH_HALF_SWING";
 
-    public static final int ATTACK_MIN = 12;
-    public static final int ATTACK_MAX = 14;
-    public static final int DEFENSE_STANCE_CHANCE = 30;
-    public static final int DEFENSE_SHIELD = 8;
-    public static final int FOCUS_PIERCE = 4;
-    public static final int FOCUS_PIERCE_HALF = 2;
+    /** 对准成员卡 2～3 费盾（Harry 13 / Amy 12 / Daniel 15），满攻会穿过去。 */
+    public static final int ATTACK_MIN = 17;
+    public static final int ATTACK_MAX = 20;
+    public static final int DEFENSE_STANCE_CHANCE = 20;
+    public static final int DEFENSE_SHIELD = 12;
+    public static final int BASE_PIERCE = 3;
+    public static final int BASE_PIERCE_HALF = 2;
+    public static final int FOCUS_PIERCE = 6;
+    public static final int FOCUS_PIERCE_HALF = 3;
     public static final int PAIR_CHIP_THRESHOLD = 2;
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -105,10 +108,10 @@ public final class BullyCatalog {
     }
 
     public static int pierceFor(BullySkill skill, boolean defenseStance) {
-        if (skill == null || !skill.is(PATTERN_FOCUS_LOW_HP)) {
-            return 0;
+        if (skill != null && skill.is(PATTERN_FOCUS_LOW_HP)) {
+            return defenseStance ? FOCUS_PIERCE_HALF : FOCUS_PIERCE;
         }
-        return defenseStance ? FOCUS_PIERCE_HALF : FOCUS_PIERCE;
+        return defenseStance ? BASE_PIERCE_HALF : BASE_PIERCE;
     }
 
     public static boolean roll(int chance) {
@@ -216,9 +219,9 @@ public final class BullyCatalog {
 
     private static String summaryForPattern(String pattern) {
         return switch (pattern) {
-            case PATTERN_FOCUS_LOW_HP -> "专打更弱的护卫；盾挡完仍会漏 4 点。";
-            case PATTERN_ROUND_SHIELD -> "约三成回合胸口多 8 点盾，这回合出手也变轻。";
-            case PATTERN_FOCUS_TOP_DAMAGE -> "约七成回合会盯打得最疼的人多挨 5 点。";
+            case PATTERN_FOCUS_LOW_HP -> "专打更弱的护卫；盾挡完仍会漏 6 点。";
+            case PATTERN_ROUND_SHIELD -> "约两成回合胸口多 12 点盾，这回合出手也变轻。";
+            case PATTERN_FOCUS_TOP_DAMAGE -> "约八成回合会盯打得最疼的人多挨 5 点。";
             case PATTERN_BOTH_HALF_SWING -> "两人都几乎挡住时，下一拍会再抽半刀。";
             default -> "";
         };
