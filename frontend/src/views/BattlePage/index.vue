@@ -1081,6 +1081,15 @@ function syncToStore(detail: any) {
     discardPile: [],
   }))
 
+  if (detail.bullySkillType === 'FOCUS_TOP_DAMAGE'
+      && (game.bullyTarget === 'player1' || game.bullyTarget === 'player2')) {
+    const seat = game.bullyTarget === 'player1' ? 0 : 1
+    const dept = players.value[seat]?.dept
+    if (dept) {
+      game.bullyTarget = dept
+    }
+  }
+
   turnEnded.value = backendPlayers.map((item: any) => Boolean(item.endedTurn)) as [boolean, boolean]
 }
 
@@ -1219,7 +1228,7 @@ async function playCard(card: BattleCard) {
       const res = await playMatchCard(activeMatchId.value, payload)
       console.log(`[调试] play-card 响应:`, JSON.stringify(res, null, 2))
       console.log(`[调试] boss HP 变化 → beforeValue: ${res.beforeValue}, afterValue: ${res.afterValue}, effects:`, JSON.stringify(res.effects ?? []))
-      logMatchEvent('card.played', res)
+      logMatchEvent('card.played', { ...res, deptType: res.deptType ?? card.dept })
       notifyPlayCardEffects(res)
       queueHeroAttackFx(res)
       if (res.matchEnded) {
@@ -1595,11 +1604,12 @@ async function confirmTarget(targetUserId: string) {
       clientActionId: `${room.currentUserId}-${activeMatchId.value}-${Date.now()}`,
       expectedVersion: activeVersion.value,
     })
+    const playedDept = pendingTargetCard.value.dept
     showTargetDialog.value = false
     pendingTargetUserId.value = targetUserId
     pendingTargetCard.value = null
     notifyPlayCardEffects(res)
-    logMatchEvent('card.played', res)
+    logMatchEvent('card.played', { ...res, deptType: res.deptType ?? playedDept })
     queueHeroAttackFx(res)
     if (res.matchEnded) {
       await loadSettlement()
@@ -2059,6 +2069,15 @@ function playerLabel(userId: unknown) {
   return seat >= 0 ? `P${seat + 1}` : '玩家'
 }
 
+function formatLogCardName(name: unknown, actorUserId?: unknown, extraDept?: unknown) {
+  const rawName = String(name ?? '').trim() || '未知卡牌'
+  const dept = normalizeDept(String(extraDept ?? ''))
+    || players.value.find(p => normalizeActorId(p.userId) === normalizeActorId(actorUserId))?.dept
+    || ''
+  if (!dept || rawName.includes(dept) || rawName.includes(' - ')) return rawName
+  return `${dept} - ${rawName}`
+}
+
 function unwrapMatchEvent(data: any, message?: any) {
   if (data && typeof data === 'object' && (data.actorUserId != null || data.cardName != null || data.userId != null || data.currentRound != null || data.actionId != null)) {
     return data
@@ -2080,7 +2099,7 @@ function logMatchEvent(type: string, data: any, message?: any) {
   switch (type) {
     case 'card.played': {
       const actor = d?.actorUserId ?? d?.actor_user_id ?? d?.userId
-      const name = d?.cardName ?? d?.card_name ?? '未知卡牌'
+      const name = formatLogCardName(d?.cardName ?? d?.card_name, actor, d?.deptType ?? d?.dept_type ?? d?.dept)
       const key = `play:${d?.actionId ?? d?.clientActionId ?? `${actor}:${name}:${d?.version ?? Date.now()}`}`
       addAction(`${playerLabel(actor)} 打出「${name}」`, key)
       break

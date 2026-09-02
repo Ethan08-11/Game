@@ -11,6 +11,7 @@ public record MatchActionResp(
         Long cardInstanceId,
         Long cardId,
         String cardName,
+        String deptType,
         String targetType,
         Long targetUserId,
         Integer remainingActionPoints,

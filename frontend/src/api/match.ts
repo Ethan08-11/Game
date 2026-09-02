@@ -238,6 +238,7 @@ export interface PlayCardResponse {
   cardInstanceId?: number | string
   cardId?: number | string
   cardName?: string
+  deptType?: string
   effectType?: string
   effectValue?: number
   targetType?: 'BOSS' | 'PLAYER' | 'SELF'

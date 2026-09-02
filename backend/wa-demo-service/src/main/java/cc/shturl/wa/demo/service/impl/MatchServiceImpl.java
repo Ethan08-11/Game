@@ -717,7 +717,7 @@ public class MatchServiceImpl implements MatchService {
         matchActionsMapper.insert(action);
 
         MatchActionResp response = new MatchActionResp(matchId, action.getId(), request.clientActionId(), "PLAY_CARD",
-                currentUserId, instance.getId(), card.getId(), card.getCardName(),
+                currentUserId, instance.getId(), card.getId(), card.getCardName(), card.getDeptType(),
                 resolveResponseTargetType(configuredEffects, requiresPlayerTarget),
                 target == null ? null : target.getUserId(),
                 actor.getActionPoints(), multiplier, effectResults,
@@ -2792,7 +2792,7 @@ public class MatchServiceImpl implements MatchService {
                 MatchPlayers focused = players.stream()
                         .filter(player -> Objects.equals(player.getUserId(), userId))
                         .findFirst().orElse(null);
-                target = uiTarget(focused);
+                target = deptLabel(focused);
                 actionText = "本回合盯" + deptLabel(focused) + "输出";
             } else {
                 actionText = "本回合半伤";
