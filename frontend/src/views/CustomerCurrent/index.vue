@@ -3,44 +3,46 @@
     <BackButton to="/game-hall" text="返回大厅" />
 
     <section class="customer-card" :style="{ '--panel-bg': `url(${panelBg})` }">
-      <img :src="getImageUrl(game.employerTrait?.imageUrl) || characterImg" alt="顾客形象" class="customer-avatar" />
       <div class="card-title" :style="{ backgroundImage: `url(${titleBanner})` }">顾客来访</div>
-      <div class="card-body">
-        <h1>{{ game.employerName || '顾客加载中' }}</h1>
-        <p class="story">顾客长期遭受霸凌者欺凌，已向 HIH 发起求助。请先了解本局顾客属性，再进入部门选择。</p>
+      <div class="card-layout">
+        <div class="card-body">
+          <h1>{{ game.employerName || '顾客加载中' }}</h1>
+          <p class="story">顾客长期遭受霸凌者欺凌，已向 HIH 发起求助。请先了解本局顾客属性，再进入部门选择。</p>
 
-        <div class="trait-panel">
-          <span class="trait-label">顾客属性</span>
-          <strong>{{ trait?.name || '加载中' }}</strong>
-          <p>{{ trait?.description || '顾客状态加载中...' }}</p>
-        </div>
+          <div class="trait-panel">
+            <span class="trait-label">顾客属性</span>
+            <strong>{{ trait?.name || '加载中' }}</strong>
+            <p>{{ trait?.description || '顾客状态加载中...' }}</p>
+          </div>
 
-        <div class="info-grid">
-          <div class="info-item">
-            <span>顾客类型触发概率</span>
-            <strong>{{ formatRate(trait?.typeTriggerRate) }}</strong>
-          </div>
-          <div class="info-item">
-            <span>效果触发概率</span>
-            <strong>{{ formatRate(trait?.effectTriggerRate) }}</strong>
-          </div>
-          <div class="info-item">
-            <span>顾客效果</span>
-            <strong>{{ effectText }}</strong>
-          </div>
-          <div v-if="trait?.bullyName" class="info-item">
-            <span>对应霸凌者</span>
-            <strong>{{ trait.bullyName }}</strong>
-          </div>
-          <div v-if="trait?.bullySkillSummary" class="info-item info-item-skill">
-            <span>霸凌者特效</span>
-            <strong>{{ trait.bullySkillSummary }}</strong>
-          </div>
-          <div v-if="trait?.bullyName" class="info-item">
-            <span>霸凌者特效概率</span>
-            <strong>{{ bullyChanceText }}</strong>
+          <div class="info-grid">
+            <div class="info-item">
+              <span>顾客类型触发概率</span>
+              <strong>{{ formatRate(trait?.typeTriggerRate) }}</strong>
+            </div>
+            <div class="info-item">
+              <span>效果触发概率</span>
+              <strong>{{ formatRate(trait?.effectTriggerRate) }}</strong>
+            </div>
+            <div class="info-item">
+              <span>顾客效果</span>
+              <strong>{{ effectText }}</strong>
+            </div>
+            <div v-if="trait?.bullyName" class="info-item">
+              <span>对应霸凌者</span>
+              <strong>{{ trait.bullyName }}</strong>
+            </div>
+            <div v-if="trait?.bullySkillSummary" class="info-item info-item-skill">
+              <span>霸凌者特效</span>
+              <strong>{{ trait.bullySkillSummary }}</strong>
+            </div>
+            <div v-if="trait?.bullyName" class="info-item">
+              <span>霸凌者特效概率</span>
+              <strong>{{ bullyChanceText }}</strong>
+            </div>
           </div>
         </div>
+        <img :src="getImageUrl(game.employerTrait?.imageUrl) || characterImg" alt="顾客形象" class="customer-avatar" />
       </div>
 
       <button type="button" class="primary-btn" :disabled="jumping" :style="{ backgroundImage: `url(${titleBanner})` }" @click.stop.prevent="goMatchMaking">
@@ -136,10 +138,10 @@ async function goMatchMaking() {
 }
 .customer-card {
   position: relative;
-  width: min(78%, 960px);
+  width: min(82%, 1000px);
   min-height: 0;
   margin: 36px auto 12px;
-  padding: 36px 40px 36px;
+  padding: 44px 48px 36px 96px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -155,13 +157,22 @@ async function goMatchMaking() {
   z-index: -1;
   pointer-events: none;
 }
+.card-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.95fr);
+  gap: 8px 28px;
+  align-items: center;
+}
 .customer-avatar {
-  position: absolute;
-  right: -110px;
-  top: -28px;
-  width: 400px;
-  height: auto;
+  position: relative;
   z-index: 0;
+  width: 100%;
+  max-width: 440px;
+  max-height: 460px;
+  height: auto;
+  object-fit: contain;
+  justify-self: center;
+  transform: translateX(-18px);
   pointer-events: none;
 }
 .card-title {
@@ -185,7 +196,7 @@ async function goMatchMaking() {
 .card-body {
   position: relative;
   z-index: 1;
-  max-width: 58%;
+  min-width: 0;
 }
 .eyebrow {
   color: #8b6914;
@@ -294,13 +305,13 @@ h1 {
 
 @media (max-width: 767px) {
   .customer-page { padding: var(--space-4); }
-  .customer-card { padding: var(--space-5) var(--space-4) var(--space-4); }
-  .card-body { max-width: 100%; }
-  .customer-avatar { display: none; }
+  .customer-card { padding: var(--space-5) var(--space-5) var(--space-4); }
+  .card-layout { grid-template-columns: 1fr; }
+  .customer-avatar { max-width: 280px; max-height: 280px; }
 }
 
 @media (max-height: 780px) {
-  .customer-card { margin-top: 28px; padding: 28px 36px 22px; }
+  .customer-card { margin-top: 28px; padding: 32px 40px 24px 88px; }
   h1 { font-size: var(--text-2xl); }
   .slogan { font-size: 18px; }
 }
