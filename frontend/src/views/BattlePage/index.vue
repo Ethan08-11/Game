@@ -12,8 +12,7 @@
               <span class="status-pill">{{ actionOrderText }}</span>
             </div>
             <span v-if="activePhase === 'REVIVE_WAIT'" class="status-pill revive-wait-tag">等待复活中…</span>
-            <span v-if="bullyDefense > 0" class="status-pill">霸凌者防御：{{ bullyDefense }}</span>
-            <span v-if="bullyActionText" class="status-pill">{{ bullyActionText }}</span>
+            <span v-if="statusBullyActionText" class="status-pill">{{ statusBullyActionText }}</span>
             <span v-if="isSelectingFirstPlayer" class="status-pill">先手状态：{{ firstPlayerStatusText }}</span>
           </div>
           <div class="bully-status-hud" :class="{ 'is-flash': bullyHpFlash }">
@@ -883,6 +882,12 @@ const actionOrderText = computed(() => {
   if (isSelectingFirstPlayer.value) return '阶段：选择先手'
   return currentTurnPlayer.value ? `当前行动：${currentTurnPlayer.value.dept || '玩家'}` : '当前行动：等待回合结算'
 })
+const statusBullyActionText = computed(() => {
+  const text = String(bullyActionText.value || '').trim()
+  if (!text) return ''
+  if (text.startsWith('本回合护盾') || text === '本回合没有护盾') return ''
+  return text
+})
 
 const deptLabelMap: Record<string, string> = {
   sales: '销售部',
@@ -1021,9 +1026,12 @@ function syncToStore(detail: any) {
   customerEffectValue.value = detail.customerEffectValue ?? customerEffectValue.value
   bullyDefense.value = Number(detail.bossShield ?? detail.bossDefense ?? detail.bullyShield ?? detail.bullyDefense ?? 0)
   game.bullyDefense = bullyDefense.value
-  game.bullyDebuff = detail.bullySkillSummary ?? detail.bossActionText ?? game.bullyDebuff
+  const bossAction = detail.bossActionText ?? detail.bullyActionText ?? detail.lastBossActionText
+  const shieldAction = typeof bossAction === 'string'
+    && (bossAction.startsWith('本回合护盾') || bossAction === '本回合没有护盾')
+  game.bullyDebuff = detail.bullySkillSummary ?? (shieldAction ? game.bullyDebuff : (detail.bossActionText ?? game.bullyDebuff))
   game.bullyTarget = detail.bullyTarget ?? ''
-  bullyActionText.value = detail.bossActionText ?? detail.bullyActionText ?? detail.lastBossActionText ?? bullyActionText.value
+  bullyActionText.value = bossAction ?? bullyActionText.value
   applyBossHp(detail)
   console.log(`[调试] syncToStore 服务端返回 bossCurrentHp: ${detail.bossCurrentHp}, bossMaxHp: ${detail.bossMaxHp}, 当前本地 bullyHP: ${game.bullyHP}`)
   game.bullyName = detail.bossName ?? game.bullyName
@@ -2389,6 +2397,9 @@ onUnmounted(() => {
 }
 .bully-status-hud :deep(.bully-hp-bar) {
   height: 32px;
+}
+.bully-status-hud :deep(.bully-hp-row) {
+  width: 100%;
 }
 .bully-status-hud :deep(.bully-hp-text) {
   font-size: var(--text-lg);

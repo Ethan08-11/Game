@@ -103,8 +103,10 @@ public class MatchServiceImpl implements MatchService {
     /** 对局不再发放金币，金币只通过任务领取。 */
     private static final long VICTORY_MONEY = 0L;
     private static final long DEFEAT_MONEY = 0L;
-    private static final int BOSS_HP_MIN = 100;
-    private static final int BOSS_HP_MAX = 110;
+    private static final int BOSS_HP_MIN = 132;
+    private static final int BOSS_HP_MAX = 148;
+    private static final int REVIVE_HP_MIN = 16;
+    private static final int REVIVE_HP_MAX = 22;
     private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
     private static final long REVIVE_TIMEOUT_MILLIS = 90_000L;
     private static final long REVIVE_MAX_WAIT_MILLIS = 180_000L;
@@ -436,7 +438,7 @@ public class MatchServiceImpl implements MatchService {
             throw new BusinessException("本局复活次数已用尽");
         }
         int beforeHp = value(player.getCurrentHp());
-        int reviveHp = ThreadLocalRandom.current().nextInt(10, 21);
+        int reviveHp = ThreadLocalRandom.current().nextInt(REVIVE_HP_MIN, REVIVE_HP_MAX + 1);
         reviveHp = Math.min(reviveHp, value(player.getMaxHp()));
         player.setCurrentHp(reviveHp);
         player.setPlayerStatus("ACTIVE");
@@ -1073,6 +1075,7 @@ public class MatchServiceImpl implements MatchService {
         MatchRounds round = new MatchRounds();
         round.setMatchId(match.getId());
         round.setRoundNo(1);
+        applyBullyRoundSkills(match, listPlayers(match.getId()));
         round.setRoundStatus(0);
         round.setPhase("SELECT_FIRST_PLAYER");
         round.setBossAttack(match.getBossCurrentAttack());
@@ -1084,7 +1087,6 @@ public class MatchServiceImpl implements MatchService {
         round.setFundsPerPlayer(3);
         round.setStartedAt(LocalDateTime.now());
         matchRoundsMapper.insert(round);
-        applyBullyRoundSkills(match, listPlayers(match.getId()));
         match.setStatus(1);
         match.setPhase("SELECT_FIRST_PLAYER");
         matchesMapper.updateById(match);
@@ -1931,8 +1933,10 @@ public class MatchServiceImpl implements MatchService {
             revengeUserId = pickHighestRoundDamageTarget(players, roundState.snapshots());
             revengeBonus = Math.max(skill.bonusAttack(), 0);
         }
+        int fullAttack = roundState.fullAttack() > 0 ? roundState.fullAttack() : attack;
         int halfAttack = skill.is(BullyCatalog.PATTERN_BOTH_HALF_SWING) && roundState.halfSwingThisRound()
-                ? attack / 2 : 0;
+                ? fullAttack / 2 : 0;
+        int pierce = BullyCatalog.pierceFor(skill, roundState.defenseStance());
 
         Map<Long, MatchPendingEffects> guardByWard = loadAllyGuards(match.getId());
         Map<Long, Integer> extraAttack = new HashMap<>();
@@ -1977,7 +1981,7 @@ public class MatchServiceImpl implements MatchService {
                 }
                 continue;
             }
-            BossAttackTargetResp hit = applyBossHit(match, round, player, totalAttack);
+            BossAttackTargetResp hit = applyBossHit(match, round, player, totalAttack, pierce);
             results.add(hit);
             hpLoss.merge(player.getUserId(), value(hit.hpDamage()), Integer::sum);
         }
@@ -1988,7 +1992,7 @@ public class MatchServiceImpl implements MatchService {
                 if (player == null || value(player.getCurrentHp()) <= 0) {
                     continue;
                 }
-                BossAttackTargetResp hit = applyBossHit(match, round, player, halfAttack);
+                BossAttackTargetResp hit = applyBossHit(match, round, player, halfAttack, 0);
                 results.add(hit);
                 hpLoss.merge(player.getUserId(), value(hit.hpDamage()), Integer::sum);
             }
@@ -2028,10 +2032,13 @@ public class MatchServiceImpl implements MatchService {
         return null;
     }
 
-    private BossAttackTargetResp applyBossHit(Matches match, MatchRounds round, MatchPlayers player, int attack) {
+    private BossAttackTargetResp applyBossHit(Matches match, MatchRounds round, MatchPlayers player,
+                                              int attack, int pierce) {
         int shieldBefore = value(player.getShield());
         int absorbed = Math.min(shieldBefore, attack);
-        int hpDamage = Math.max(attack - shieldBefore, 0);
+        int overflow = Math.max(attack - shieldBefore, 0);
+        int pierceDamage = Math.min(Math.max(pierce, 0), Math.max(attack, 0));
+        int hpDamage = Math.max(overflow, pierceDamage);
         int hpBefore = value(player.getCurrentHp());
         int hpAfter = Math.max(hpBefore - hpDamage, 0);
         player.setShield(0);
@@ -2119,7 +2126,7 @@ public class MatchServiceImpl implements MatchService {
         nextRound.setRoundNo(nextRoundNo);
         nextRound.setRoundStatus(0);
         nextRound.setPhase(PLAYER_ACTION);
-        nextRound.setBossAttack(attack);
+        nextRound.setBossAttack(match.getBossCurrentAttack());
         nextRound.setCustomerTriggered(triggered ? 1 : 0);
         nextRound.setCustomerEffectType(customer == null ? null : customer.getEffectType());
         nextRound.setCustomerEffectValue(customer == null ? 0 : value(customer.getEffectValue()));
@@ -2667,19 +2674,24 @@ public class MatchServiceImpl implements MatchService {
         Bullies bully = match.getBullyId() == null ? null : bulliesMapper.selectById(match.getBullyId());
         BullyCatalog.BullySkill skill = BullyCatalog.parse(bully);
         BullyCatalog.RoundState previous = BullyCatalog.readRoundState(match.getBullyRoundData());
-        boolean shieldRolled = skill.is(BullyCatalog.PATTERN_ROUND_SHIELD) && BullyCatalog.roll(skill.chance());
-        boolean focusRolled = skill.is(BullyCatalog.PATTERN_FOCUS_TOP_DAMAGE) && BullyCatalog.roll(skill.chance());
+        int customerDelta = value(match.getBossCurrentAttack()) - value(match.getBossBaseAttack());
+        int fullAttack = Math.max(0, BullyCatalog.rollAttack() + customerDelta);
+        boolean defense = BullyCatalog.rollDefenseStance();
+        int currentAttack = defense ? fullAttack / 2 : fullAttack;
+        boolean focusRolled = !defense && skill.is(BullyCatalog.PATTERN_FOCUS_TOP_DAMAGE);
         Map<Long, Integer> snapshots = new LinkedHashMap<>();
         for (MatchPlayers player : players) {
             snapshots.put(player.getUserId(), value(player.getDamageDealt()));
         }
         BullyCatalog.RoundState next = new BullyCatalog.RoundState(
-                shieldRolled,
+                defense,
                 focusRolled,
                 previous.halfSwingNextRound(),
                 false,
-                snapshots);
-        match.setBossCurrentShield(shieldRolled ? Math.max(skill.shield(), 0) : 0);
+                snapshots,
+                fullAttack);
+        match.setBossCurrentAttack(currentAttack);
+        match.setBossCurrentShield(defense ? BullyCatalog.DEFENSE_SHIELD : 0);
         match.setBullyRoundData(BullyCatalog.writeRoundState(next));
     }
 
@@ -2688,15 +2700,10 @@ public class MatchServiceImpl implements MatchService {
         if (!skill.is(BullyCatalog.PATTERN_BOTH_HALF_SWING) || livingAtStart.size() != 2) {
             return;
         }
-        boolean allBlocked = true;
         for (Long userId : livingAtStart) {
-            if (hpLoss.getOrDefault(userId, 0) > 0) {
-                allBlocked = false;
-                break;
+            if (hpLoss.getOrDefault(userId, 0) > BullyCatalog.PAIR_CHIP_THRESHOLD) {
+                return;
             }
-        }
-        if (!allBlocked || !BullyCatalog.roll(skill.chance())) {
-            return;
         }
         BullyCatalog.RoundState state = BullyCatalog.readRoundState(match.getBullyRoundData());
         match.setBullyRoundData(BullyCatalog.writeRoundState(state.withHalfSwingNextRound(true)));
@@ -2776,8 +2783,8 @@ public class MatchServiceImpl implements MatchService {
             triggered = 1;
             actionText = "本回合点名" + deptLabel(focused);
         } else if (skill.is(BullyCatalog.PATTERN_ROUND_SHIELD)) {
-            triggered = state.shieldRolled() ? 1 : 0;
-            actionText = state.shieldRolled() ? "本回合护盾 " + shield : "本回合没有护盾";
+            triggered = state.defenseStance() ? 1 : 0;
+            actionText = state.defenseStance() ? "本回合半伤" : "本回合全力出手";
         } else if (skill.is(BullyCatalog.PATTERN_FOCUS_TOP_DAMAGE)) {
             triggered = state.focusRolled() ? 1 : 0;
             if (state.focusRolled()) {
@@ -2788,7 +2795,7 @@ public class MatchServiceImpl implements MatchService {
                 target = uiTarget(focused);
                 actionText = "本回合盯" + deptLabel(focused) + "输出";
             } else {
-                actionText = "本回合普通双打";
+                actionText = "本回合半伤";
             }
         } else if (skill.is(BullyCatalog.PATTERN_BOTH_HALF_SWING)) {
             triggered = state.halfSwingThisRound() ? 1 : 0;

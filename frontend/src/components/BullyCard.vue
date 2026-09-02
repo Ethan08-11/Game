@@ -2,13 +2,15 @@
   <div class="bully-card" :style="{ backgroundImage: `url(${panelBg})` }">
     <div class="bully-status">
       <div v-if="game.bullyDebuff" class="bully-effect">{{ game.bullyDebuff }}</div>
-      <div v-if="game.bullyDefense > 0" class="bully-shield">
-        <img :src="shieldIcon" alt="盾" class="shield-icon" />
-        <span>{{ game.bullyDefense }}</span>
-      </div>
-      <div class="bully-hp-bar">
-        <div class="bully-hp-fill" :style="{ width: hpPercent + '%' }" />
-        <span class="bully-hp-text">HP: {{ game.bullyHP }}/{{ game.maxBullyHP }}</span>
+      <div class="bully-hp-row">
+        <div class="bully-hp-bar">
+          <div class="bully-hp-fill" :style="{ width: hpPercent + '%' }" />
+          <span class="bully-hp-text">HP: {{ game.bullyHP }}/{{ game.maxBullyHP }}</span>
+        </div>
+        <div class="bully-shield" :class="{ 'is-empty': game.bullyDefense <= 0 }" title="本回合护盾">
+          <img :src="shieldIcon" alt="护盾" class="shield-icon" />
+          <span>{{ game.bullyDefense }}</span>
+        </div>
       </div>
     </div>
 
@@ -72,33 +74,38 @@ const targetText = computed(() => {
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
 }
+.bully-hp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .bully-shield {
   display: inline-flex;
   align-items: center;
-  gap: 0;
-  margin-bottom: var(--space-1);
+  flex-shrink: 0;
+  gap: 1px;
   padding: 0;
-  margin-left: -4px;
-  border-radius: 0;
-  background: transparent;
+  margin: 0;
   color: var(--color-accent);
-  border: none;
-  box-shadow: none;
-  font-size: 36px;
+  font-size: 20px;
   font-weight: var(--weight-bold);
   line-height: 1;
 }
+.bully-shield.is-empty {
+  opacity: 0.45;
+  color: var(--color-text-secondary);
+}
 .shield-icon {
-  width: 56px;
-  height: 56px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   display: inline-block;
   filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.22));
 }
 .bully-shield span {
-  font-size: 36px;
+  font-size: 20px;
   line-height: 1;
-  transform: translateY(-1px);
+  min-width: 1ch;
 }
 .bully-damage {
   color: var(--color-danger);
@@ -119,12 +126,13 @@ const targetText = computed(() => {
 }
 .bully-hp-bar {
   position: relative;
+  flex: 1;
+  min-width: 0;
   height: 28px;
   margin-top: 2px;
   background: var(--color-surface-03);
   border-radius: var(--radius-full);
   overflow: hidden;
-  flex-shrink: 0;
 }
 .bully-hp-fill {
   height: 100%;

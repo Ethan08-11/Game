@@ -31,6 +31,14 @@ public final class BullyCatalog {
     public static final String PATTERN_FOCUS_TOP_DAMAGE = "FOCUS_TOP_DAMAGE";
     public static final String PATTERN_BOTH_HALF_SWING = "BOTH_HALF_SWING";
 
+    public static final int ATTACK_MIN = 12;
+    public static final int ATTACK_MAX = 14;
+    public static final int DEFENSE_STANCE_CHANCE = 30;
+    public static final int DEFENSE_SHIELD = 8;
+    public static final int FOCUS_PIERCE = 4;
+    public static final int FOCUS_PIERCE_HALF = 2;
+    public static final int PAIR_CHIP_THRESHOLD = 2;
+
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Map<String, String> CUSTOMER_TO_BULLY = Map.of(
             CUSTOMER_KIND, BULLY_FOCUS,
@@ -57,8 +65,8 @@ public final class BullyCatalog {
         JsonNode root = readTree(bully.getSkillData());
         String pattern = text(root, "pattern", patternForCode(code));
         int chance = number(root, "chance", chanceForPattern(pattern));
-        int shield = number(root, "shield", PATTERN_ROUND_SHIELD.equals(pattern) ? 4 : 0);
-        int bonus = number(root, "bonusAttack", PATTERN_FOCUS_TOP_DAMAGE.equals(pattern) ? 2 : 0);
+        int shield = number(root, "shield", PATTERN_ROUND_SHIELD.equals(pattern) ? DEFENSE_SHIELD : 0);
+        int bonus = number(root, "bonusAttack", PATTERN_FOCUS_TOP_DAMAGE.equals(pattern) ? 5 : 0);
         String summary = text(root, "catalogSummary", summaryForPattern(pattern));
         return new BullySkill(pattern, chance, shield, bonus, summary);
     }
@@ -69,7 +77,7 @@ public final class BullyCatalog {
                     null, null, null, null, null);
         }
         BullySkill skill = parse(bully);
-        Integer chance = skill.alwaysOn() ? null : skill.chance();
+        Integer chance = displayChance(skill);
         return new CustomerInfoResp(
                 customer.getId(),
                 customer.getCustomerCode(),
@@ -86,6 +94,21 @@ public final class BullyCatalog {
                 bully == null ? null : bully.getDescription(),
                 skill.summary().isBlank() ? null : skill.summary(),
                 chance);
+    }
+
+    public static int rollAttack() {
+        return ThreadLocalRandom.current().nextInt(ATTACK_MIN, ATTACK_MAX + 1);
+    }
+
+    public static boolean rollDefenseStance() {
+        return roll(DEFENSE_STANCE_CHANCE);
+    }
+
+    public static int pierceFor(BullySkill skill, boolean defenseStance) {
+        if (skill == null || !skill.is(PATTERN_FOCUS_LOW_HP)) {
+            return 0;
+        }
+        return defenseStance ? FOCUS_PIERCE_HALF : FOCUS_PIERCE;
     }
 
     public static boolean roll(int chance) {
@@ -114,20 +137,24 @@ public final class BullyCatalog {
                 }
             });
         }
+        boolean defense = root.path("defenseStance").asBoolean(root.path("shieldRolled").asBoolean(false));
         return new RoundState(
-                root.path("shieldRolled").asBoolean(false),
+                defense,
                 root.path("focusRolled").asBoolean(false),
                 root.path("halfSwingThisRound").asBoolean(false),
                 root.path("halfSwingNextRound").asBoolean(false),
-                snapshots);
+                snapshots,
+                root.path("fullAttack").asInt(0));
     }
 
     public static String writeRoundState(RoundState state) {
         ObjectNode root = JSON.createObjectNode();
         root.put("shieldRolled", state.shieldRolled());
+        root.put("defenseStance", state.defenseStance());
         root.put("focusRolled", state.focusRolled());
         root.put("halfSwingThisRound", state.halfSwingThisRound());
         root.put("halfSwingNextRound", state.halfSwingNextRound());
+        root.put("fullAttack", state.fullAttack());
         ObjectNode snapshots = root.putObject("snapshots");
         state.snapshots().forEach((userId, value) -> snapshots.put(String.valueOf(userId), value));
         return root.toString();
@@ -146,14 +173,25 @@ public final class BullyCatalog {
     }
 
     public record RoundState(boolean shieldRolled, boolean focusRolled, boolean halfSwingThisRound,
-                             boolean halfSwingNextRound, Map<Long, Integer> snapshots) {
+                             boolean halfSwingNextRound, Map<Long, Integer> snapshots, int fullAttack) {
         public static RoundState empty() {
-            return new RoundState(false, false, false, false, Map.of());
+            return new RoundState(false, false, false, false, Map.of(), 0);
+        }
+
+        public boolean defenseStance() {
+            return shieldRolled;
         }
 
         public RoundState withHalfSwingNextRound(boolean value) {
-            return new RoundState(shieldRolled, focusRolled, halfSwingThisRound, value, snapshots);
+            return new RoundState(shieldRolled, focusRolled, halfSwingThisRound, value, snapshots, fullAttack);
         }
+    }
+
+    private static Integer displayChance(BullySkill skill) {
+        if (skill.alwaysOn() || skill.is(PATTERN_BOTH_HALF_SWING) || skill.chance() <= 0) {
+            return null;
+        }
+        return skill.chance();
     }
 
     private static String patternForCode(String bullyCode) {
@@ -169,19 +207,19 @@ public final class BullyCatalog {
     private static int chanceForPattern(String pattern) {
         return switch (pattern) {
             case PATTERN_FOCUS_LOW_HP -> 100;
-            case PATTERN_ROUND_SHIELD -> 40;
-            case PATTERN_FOCUS_TOP_DAMAGE -> 50;
-            case PATTERN_BOTH_HALF_SWING -> 35;
+            case PATTERN_ROUND_SHIELD -> DEFENSE_STANCE_CHANCE;
+            case PATTERN_FOCUS_TOP_DAMAGE -> 100 - DEFENSE_STANCE_CHANCE;
+            case PATTERN_BOTH_HALF_SWING -> 0;
             default -> 0;
         };
     }
 
     private static String summaryForPattern(String pattern) {
         return switch (pattern) {
-            case PATTERN_FOCUS_LOW_HP -> "每回合专打更弱的护卫。";
-            case PATTERN_ROUND_SHIELD -> "约四成回合胸口会多一层 4 点盾。";
-            case PATTERN_FOCUS_TOP_DAMAGE -> "约一半回合会盯打得最疼的人加一刀。";
-            case PATTERN_BOTH_HALF_SWING -> "两人都挡住时，约三成会在下一拍再抽一次。";
+            case PATTERN_FOCUS_LOW_HP -> "专打更弱的护卫；盾挡完仍会漏 4 点。";
+            case PATTERN_ROUND_SHIELD -> "约三成回合胸口多 8 点盾，这回合出手也变轻。";
+            case PATTERN_FOCUS_TOP_DAMAGE -> "约七成回合会盯打得最疼的人多挨 5 点。";
+            case PATTERN_BOTH_HALF_SWING -> "两人都几乎挡住时，下一拍会再抽半刀。";
             default -> "";
         };
     }
