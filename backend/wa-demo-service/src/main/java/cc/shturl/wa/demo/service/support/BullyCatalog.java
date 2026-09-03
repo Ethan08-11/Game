@@ -31,10 +31,13 @@ public final class BullyCatalog {
     public static final String PATTERN_FOCUS_TOP_DAMAGE = "FOCUS_TOP_DAMAGE";
     public static final String PATTERN_BOTH_HALF_SWING = "BOTH_HALF_SWING";
 
-    /** 销售+采购掷点；双销售由 pressureForSalesCount 再加一档。 */
-    public static final int HP = 150;
-    public static final int ATTACK_MIN = 23;
-    public static final int ATTACK_MAX = 26;
+    /** 销售+采购、双采购掷点；双销售血量和攻击另取一档。 */
+    public static final int HP = 140;
+    public static final int ATTACK_MIN = 17;
+    public static final int ATTACK_MAX = 20;
+    public static final int DUAL_SALES_HP = 250;
+    public static final int DUAL_SALES_ATTACK_MIN = 18;
+    public static final int DUAL_SALES_ATTACK_MAX = 21;
     public static final int DEFENSE_STANCE_CHANCE = 15;
     public static final int DEFENSE_SHIELD = 14;
     public static final int PAIR_CHIP_THRESHOLD = 3;
@@ -118,14 +121,15 @@ public final class BullyCatalog {
     }
 
     /**
-     * 血量固定 150。攻击仍按组队：销售+采购 23～26，双销售/双采购 21～24。
+     * 销售+采购、双采购：血量 140，攻击 17～20。
+     * 双销售输出更高：血量 250，攻击 18～21。
      */
     public static Pressure pressureForSalesCount(int salesCount) {
         int n = Math.max(0, salesCount);
-        if (n == 1) {
-            return new Pressure(HP, HP, ATTACK_MIN, ATTACK_MAX);
+        if (n >= 2) {
+            return new Pressure(DUAL_SALES_HP, DUAL_SALES_HP, DUAL_SALES_ATTACK_MIN, DUAL_SALES_ATTACK_MAX);
         }
-        return new Pressure(HP, HP, 21, 24);
+        return new Pressure(HP, HP, ATTACK_MIN, ATTACK_MAX);
     }
 
     public static int rollAttack() {
