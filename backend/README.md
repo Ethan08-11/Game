@@ -929,6 +929,8 @@ sql_file/wa_demo最终版.sql
 - `skill_data`：技能 JSON
 - `status`：启用状态
 
+说明：当前对局所有顾客共用 `BULLY_SHIELD_001`（硬扛恶霸）。点名 / 针对 / 不落单模板停用。实际血量与攻击以 Java `BullyCatalog` 为准（血量 150；销售+采购攻击 23～26，双销售/双采购 21～24）。
+
 ---
 
 ### 10.8 系统配置

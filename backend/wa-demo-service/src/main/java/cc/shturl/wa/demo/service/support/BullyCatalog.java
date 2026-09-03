@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 顾客与霸凌者一对一，以及 skill_data / 回合状态解析。
+ * 所有顾客共用硬扛恶霸。旧模板代码仍保留，供进行中的对局解析 skill_data。
  */
 public final class BullyCatalog {
 
@@ -42,20 +42,20 @@ public final class BullyCatalog {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Map<String, String> CUSTOMER_TO_BULLY = Map.of(
-            CUSTOMER_KIND, BULLY_FOCUS,
+            CUSTOMER_KIND, BULLY_SHIELD,
             CUSTOMER_TIMID, BULLY_SHIELD,
-            CUSTOMER_ANXIOUS, BULLY_REVENGE,
-            CUSTOMER_WINDOW, BULLY_PAIR
+            CUSTOMER_ANXIOUS, BULLY_SHIELD,
+            CUSTOMER_WINDOW, BULLY_SHIELD
     );
 
     private BullyCatalog() {
     }
 
     public static String bullyCodeForCustomer(String customerCode) {
-        if (customerCode == null) {
-            return null;
+        if (customerCode == null || customerCode.isBlank()) {
+            return BULLY_SHIELD;
         }
-        return CUSTOMER_TO_BULLY.get(customerCode.trim());
+        return CUSTOMER_TO_BULLY.getOrDefault(customerCode.trim(), BULLY_SHIELD);
     }
 
     public static BullySkill parse(Bullies bully) {
