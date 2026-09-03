@@ -74,6 +74,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -2920,21 +2921,35 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private MatchPlayers pickLowestHpTarget(List<MatchPlayers> players) {
-        MatchPlayers chosen = null;
+        List<MatchPlayers> lowest = new ArrayList<>();
         for (MatchPlayers player : players) {
-            if (value(player.getCurrentHp()) <= 0) {
+            if (player == null || value(player.getCurrentHp()) <= 0) {
                 continue;
             }
-            if (chosen == null) {
-                chosen = player;
+            if (lowest.isEmpty()) {
+                lowest.add(player);
                 continue;
             }
-            int cmp = Integer.compare(value(player.getCurrentHp()), value(chosen.getCurrentHp()));
-            if (cmp < 0 || (cmp == 0 && isSales(player) && !isSales(chosen))) {
-                chosen = player;
+            int cmp = compareHpRatio(player, lowest.get(0));
+            if (cmp < 0) {
+                lowest.clear();
+                lowest.add(player);
+            } else if (cmp == 0) {
+                lowest.add(player);
             }
         }
-        return chosen;
+        if (lowest.isEmpty()) {
+            return null;
+        }
+        return lowest.get(ThreadLocalRandom.current().nextInt(lowest.size()));
+    }
+
+    /** 按剩余血量比例比较，避免销售 50 血开局永远比采购 75 血更低。 */
+    private int compareHpRatio(MatchPlayers left, MatchPlayers right) {
+        int leftMax = Math.max(value(left.getMaxHp()), 1);
+        int rightMax = Math.max(value(right.getMaxHp()), 1);
+        return Long.compare((long) value(left.getCurrentHp()) * rightMax,
+                (long) value(right.getCurrentHp()) * leftMax);
     }
 
     private Long pickHighestRoundDamageTarget(List<MatchPlayers> players, Map<Long, Integer> snapshots) {
@@ -2996,11 +3011,23 @@ public class MatchServiceImpl implements MatchService {
         return "护卫";
     }
 
-    private String uiTarget(MatchPlayers player) {
-        if (player == null) {
+    private String livingDeptTarget(List<MatchPlayers> players) {
+        LinkedHashSet<String> labels = new LinkedHashSet<>();
+        if (players != null) {
+            for (MatchPlayers player : players) {
+                if (player != null && value(player.getCurrentHp()) > 0) {
+                    labels.add(deptLabel(player));
+                }
+            }
+        }
+        if (labels.isEmpty()) {
             return "all";
         }
-        return value(player.getSeatNo()) <= 1 ? "player1" : "player2";
+        return String.join("、", labels);
+    }
+
+    private String uiTarget(MatchPlayers player) {
+        return deptLabel(player);
     }
 
     private BullyHud describeBullyHud(Matches match, Bullies bully, List<MatchPlayers> players) {
@@ -3011,7 +3038,7 @@ public class MatchServiceImpl implements MatchService {
             return new BullyHud(shield, null, null, 0, "", "");
         }
         int triggered = 0;
-        String target = "all";
+        String target = livingDeptTarget(players);
         String actionText = skill.summary();
         if (skill.is(BullyCatalog.PATTERN_FOCUS_LOW_HP)) {
             MatchPlayers focused = pickLowestHpTarget(players);
@@ -3028,7 +3055,7 @@ public class MatchServiceImpl implements MatchService {
                 MatchPlayers focused = players.stream()
                         .filter(player -> Objects.equals(player.getUserId(), userId))
                         .findFirst().orElse(null);
-                target = deptLabel(focused);
+                target = uiTarget(focused);
                 actionText = "本回合盯" + deptLabel(focused) + "输出";
             } else {
                 actionText = "本回合半伤";

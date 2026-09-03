@@ -36,8 +36,6 @@ public final class BullyCatalog {
     public static final int ATTACK_MAX = 26;
     public static final int DEFENSE_STANCE_CHANCE = 15;
     public static final int DEFENSE_SHIELD = 14;
-    public static final int FOCUS_PIERCE = 10;
-    public static final int FOCUS_PIERCE_HALF = 5;
     public static final int PAIR_CHIP_THRESHOLD = 3;
     public static final int REVENGE_BONUS = 8;
 
@@ -147,9 +145,6 @@ public final class BullyCatalog {
     }
 
     public static int pierceFor(BullySkill skill, boolean defenseStance) {
-        if (skill != null && skill.is(PATTERN_FOCUS_LOW_HP)) {
-            return defenseStance ? FOCUS_PIERCE_HALF : FOCUS_PIERCE;
-        }
         return 0;
     }
 
@@ -258,7 +253,7 @@ public final class BullyCatalog {
 
     private static String summaryForPattern(String pattern) {
         return switch (pattern) {
-            case PATTERN_FOCUS_LOW_HP -> "专打更弱的护卫；盾挡完仍会漏 10 点。";
+            case PATTERN_FOCUS_LOW_HP -> "专打血更虚的护卫；护盾可以挡住。";
             case PATTERN_ROUND_SHIELD -> "约一成五回合胸口多 14 点盾，这回合出手也变轻。";
             case PATTERN_FOCUS_TOP_DAMAGE -> "约八成五回合会盯打得最疼的人多挨 8 点。";
             case PATTERN_BOTH_HALF_SWING -> "两人都几乎挡住时，下一拍会再抽半刀。";
