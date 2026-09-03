@@ -16,8 +16,10 @@ public interface MatchService {
     void recoverOnlinePlayer(Long userId);
     Long findActiveMatchId(Long userId);
     void abandon(Long currentUserId, Long matchId);
+    void cancelStuckMatch(Long currentUserId, Long matchId);
     void markPlayerDisconnected(Long userId);
     void timeoutReconnectMatches();
+    void timeoutStuckMatches();
     MatchActionResp playCard(Long currentUserId, Long matchId, PlayCardReq request);
     EndTurnResp endTurn(Long currentUserId, Long matchId, EndTurnReq request);
     MatchReviveStatusResp getReviveStatus(Long currentUserId, Long matchId);

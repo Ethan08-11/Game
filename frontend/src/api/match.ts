@@ -80,6 +80,7 @@ export interface MatchDetailResp {
   bullySkillTriggered?: number
   bullyTarget?: string
   bossActionText?: string
+  stuckCancelAvailable?: boolean
 }
 
 export interface MatchSettlementPlayer {
@@ -303,6 +304,10 @@ export async function getCurrentMatch(): Promise<{ matchId?: number | string | n
 
 export async function abandonMatch(matchId: string | number): Promise<MatchDetailResp> {
   return apiCall(`/matches/${matchId}/abandon`, { method: 'POST' })
+}
+
+export async function cancelStuckMatch(matchId: string | number): Promise<void> {
+  return apiCall(`/matches/${matchId}/cancel-stuck`, { method: 'POST' })
 }
 
 export async function chooseFirstPlayer(matchId: string | number, firstPlayerUserId: string | number): Promise<MatchDetailResp> {

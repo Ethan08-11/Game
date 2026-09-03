@@ -79,6 +79,14 @@ public class MatchController {
         matchService.abandon(userId, matchId);
         return Result.ok();
     }
+
+    @PostMapping("/{matchId}/cancel-stuck")
+    public Result<Void> cancelStuck(@RequestHeader("Authorization") String authorization,
+                                    @PathVariable("matchId") Long matchId) {
+        Long userId = authTokenSupport.requireUserIdFromAccessToken(authorization);
+        matchService.cancelStuckMatch(userId, matchId);
+        return Result.ok();
+    }
     @PostMapping("/{matchId}/actions/play-card")
     public Result<MatchActionResp> playCard(@RequestHeader("Authorization") String authorization,
                                             @PathVariable("matchId") Long matchId,

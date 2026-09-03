@@ -108,8 +108,20 @@ public class MatchServiceImpl implements MatchService {
     private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
     private static final long REVIVE_TIMEOUT_MILLIS = 90_000L;
     private static final long REVIVE_MAX_WAIT_MILLIS = 180_000L;
+    /** 玩家申请「对局异常」：至少 3 分钟没有任何有效操作。 */
+    private static final long STUCK_CANCEL_IDLE_MILLIS = 180_000L;
+    /** 看门狗自动作废：卡死满 5 分钟。 */
+    private static final long STUCK_AUTO_VOID_IDLE_MILLIS = 300_000L;
+    private static final int WINNER_INTERRUPTED = 3;
+    private static final String RECONNECT_ATTEMPT_ACTION = "reconnect_attempt";
     private static final Set<String> KEEP_PHASE_ON_DISCONNECT = Set.of(
             "SELECT_FIRST_PLAYER", "BOSS_ACTION", "REVIVE_WAIT", "FINISHED");
+
+    private enum MatchEndKind {
+        COMPLETE,
+        FORFEIT,
+        VOID
+    }
 
     private final GameRoomsMapper gameRoomsMapper;
     private final RoomMembersMapper roomMembersMapper;
@@ -236,7 +248,8 @@ public class MatchServiceImpl implements MatchService {
                 round == null ? null : round.getCustomerEffectType(), round == null ? 0 : round.getCustomerEffectValue(),
                 round == null ? null : round.getFirstPlayerUserId(), round == null ? null : round.getChosenByUserId(),
                 waitingReconnect, reconnectRemainingSeconds, playerStates, hand, match.getWinnerType(),
-                hud.shield(), hud.skillType(), hud.summary(), hud.triggered(), hud.target(), hud.actionText());
+                hud.shield(), hud.skillType(), hud.summary(), hud.triggered(), hud.target(), hud.actionText(),
+                evaluateStuck(match).eligible(false));
     }
 
     @Override
@@ -321,7 +334,7 @@ public class MatchServiceImpl implements MatchService {
         player.setPlayerStatus("LEFT");
         player.setResultType(2);
         matchPlayersMapper.updateById(player);
-        finishMatch(match, 2, false);
+        finishMatch(match, 2, MatchEndKind.FORFEIT);
         notifyPlayers(match.getId(), "match.ended", Map.of(
                 "matchId", match.getId(),
                 "winnerType", 2,
@@ -1239,6 +1252,7 @@ public class MatchServiceImpl implements MatchService {
     @Override
     @Transactional
     public MatchStateResp reconnect(Long currentUserId, Long matchId) {
+        noteReconnectAttempt(currentUserId, matchId);
         applyReconnect(currentUserId, matchId);
         return getMatchState(currentUserId, matchId);
     }
@@ -1257,6 +1271,7 @@ public class MatchServiceImpl implements MatchService {
                 continue;
             }
             try {
+                noteReconnectAttempt(userId, player.getMatchId());
                 applyReconnect(userId, player.getMatchId());
             } catch (Exception e) {
                 logger.warn("Auto-recover reconnect failed userId={} matchId={}: {}",
@@ -1360,10 +1375,45 @@ public class MatchServiceImpl implements MatchService {
         player.setPlayerStatus("LEFT");
         player.setResultType(2);
         matchPlayersMapper.updateById(player);
-        // 放弃对局：计失败，但不发放金币/经验/任务进度
-        finishMatch(match, 2, false);
+        // 放弃：记失败并占用当日任务局数，但不发完成/获胜任务奖励
+        finishMatch(match, 2, MatchEndKind.FORFEIT);
         notifyPlayers(matchId, "match.ended", Map.of("matchId", matchId, "winnerType", 2, "reason", "abandon"));
         userPresenceService.broadcastPresence(currentUserId);
+    }
+
+    @Override
+    @Transactional
+    public void cancelStuckMatch(Long currentUserId, Long matchId) {
+        Matches match = requireMatch(matchId);
+        requirePlayer(currentUserId, matchId);
+        if (value(match.getStatus()) == 2) {
+            return;
+        }
+        StuckCheck check = evaluateStuck(match);
+        if (!check.eligible(false)) {
+            throw new BusinessException(check.rejectMessage());
+        }
+        voidMatch(match, "player_cancel");
+        userPresenceService.broadcastPresence(currentUserId);
+    }
+
+    @Override
+    @Scheduled(
+            fixedDelayString = "${app.match.stuck-timeout-check-ms:15000}",
+            initialDelayString = "${app.match.stuck-timeout-initial-delay-ms:20000}")
+    public void timeoutStuckMatches() {
+        LocalDateTime cutoff = LocalDateTime.now().minusSeconds(STUCK_CANCEL_IDLE_MILLIS / 1000);
+        List<Matches> live = matchesMapper.selectList(Wrappers.<Matches>lambdaQuery()
+                .eq(Matches::getStatus, 1)
+                .le(Matches::getUpdatedAt, cutoff));
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        for (Matches waiting : live) {
+            try {
+                template.executeWithoutResult(status -> autoVoidIfStuck(waiting.getId()));
+            } catch (Exception e) {
+                logger.warn("Stuck match void failed matchId={}: {}", waiting.getId(), e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -2298,17 +2348,163 @@ public class MatchServiceImpl implements MatchService {
         return bully == null ? 0 : value(bully.getDefenseValue());
     }
 
+    private void autoVoidIfStuck(Long matchId) {
+        Matches match = matchesMapper.selectById(matchId);
+        if (match == null || value(match.getStatus()) != 1) {
+            return;
+        }
+        if (!evaluateStuck(match).eligible(true)) {
+            return;
+        }
+        voidMatch(match, "auto");
+    }
+
+    private void voidMatch(Matches match, String reason) {
+        finishMatch(match, WINNER_INTERRUPTED, MatchEndKind.VOID);
+        notifyPlayers(match.getId(), "match.ended", Map.of(
+                "matchId", match.getId(),
+                "winnerType", WINNER_INTERRUPTED,
+                "reason", "void",
+                "voidReason", reason == null ? "stuck" : reason));
+        logger.info("Voided stuck match matchId={} reason={}", match.getId(), reason);
+    }
+
+    private void noteReconnectAttempt(Long userId, Long matchId) {
+        if (userId == null || matchId == null) {
+            return;
+        }
+        Long existing = matchActionsMapper.selectCount(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, matchId)
+                .eq(MatchActions::getActorUserId, userId)
+                .eq(MatchActions::getActionType, RECONNECT_ATTEMPT_ACTION));
+        if (existing != null && existing > 0) {
+            return;
+        }
+        MatchActions action = new MatchActions();
+        action.setMatchId(matchId);
+        action.setActorType("player");
+        action.setActorUserId(userId);
+        action.setActionType(RECONNECT_ATTEMPT_ACTION);
+        action.setExtraData("{\"reason\":\"reconnect\"}");
+        matchActionsMapper.insert(action);
+    }
+
+    private StuckCheck evaluateStuck(Matches match) {
+        if (match == null || value(match.getStatus()) != 1) {
+            return StuckCheck.notEligible("对局已经结束。");
+        }
+        String phase = match.getPhase();
+        if (phase == null || "FINISHED".equals(phase)) {
+            return StuckCheck.notEligible("对局已经结束。");
+        }
+        if ("REVIVE_WAIT".equals(phase)) {
+            return StuckCheck.notEligible("正在等待复活，不能按卡死取消。若放弃复活将记为失败并占用今日任务局数。");
+        }
+        if (isReconnectWindowActive(match)) {
+            return StuckCheck.notEligible("正在等待重连。请稍候；若直接放弃将占用今日任务局数。");
+        }
+        long idle = idleMillis(match);
+        long remainCancel = Math.max(STUCK_CANCEL_IDLE_MILLIS - idle, 0L);
+        if (remainCancel > 0) {
+            int seconds = (int) Math.ceil(remainCancel / 1000.0);
+            return StuckCheck.notEligible("对局尚未确认卡死，请约再等 " + seconds + " 秒。若确定退出请放弃（占用今日任务局数）。");
+        }
+        boolean reconnectTried = hasReconnectAttempt(match.getId());
+        boolean stuckPhase = "SELECT_FIRST_PLAYER".equals(phase)
+                || "BOSS_ACTION".equals(phase)
+                || "RECONNECT_WAIT".equals(phase);
+        return new StuckCheck(true, idle, stuckPhase || reconnectTried, "");
+    }
+
+    private boolean isReconnectWindowActive(Matches match) {
+        List<MatchPlayers> players = listPlayers(match.getId());
+        LocalDateTime now = LocalDateTime.now();
+        for (MatchPlayers player : players) {
+            if (!"RECONNECTING".equals(player.getPlayerStatus()) || player.getUpdatedAt() == null) {
+                continue;
+            }
+            if (java.time.Duration.between(player.getUpdatedAt(), now).toMillis() < RECONNECT_TIMEOUT_MILLIS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasReconnectAttempt(Long matchId) {
+        Long count = matchActionsMapper.selectCount(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, matchId)
+                .eq(MatchActions::getActionType, RECONNECT_ATTEMPT_ACTION));
+        return count != null && count > 0;
+    }
+
+    private long idleMillis(Matches match) {
+        LocalDateTime latest = lastActivityAt(match);
+        if (latest == null) {
+            return STUCK_AUTO_VOID_IDLE_MILLIS;
+        }
+        return Math.max(java.time.Duration.between(latest, LocalDateTime.now()).toMillis(), 0L);
+    }
+
+    private LocalDateTime lastActivityAt(Matches match) {
+        LocalDateTime latest = match.getUpdatedAt();
+        if (match.getStartedAt() != null && (latest == null || match.getStartedAt().isAfter(latest))) {
+            latest = match.getStartedAt();
+        }
+        MatchActions lastAction = matchActionsMapper.selectOne(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, match.getId())
+                .ne(MatchActions::getActionType, RECONNECT_ATTEMPT_ACTION)
+                .orderByDesc(MatchActions::getId)
+                .last("LIMIT 1"));
+        if (lastAction != null) {
+            if (lastAction.getCreatedAt() != null && (latest == null || lastAction.getCreatedAt().isAfter(latest))) {
+                latest = lastAction.getCreatedAt();
+            }
+            if (lastAction.getUpdatedAt() != null && (latest == null || lastAction.getUpdatedAt().isAfter(latest))) {
+                latest = lastAction.getUpdatedAt();
+            }
+        }
+        for (MatchPlayers player : listPlayers(match.getId())) {
+            if (player.getUpdatedAt() != null && (latest == null || player.getUpdatedAt().isAfter(latest))) {
+                latest = player.getUpdatedAt();
+            }
+        }
+        return latest;
+    }
+
+    private record StuckCheck(boolean ready, long idleMillis, boolean autoOk, String rejectMessage) {
+        static StuckCheck notEligible(String message) {
+            return new StuckCheck(false, 0L, false, message);
+        }
+
+        boolean eligible(boolean auto) {
+            if (!ready) {
+                return false;
+            }
+            if (!auto) {
+                return true;
+            }
+            return autoOk && idleMillis >= STUCK_AUTO_VOID_IDLE_MILLIS;
+        }
+    }
+
     private void finishMatch(Matches match, int winnerType) {
-        finishMatch(match, winnerType, true);
+        finishMatch(match, winnerType, MatchEndKind.COMPLETE);
     }
 
     /**
-     * @param grantRewards false 表示放弃/掉线强退等：只结束对局并记胜负，不发金币、经验、任务进度
+     * COMPLETE：正常打完，记战绩并结算完成/获胜任务。
+     * FORFEIT：放弃或掉线超时，记失败并占用当日局数，不算完成、不给获胜任务。
+     * VOID：卡死作废，不占槽、不记胜负、不发任务。
      */
-    private void finishMatch(Matches match, int winnerType, boolean grantRewards) {
+    private void finishMatch(Matches match, int winnerType, MatchEndKind kind) {
+        if (kind == MatchEndKind.VOID) {
+            winnerType = WINNER_INTERRUPTED;
+        }
         if (value(match.getStatus()) == 2 && value(match.getWinnerType()) != 0) {
             return;
         }
+        boolean grantRewards = kind == MatchEndKind.COMPLETE;
+        boolean consumeSlotOnly = kind == MatchEndKind.FORFEIT;
         LocalDateTime endedAt = LocalDateTime.now();
         Integer duration = match.getStartedAt() == null
                 ? null
@@ -2365,14 +2561,17 @@ public class MatchServiceImpl implements MatchService {
         for (MatchPlayers player : listPlayers(match.getId())) {
             player.setResultType(winnerType == 1 ? 1 : winnerType == 2 ? 2 : 3);
             player.setFinalConfidence(value(player.getCurrentHp()));
-            player.setPlayerStatus(winnerType == 1 ? "ACTIVE" : winnerType == 2 ? "LEFT" : "LEFT");
+            player.setPlayerStatus(winnerType == 1 ? "ACTIVE" : "LEFT");
             matchPlayersMapper.updateById(player);
-            applyProfileSettlement(player.getUserId(), winnerType, grantRewards);
+            if (kind != MatchEndKind.VOID) {
+                applyProfileSettlement(player.getUserId(), winnerType, grantRewards);
+            }
         }
         if (room != null) {
             Map<String, Object> closed = Map.of(
                     "type", "room.closed",
-                    "data", Map.of("roomId", room.getId(), "reason", "match_finished"));
+                    "data", Map.of("roomId", room.getId(), "reason",
+                            kind == MatchEndKind.VOID ? "match_voided" : "match_finished"));
             for (RoomMembers member : roomMembers) {
                 notificationService.notifyUser(member.getUserId(), closed);
                 userPresenceService.broadcastPresence(member.getUserId());
@@ -2414,10 +2613,22 @@ public class MatchServiceImpl implements MatchService {
                     }
                 }
             }
+        } else if (consumeSlotOnly) {
+            for (MatchPlayers player : listPlayers(match.getId())) {
+                try {
+                    taskService.consumeDailyMatchSlot(player.getUserId());
+                } catch (Exception e) {
+                    logger.warn("Skip match slot consume userId={} matchId={}: {}",
+                            player.getUserId(), match.getId(), e.getMessage());
+                }
+            }
         }
     }
 
     private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards) {
+        if (winnerType != 1 && winnerType != 2) {
+            return;
+        }
         leaderboardService.ensureCurrentMonth();
         int winDelta = winnerType == 1 ? 1 : 0;
         int loseDelta = winnerType == 2 ? 1 : 0;
