@@ -36,8 +36,6 @@ public final class BullyCatalog {
     public static final int ATTACK_MAX = 23;
     public static final int DEFENSE_STANCE_CHANCE = 15;
     public static final int DEFENSE_SHIELD = 14;
-    public static final int BASE_PIERCE = 4;
-    public static final int BASE_PIERCE_HALF = 3;
     public static final int FOCUS_PIERCE = 8;
     public static final int FOCUS_PIERCE_HALF = 4;
     public static final int PAIR_CHIP_THRESHOLD = 2;
@@ -144,7 +142,7 @@ public final class BullyCatalog {
         if (skill != null && skill.is(PATTERN_FOCUS_LOW_HP)) {
             return defenseStance ? FOCUS_PIERCE_HALF : FOCUS_PIERCE;
         }
-        return defenseStance ? BASE_PIERCE_HALF : BASE_PIERCE;
+        return 0;
     }
 
     public static boolean roll(int chance) {
