@@ -466,10 +466,7 @@ public class MatchServiceImpl implements MatchService {
             startedNextRound = true;
         } else {
             for (MatchPlayers participant : players) {
-                int handCount = countCards(matchId, participant.getUserId(), "HAND");
-                if (handCount < INITIAL_HAND_SIZE) {
-                    drawCards(matchId, participant.getUserId(), match.getCurrentRound(), INITIAL_HAND_SIZE - handCount);
-                }
+                drawUpToHandSize(matchId, participant.getUserId(), match.getCurrentRound());
                 participant.setEndedTurn(0);
                 if (value(participant.getCurrentHp()) > 0) {
                     participant.setPlayerStatus("ACTIVE");
@@ -859,9 +856,8 @@ public class MatchServiceImpl implements MatchService {
     }
 
     /**
-     * 只用本部门成员卡组牌：基础每种 2 张 + 本部门收藏各 1 张。公共部/中立卡已停用，不再补公共牌。
-     * 采购基础卡更少时，多出的空位优先加本部门收藏。收藏名额优先给最近没上场过的已解锁卡。
-     * 解锁不足时可以少于 30 张；够填满时必须正好 30 张。
+     * 只用本部门成员卡组牌：基础每种 2 张 + 本部门收藏各 1 张。不够 30 时再用基础卡副本填满。
+     * 公共部/中立卡已停用。没有基础卡可复制时可以少于 30 张。
      */
     private List<Long> buildUnlockedDeckCardIds(Long userId, String deptType) {
         Set<Long> playable = cardCollectionService.listPlayableCardIds(userId);
@@ -932,15 +928,34 @@ public class MatchServiceImpl implements MatchService {
             leftover.addAll(sharedStarters);
             cardIds.addAll(takeDistinct(leftover, DECK_SIZE - cardIds.size(), used, false));
         }
+        padWithStarterCopies(cardIds, coreStarters, DECK_SIZE);
         if (cardIds.isEmpty() || cardIds.size() > DECK_SIZE) {
             throw new BusinessException("牌组生成数量异常");
         }
-        int available = starterUnique * DEPT_STARTER_COPIES
-                + coreCollectibles.size() + sharedCollectibles.size() + sharedStarters.size();
-        if (available >= DECK_SIZE && cardIds.size() != DECK_SIZE) {
-            throw new BusinessException("已解锁卡牌足够时牌组必须凑满 " + DECK_SIZE + " 张");
+        if (!coreStarters.isEmpty() && cardIds.size() != DECK_SIZE) {
+            throw new BusinessException("已解锁基础卡时牌组必须凑满 " + DECK_SIZE + " 张");
         }
         return cardIds;
+    }
+
+    private void padWithStarterCopies(List<Long> cardIds, List<Cards> starters, int target) {
+        if (cardIds == null || starters == null || starters.isEmpty() || cardIds.size() >= target) {
+            return;
+        }
+        List<Long> starterIds = new ArrayList<>();
+        for (Cards card : starters) {
+            if (card.getId() != null) {
+                starterIds.add(card.getId());
+            }
+        }
+        if (starterIds.isEmpty()) {
+            return;
+        }
+        int index = 0;
+        while (cardIds.size() < target) {
+            cardIds.add(starterIds.get(index % starterIds.size()));
+            index++;
+        }
     }
 
     private boolean isStarterCard(Cards card) {
@@ -1903,7 +1918,7 @@ public class MatchServiceImpl implements MatchService {
             throw new BusinessException("本回合已经结束");
         }
         int resolvedRound = match.getCurrentRound();
-        int discarded = discardHand(matchId, currentUserId, resolvedRound);
+        int discarded = 0;
         actor.setEndedTurn(1);
         matchPlayersMapper.updateById(actor);
         MatchRounds round = currentRound(match);
@@ -2205,7 +2220,7 @@ public class MatchServiceImpl implements MatchService {
             return;
         }
         for (MatchPlayers player : players) {
-            drawCards(match.getId(), player.getUserId(), nextRoundNo, INITIAL_HAND_SIZE);
+            drawUpToHandSize(match.getId(), player.getUserId(), nextRoundNo);
         }
         MatchRounds nextRound = new MatchRounds();
         nextRound.setMatchId(match.getId());
@@ -2306,6 +2321,13 @@ public class MatchServiceImpl implements MatchService {
      * 规则：只有当 DECK 抽空（本轮牌库中的牌全部抽完）后，才允许把 DISCARD 洗回 DECK；
      * 牌库仍有牌时绝不触碰弃牌堆。
      */
+    private void drawUpToHandSize(Long matchId, Long userId, int roundNo) {
+        int need = INITIAL_HAND_SIZE - countCards(matchId, userId, "HAND");
+        if (need > 0) {
+            drawCards(matchId, userId, roundNo, need);
+        }
+    }
+
     private int drawCards(Long matchId, Long userId, int roundNo, int count) {
         int drawn = 0;
         while (drawn < count) {
