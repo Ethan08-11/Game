@@ -31,16 +31,17 @@ public final class BullyCatalog {
     public static final String PATTERN_FOCUS_TOP_DAMAGE = "FOCUS_TOP_DAMAGE";
     public static final String PATTERN_BOTH_HALF_SWING = "BOTH_HALF_SWING";
 
-    /** 对准成员卡 2～3 费盾（Harry 13 / Amy 12 / Daniel 15），满攻会穿过去。 */
-    public static final int ATTACK_MIN = 17;
-    public static final int ATTACK_MAX = 20;
-    public static final int DEFENSE_STANCE_CHANCE = 20;
-    public static final int DEFENSE_SHIELD = 12;
-    public static final int BASE_PIERCE = 3;
-    public static final int BASE_PIERCE_HALF = 2;
-    public static final int FOCUS_PIERCE = 6;
-    public static final int FOCUS_PIERCE_HALF = 3;
+    /** 常规组（1 销售）掷点；双销售由 pressureForSalesCount 再加一档。 */
+    public static final int ATTACK_MIN = 20;
+    public static final int ATTACK_MAX = 23;
+    public static final int DEFENSE_STANCE_CHANCE = 15;
+    public static final int DEFENSE_SHIELD = 14;
+    public static final int BASE_PIERCE = 4;
+    public static final int BASE_PIERCE_HALF = 3;
+    public static final int FOCUS_PIERCE = 8;
+    public static final int FOCUS_PIERCE_HALF = 4;
     public static final int PAIR_CHIP_THRESHOLD = 2;
+    public static final int REVENGE_BONUS = 6;
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Map<String, String> CUSTOMER_TO_BULLY = Map.of(
@@ -69,7 +70,7 @@ public final class BullyCatalog {
         String pattern = text(root, "pattern", patternForCode(code));
         int chance = number(root, "chance", chanceForPattern(pattern));
         int shield = number(root, "shield", PATTERN_ROUND_SHIELD.equals(pattern) ? DEFENSE_SHIELD : 0);
-        int bonus = number(root, "bonusAttack", PATTERN_FOCUS_TOP_DAMAGE.equals(pattern) ? 5 : 0);
+        int bonus = number(root, "bonusAttack", PATTERN_FOCUS_TOP_DAMAGE.equals(pattern) ? REVENGE_BONUS : 0);
         String summary = text(root, "catalogSummary", summaryForPattern(pattern));
         return new BullySkill(pattern, chance, shield, bonus, summary);
     }
@@ -99,8 +100,40 @@ public final class BullyCatalog {
                 chance);
     }
 
+    public record Pressure(int hpMin, int hpMax, int attackMin, int attackMax) {
+        public int rollHp() {
+            return ThreadLocalRandom.current().nextInt(hpMin, hpMax + 1);
+        }
+
+        public int rollAttack() {
+            return ThreadLocalRandom.current().nextInt(attackMin, attackMax + 1);
+        }
+
+        public int baseAttack() {
+            return (attackMin + attackMax) / 2;
+        }
+    }
+
+    /**
+     * 双销售输出约翻倍，血量和攻击单独加一档；双采购几乎打不动，攻击跟双销售、血量跟常规组。
+     */
+    public static Pressure pressureForSalesCount(int salesCount) {
+        int n = Math.max(0, salesCount);
+        if (n >= 2) {
+            return new Pressure(210, 235, 21, 24);
+        }
+        if (n <= 0) {
+            return new Pressure(168, 188, 21, 24);
+        }
+        return new Pressure(168, 188, ATTACK_MIN, ATTACK_MAX);
+    }
+
     public static int rollAttack() {
-        return ThreadLocalRandom.current().nextInt(ATTACK_MIN, ATTACK_MAX + 1);
+        return rollAttack(1);
+    }
+
+    public static int rollAttack(int salesCount) {
+        return pressureForSalesCount(salesCount).rollAttack();
     }
 
     public static boolean rollDefenseStance() {
@@ -219,9 +252,9 @@ public final class BullyCatalog {
 
     private static String summaryForPattern(String pattern) {
         return switch (pattern) {
-            case PATTERN_FOCUS_LOW_HP -> "专打更弱的护卫；盾挡完仍会漏 6 点。";
-            case PATTERN_ROUND_SHIELD -> "约两成回合胸口多 12 点盾，这回合出手也变轻。";
-            case PATTERN_FOCUS_TOP_DAMAGE -> "约八成回合会盯打得最疼的人多挨 5 点。";
+            case PATTERN_FOCUS_LOW_HP -> "专打更弱的护卫；盾挡完仍会漏 8 点。";
+            case PATTERN_ROUND_SHIELD -> "约一成五回合胸口多 14 点盾，这回合出手也变轻。";
+            case PATTERN_FOCUS_TOP_DAMAGE -> "约八成五回合会盯打得最疼的人多挨 6 点。";
             case PATTERN_BOTH_HALF_SWING -> "两人都几乎挡住时，下一拍会再抽半刀。";
             default -> "";
         };

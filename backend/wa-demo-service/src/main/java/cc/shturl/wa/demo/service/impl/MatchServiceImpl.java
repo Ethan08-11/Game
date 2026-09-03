@@ -103,8 +103,6 @@ public class MatchServiceImpl implements MatchService {
     /** 对局不再发放金币，金币只通过任务领取。 */
     private static final long VICTORY_MONEY = 0L;
     private static final long DEFEAT_MONEY = 0L;
-    private static final int BOSS_HP_MIN = 132;
-    private static final int BOSS_HP_MAX = 148;
     private static final int REVIVE_HP_MIN = 16;
     private static final int REVIVE_HP_MAX = 22;
     private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
@@ -169,7 +167,7 @@ public class MatchServiceImpl implements MatchService {
         CustomerTypes customer = pickCustomer();
         Bullies bully = requireBullyForCustomer(customer);
 
-        Matches match = buildMatch(roomId, customer, bully);
+        Matches match = buildMatch(roomId, customer, bully, members);
         try {
             matchesMapper.insert(match);
         } catch (DuplicateKeyException exception) {
@@ -731,7 +729,7 @@ public class MatchServiceImpl implements MatchService {
         return response;
     }
 
-    private Matches buildMatch(Long roomId, CustomerTypes customer, Bullies bully) {
+    private Matches buildMatch(Long roomId, CustomerTypes customer, Bullies bully, List<RoomMembers> members) {
         Matches match = new Matches();
         match.setMatchCode(UUID.randomUUID().toString().replace("-", ""));
         match.setRoomId(roomId);
@@ -744,11 +742,12 @@ public class MatchServiceImpl implements MatchService {
         match.setStatus(1);
         match.setPhase(PLAYER_ACTION);
         match.setCurrentRound(1);
-        int bossHp = ThreadLocalRandom.current().nextInt(BOSS_HP_MIN, BOSS_HP_MAX + 1);
+        BullyCatalog.Pressure pressure = BullyCatalog.pressureForSalesCount(countSalesMembers(members));
+        int bossHp = pressure.rollHp();
         match.setBossMaxHp(bossHp);
         match.setBossCurrentHp(bossHp);
-        match.setBossBaseAttack(bully.getAttackPower());
-        match.setBossCurrentAttack(bully.getAttackPower());
+        match.setBossBaseAttack(pressure.baseAttack());
+        match.setBossCurrentAttack(pressure.baseAttack());
         match.setBossCurrentShield(0);
         match.setBullyRoundData(BullyCatalog.writeRoundState(BullyCatalog.RoundState.empty()));
         match.setWinnerType(0);
@@ -2675,7 +2674,7 @@ public class MatchServiceImpl implements MatchService {
         BullyCatalog.BullySkill skill = BullyCatalog.parse(bully);
         BullyCatalog.RoundState previous = BullyCatalog.readRoundState(match.getBullyRoundData());
         int customerDelta = value(match.getBossCurrentAttack()) - value(match.getBossBaseAttack());
-        int fullAttack = Math.max(0, BullyCatalog.rollAttack() + customerDelta);
+        int fullAttack = Math.max(0, BullyCatalog.rollAttack(countSalesPlayers(players)) + customerDelta);
         boolean defense = BullyCatalog.rollDefenseStance();
         int currentAttack = defense ? fullAttack / 2 : fullAttack;
         boolean focusRolled = !defense && skill.is(BullyCatalog.PATTERN_FOCUS_TOP_DAMAGE);
@@ -2745,6 +2744,32 @@ public class MatchServiceImpl implements MatchService {
 
     private boolean isSales(MatchPlayers player) {
         return player != null && SALES.equals(player.getDeptType());
+    }
+
+    private int countSalesPlayers(List<MatchPlayers> players) {
+        if (players == null) {
+            return 1;
+        }
+        int count = 0;
+        for (MatchPlayers player : players) {
+            if (isSales(player)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private int countSalesMembers(List<RoomMembers> members) {
+        if (members == null) {
+            return 1;
+        }
+        int count = 0;
+        for (RoomMembers member : members) {
+            if (member != null && SALES.equals(member.getDeptType())) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private String deptLabel(MatchPlayers player) {
