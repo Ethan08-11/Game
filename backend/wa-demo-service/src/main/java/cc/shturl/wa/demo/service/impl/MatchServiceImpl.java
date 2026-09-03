@@ -460,20 +460,26 @@ public class MatchServiceImpl implements MatchService {
         matchPlayersMapper.updateById(player);
 
         List<MatchPlayers> players = listPlayers(matchId);
-        for (MatchPlayers participant : players) {
-            int handCount = countCards(matchId, participant.getUserId(), "HAND");
-            if (handCount < INITIAL_HAND_SIZE) {
-                drawCards(matchId, participant.getUserId(), match.getCurrentRound(), INITIAL_HAND_SIZE - handCount);
+        boolean startedNextRound = false;
+        if ("REVIVE_WAIT".equals(match.getPhase()) && hasBossAttackThisRound(match)) {
+            finishRoundAndStartNext(match, currentRound(match), players);
+            startedNextRound = true;
+        } else {
+            for (MatchPlayers participant : players) {
+                int handCount = countCards(matchId, participant.getUserId(), "HAND");
+                if (handCount < INITIAL_HAND_SIZE) {
+                    drawCards(matchId, participant.getUserId(), match.getCurrentRound(), INITIAL_HAND_SIZE - handCount);
+                }
+                participant.setEndedTurn(0);
+                if (value(participant.getCurrentHp()) > 0) {
+                    participant.setPlayerStatus("ACTIVE");
+                    participant.setActionPoints(value(participant.getBaseActionPoints()));
+                }
+                matchPlayersMapper.updateById(participant);
             }
-            participant.setEndedTurn(0);
-            if (value(participant.getCurrentHp()) > 0) {
-                participant.setPlayerStatus("ACTIVE");
-                participant.setActionPoints(value(participant.getBaseActionPoints()));
+            if ("REVIVE_WAIT".equals(match.getPhase())) {
+                match.setPhase(PLAYER_ACTION);
             }
-            matchPlayersMapper.updateById(participant);
-        }
-        if ("REVIVE_WAIT".equals(match.getPhase())) {
-            match.setPhase(PLAYER_ACTION);
         }
 
         MatchReviveLog log = new MatchReviveLog();
@@ -511,6 +517,13 @@ public class MatchServiceImpl implements MatchService {
         data.put("version", match.getVersion());
         data.put("phase", match.getPhase());
         notifyPlayers(matchId, "match.revive.success", data);
+        if (startedNextRound && PLAYER_ACTION.equals(match.getPhase())) {
+            notifyPlayers(matchId, "round.started", Map.of(
+                    "matchId", matchId,
+                    "currentRound", match.getCurrentRound(),
+                    "phase", match.getPhase(),
+                    "version", match.getVersion()));
+        }
         userPresenceService.broadcastPresence(currentUserId);
         return new MatchReviveResp(matchId, currentUserId, beforeHp, player.getCurrentHp(), player.getReviveCount(),
                 player.getReviveStatus(), match.getCurrentRound(), match.getVersion(), player.getLastReviveAt(), "复活成功");
@@ -2817,7 +2830,7 @@ public class MatchServiceImpl implements MatchService {
         if (hasBossAttackThisRound(match)) {
             completeRoundAfterBossAttack(match, round, players);
             boolean matchEnded = value(match.getStatus()) == 2;
-            return new RoundSettleResult(true, matchEnded, List.of());
+            return new RoundSettleResult(false, matchEnded, List.of());
         }
         if (value(match.getBossCurrentHp()) <= 0) {
             finishMatch(match, 1);
