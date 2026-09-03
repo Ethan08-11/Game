@@ -2114,7 +2114,7 @@ public class MatchServiceImpl implements MatchService {
         int hpDamage = Math.max(overflow, pierceDamage);
         int hpBefore = value(player.getCurrentHp());
         int hpAfter = Math.max(hpBefore - hpDamage, 0);
-        player.setShield(0);
+        player.setShield(shieldBefore - absorbed);
         player.setCurrentHp(hpAfter);
         player.setDamageTaken(value(player.getDamageTaken()) + hpBefore - hpAfter);
         if (hpAfter <= 0) {

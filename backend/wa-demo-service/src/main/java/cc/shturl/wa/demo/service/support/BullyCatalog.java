@@ -32,6 +32,7 @@ public final class BullyCatalog {
     public static final String PATTERN_BOTH_HALF_SWING = "BOTH_HALF_SWING";
 
     /** 销售+采购掷点；双销售由 pressureForSalesCount 再加一档。 */
+    public static final int HP = 150;
     public static final int ATTACK_MIN = 23;
     public static final int ATTACK_MAX = 26;
     public static final int DEFENSE_STANCE_CHANCE = 15;
@@ -117,19 +118,14 @@ public final class BullyCatalog {
     }
 
     /**
-     * 销售+采购是常规组，去掉基础破盾后盾容易挡满，血量和出手加一档对准约 60% 胜率（含看广告复活）。
-     * 双销售输出更高，血量再加一档、攻击略低于常规组以免叠得过猛。
-     * 双采购几乎打不动，攻击跟双销售、血量仍用旧常规组。
+     * 血量固定 150。攻击仍按组队：销售+采购 23～26，双销售/双采购 21～24。
      */
     public static Pressure pressureForSalesCount(int salesCount) {
         int n = Math.max(0, salesCount);
-        if (n >= 2) {
-            return new Pressure(210, 235, 21, 24);
+        if (n == 1) {
+            return new Pressure(HP, HP, ATTACK_MIN, ATTACK_MAX);
         }
-        if (n <= 0) {
-            return new Pressure(168, 188, 21, 24);
-        }
-        return new Pressure(196, 220, ATTACK_MIN, ATTACK_MAX);
+        return new Pressure(HP, HP, 21, 24);
     }
 
     public static int rollAttack() {
