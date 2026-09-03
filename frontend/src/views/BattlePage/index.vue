@@ -1106,12 +1106,20 @@ function syncToStore(detail: any) {
     discardPile: [],
   }))
 
-  if (detail.bullySkillType === 'FOCUS_TOP_DAMAGE'
-      && (game.bullyTarget === 'player1' || game.bullyTarget === 'player2')) {
-    const seat = game.bullyTarget === 'player1' ? 0 : 1
+  if (game.bullyTarget === 'player1' || game.bullyTarget === 'player2' || /^p[12]$/i.test(game.bullyTarget)) {
+    const raw = String(game.bullyTarget)
+    const seat = raw === 'player2' || raw.toLowerCase() === 'p2' ? 1 : 0
     const dept = players.value[seat]?.dept
     if (dept) {
       game.bullyTarget = dept
+    }
+  } else if (game.bullyTarget === 'all') {
+    const labels = [...new Set(players.value
+      .filter((item) => (item.hp || 0) > 0)
+      .map((item) => item.dept)
+      .filter((dept) => dept === '销售部' || dept === '采购部'))]
+    if (labels.length) {
+      game.bullyTarget = labels.join('、')
     }
   }
 

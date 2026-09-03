@@ -33,8 +33,10 @@ import shieldIcon from '@/assets/boss-shield.webp'
 import attackIcon from '@/assets/Boss-attack.webp'
 import panelBg from '@/assets/bully-panel-bg.webp'
 import { useGameStore } from '@/store/game'
+import { useRoomStore } from '@/store/room'
 
 const game = useGameStore()
+const room = useRoomStore()
 
 const hpPercent = computed(() => {
   return game.maxBullyHP > 0 ? Math.max(0, Math.min(100, (game.bullyHP / game.maxBullyHP) * 100)) : 0
@@ -43,13 +45,43 @@ const hpPercent = computed(() => {
 const targetText = computed(() => {
   const target = String(game.bullyTarget || '').trim()
   if (target === 'self') return '防御自身'
-  if (target === 'all') return '攻击全体'
-  if (target === 'player1') return '目标: P1'
-  if (target === 'player2') return '目标: P2'
+  if (target === 'all') {
+    const both = bothDeptLabel()
+    return both ? `目标: ${both}` : '目标: 护卫'
+  }
+  if (target === 'player1' || target === 'player2') {
+    const seat = target === 'player1' ? 0 : 1
+    const dept = seatDept(seat)
+    return dept ? `目标: ${dept}` : '目标: 护卫'
+  }
+  if (/^p[12]$/i.test(target)) {
+    const seat = target.toLowerCase() === 'p1' ? 0 : 1
+    const dept = seatDept(seat)
+    return dept ? `目标: ${dept}` : '目标: 护卫'
+  }
   if (target === 'sales' || target === '销售' || target === '销售部') return '目标: 销售部'
   if (target === 'purchase' || target === '采购' || target === '采购部') return '目标: 采购部'
   return `目标: ${target}`
 })
+
+function bothDeptLabel() {
+  const labels = [seatDept(0), seatDept(1)]
+    .map((label) => {
+      if (label === 'sales' || label === '销售') return '销售部'
+      if (label === 'purchase' || label === '采购') return '采购部'
+      return label
+    })
+    .filter((label) => label === '销售部' || label === '采购部')
+  return [...new Set(labels)].join('、')
+}
+
+function seatDept(seat: number) {
+  const fromRoom = seat === 0 ? room.player1Dept : room.player2Dept
+  if (fromRoom === '销售部' || fromRoom === '采购部') return fromRoom
+  if (fromRoom === 'sales') return '销售部'
+  if (fromRoom === 'purchase') return '采购部'
+  return fromRoom || ''
+}
 </script>
 
 <style scoped>
