@@ -43,6 +43,7 @@ import java.time.YearMonth;
 public class TaskServiceImpl implements TaskService {
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final String WEEKLY_TEAM_CODE = "T-WEEKLY-TEAM-10";
+    private static final String DAILY_SLOT_CODE = "T-DAILY-SLOT";
 
     private final TaskMapper taskMapper;
     private final UserTaskMapper userTaskMapper;
@@ -56,6 +57,7 @@ public class TaskServiceImpl implements TaskService {
         List<Tasks> tasks = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
                 .eq(taskType != null && !taskType.isBlank(), Tasks::getTaskType, taskType)
                 .eq(Tasks::getStatus, 1)
+                .ne(Tasks::getTaskType, "system")
                 .orderByAsc(Tasks::getSortNo, Tasks::getId));
         return tasks.stream().map(this::toTaskResp).toList();
     }
@@ -170,9 +172,8 @@ public class TaskServiceImpl implements TaskService {
             log.warn("Skip match task progress for missing user {}", userId);
             return;
         }
-        int previous = dailyMatchProgress(userId);
+        int slot = consumeDailyMatchSlotInternal(userId);
         bumpByProgressType(userId, "MATCH_COUNT", 1, null);
-        int slot = previous + 1;
         if (slot <= 3) {
             if ("WIN".equalsIgnoreCase(resultType)) {
                 completeMatchSlotWin(userId, slot);
@@ -191,11 +192,20 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
+    public void consumeDailyMatchSlot(Long userId) {
+        if (!userExists(userId)) {
+            return;
+        }
+        consumeDailyMatchSlotInternal(userId);
+    }
+
+    @Override
+    @Transactional
     public void recordAdWatch(Long userId) {
         if (!userExists(userId)) {
             return;
         }
-        int slot = dailyMatchProgress(userId) + 1;
+        int slot = dailySlotProgress(userId) + 1;
         if (slot >= 1 && slot <= 3) {
             completeMatchSlotWin(userId, slot);
         }
@@ -238,7 +248,7 @@ public class TaskServiceImpl implements TaskService {
             if ("PLAY_DEPT".equals(progressType) && !deptMatches(task, deptType)) {
                 continue;
             }
-            if ("MATCH_SLOT_WIN".equals(progressType)) {
+            if ("MATCH_SLOT_WIN".equals(progressType) || "MATCH_SLOT".equals(progressType)) {
                 continue;
             }
             UserTask userTask = findOrCreateUserTask(userId, task, periodKeyFor(task));
@@ -337,21 +347,65 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private int dailyMatchProgress(Long userId) {
+        return maxProgress(userId, "MATCH_COUNT");
+    }
+
+    private int dailySlotProgress(Long userId) {
+        return Math.max(maxProgressByCode(userId, DAILY_SLOT_CODE), dailyMatchProgress(userId));
+    }
+
+    private int consumeDailyMatchSlotInternal(Long userId) {
+        ensureDefaultTasks(userId);
+        int next = dailySlotProgress(userId) + 1;
+        Tasks slotTask = taskMapper.selectOne(Wrappers.<Tasks>lambdaQuery()
+                .eq(Tasks::getTaskCode, DAILY_SLOT_CODE)
+                .last("LIMIT 1"));
+        if (slotTask == null) {
+            log.warn("Missing daily slot task {}, fallback to completion count.", DAILY_SLOT_CODE);
+            return next;
+        }
+        UserTask userTask = findOrCreateUserTask(userId, slotTask, periodKeyFor(slotTask));
+        if (userTask == null || userTask.getId() == null) {
+            return next;
+        }
+        userTask.setProgressValue(next);
+        if (userTask.getStatus() == null || userTask.getStatus() < 2) {
+            userTask.setStatus(1);
+        }
+        userTaskMapper.updateById(userTask);
+        return next;
+    }
+
+    private int maxProgress(Long userId, String progressType) {
         List<Tasks> tasks = taskMapper.selectList(Wrappers.<Tasks>lambdaQuery()
                 .eq(Tasks::getStatus, 1)
-                .eq(Tasks::getProgressType, "MATCH_COUNT"));
+                .eq(Tasks::getProgressType, progressType));
         int max = 0;
         for (Tasks task : tasks) {
-            UserTask userTask = userTaskMapper.selectOne(Wrappers.<UserTask>lambdaQuery()
-                    .eq(UserTask::getUserId, userId)
-                    .eq(UserTask::getTaskId, task.getId())
-                    .eq(UserTask::getPeriodKey, periodKeyFor(task)));
-            if (userTask == null || userTask.getProgressValue() == null) {
-                continue;
-            }
-            max = Math.max(max, userTask.getProgressValue());
+            max = Math.max(max, progressOf(userId, task));
         }
         return max;
+    }
+
+    private int maxProgressByCode(Long userId, String taskCode) {
+        Tasks task = taskMapper.selectOne(Wrappers.<Tasks>lambdaQuery()
+                .eq(Tasks::getTaskCode, taskCode)
+                .last("LIMIT 1"));
+        if (task == null) {
+            return 0;
+        }
+        return progressOf(userId, task);
+    }
+
+    private int progressOf(Long userId, Tasks task) {
+        UserTask userTask = userTaskMapper.selectOne(Wrappers.<UserTask>lambdaQuery()
+                .eq(UserTask::getUserId, userId)
+                .eq(UserTask::getTaskId, task.getId())
+                .eq(UserTask::getPeriodKey, periodKeyFor(task)));
+        if (userTask == null || userTask.getProgressValue() == null) {
+            return 0;
+        }
+        return userTask.getProgressValue();
     }
 
     private void completeMatchSlotWin(Long userId, int slot) {
@@ -441,6 +495,9 @@ public class TaskServiceImpl implements TaskService {
         for (UserTask userTask : userTasks) {
             Tasks task = taskMapper.selectById(userTask.getTaskId());
             if (task == null || task.getStatus() == null || task.getStatus() != 1) {
+                continue;
+            }
+            if ("system".equalsIgnoreCase(task.getTaskType())) {
                 continue;
             }
             if (!periodKeyFor(task).equals(userTask.getPeriodKey())) {

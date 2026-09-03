@@ -12,6 +12,7 @@
               <span class="status-pill">{{ actionOrderText }}</span>
             </div>
             <span v-if="activePhase === 'REVIVE_WAIT'" class="status-pill revive-wait-tag">等待复活中…</span>
+            <span v-if="stuckCancelAvailable" class="status-pill revive-wait-tag">可申请卡死取消</span>
             <span v-if="statusBullyActionText" class="status-pill">{{ statusBullyActionText }}</span>
             <span v-if="isSelectingFirstPlayer" class="status-pill">先手状态：{{ firstPlayerStatusText }}</span>
           </div>
@@ -186,12 +187,13 @@
           <img class="result-bg-img" :src="game.isVictory ? resultWinBg : resultLoseBg" alt="" />
           <div class="result-content" :class="{ 'has-unlock': game.isVictory && !!resultUnlockedCard }">
             <div class="result-header">
-              <h1 :class="game.isVictory ? 'win' : 'lose'">{{ game.isVictory ? '胜利' : '失败' }}</h1>
+              <h1 :class="game.isVictory ? 'win' : 'lose'">{{ resultTitle }}</h1>
             </div>
             <div class="result-mid">
               <div class="stats-panel">
                 <p>对局回合：{{ resultRounds }}</p>
-                <p>对局结果：{{ game.isVictory ? '胜利' : '失败' }}</p>
+                <p>对局结果：{{ resultTitle }}</p>
+                <p v-if="resultVoid" class="void-hint">本局作废，不占用今日任务局数，也不发任务金币。</p>
                 <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
                 <p>P1 最终血量：{{ resultPlayer1Hp }}/{{ resultPlayer1MaxHp }} <span v-if="resultPlayer1Dead" class="dead-tag">（阵亡）</span></p>
                 <p>P2 最终血量：{{ resultPlayer2Hp }}/{{ resultPlayer2MaxHp }} <span v-if="resultPlayer2Dead" class="dead-tag">（阵亡）</span></p>
@@ -220,7 +222,7 @@
             </div>
             <div class="btn-group">
               <el-button class="btn-hall" type="primary" @click="$router.push('/game-hall')">返回大厅</el-button>
-              <p v-if="!game.isVictory" class="revive-unavailable">复活仅在队友存活时可用，对局已结束无法复活</p>
+              <p v-if="!game.isVictory && !resultVoid" class="revive-unavailable">复活仅在队友存活时可用，对局已结束无法复活</p>
             </div>
           </div>
         </div>
@@ -232,13 +234,31 @@
       <div v-if="showDisconnectDialog" class="disconnect-overlay">
         <div class="disconnect-modal">
           <h2 class="disconnect-title">好友已掉线</h2>
-          <p class="disconnect-desc">是否等待好友重新连接？刷新页面不会判负。</p>
+          <p class="disconnect-desc">是否等待好友重新连接？刷新页面不会立刻判负。若结束对局，将记失败并占用今日任务局数。</p>
           <p class="disconnect-countdown">最多等待 {{ disconnectCountdown }} 秒</p>
           <div class="disconnect-actions">
             <el-button size="large" @click="endMatchDueToDisconnect">结束对局</el-button>
             <el-button type="primary" size="large" @click="dismissDisconnectDialog">
               继续等待
             </el-button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 离开对战：放弃占槽 / 卡死作废 -->
+    <Teleport to="body">
+      <div v-if="showLeaveDialog" class="disconnect-overlay">
+        <div class="disconnect-modal leave-modal">
+          <h2 class="disconnect-title">离开对战</h2>
+          <p class="disconnect-desc">
+            放弃将记为失败，并占用今日任务局数，无法再刷该局奖励。
+            若对局卡死、刷新后仍重连不上，请选「对局异常」。
+          </p>
+          <div class="leave-actions">
+            <el-button type="danger" size="large" :loading="leavingMatch" @click="confirmAbandon">放弃对局</el-button>
+            <el-button size="large" :loading="leavingMatch" @click="confirmVoidStuck">对局异常，取消本局</el-button>
+            <el-button type="primary" size="large" :disabled="leavingMatch" @click="showLeaveDialog = false">继续对战</el-button>
           </div>
         </div>
       </div>
@@ -390,13 +410,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
 import { useGameStore } from '@/store/game'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 //import { abandonMatch, endMatchTurn, getMatchDeck, getMatchDetail, playMatchCard, reconnectMatch } from '@/api'
-import { abandonMatch, chooseFirstPlayer, declineMatchRevive, endMatchTurn, findSettlementPlayer, getCurrentMatch, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive, unlockedCardFromSettlement } from '@/api'
+import { abandonMatch, cancelStuckMatch, chooseFirstPlayer, declineMatchRevive, endMatchTurn, findSettlementPlayer, getCurrentMatch, getMatchDeck, getMatchDetail, getMatchReviveStatus, getMatchSettlement, playMatchCard, reconnectMatch, requestMatchRevive, unlockedCardFromSettlement } from '@/api'
 import type { PlayCardPayload, UnlockedCollectibleCard } from '@/api'
 import { subscribeRoomEvent, sendRoomMessage } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
@@ -581,6 +601,10 @@ let disconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let firstPlayerPollTimer: ReturnType<typeof setInterval> | null = null
 let actionPhasePollTimer: ReturnType<typeof setInterval> | null = null
 const showDisconnectDialog = ref(false)
+const showLeaveDialog = ref(false)
+const leavingMatch = ref(false)
+const resultVoid = ref(false)
+const stuckCancelAvailable = ref(false)
 const disconnectCountdown = ref(30)
 const showReviveDialog = ref(false)
 const resultRounds = ref(0)
@@ -1011,6 +1035,7 @@ function syncToStore(detail: any) {
   if (detail.phase) {
     activePhase.value = detail.phase
   }
+  stuckCancelAvailable.value = detail.stuckCancelAvailable === true
   // 复活后服务器返回非结束状态，重置客户端 game-over 标记
   if (detail.phase !== 'FINISHED' && !detail.matchEnded) {
     game.isGameOver = false
@@ -1815,25 +1840,67 @@ async function chooseFirst(userId: string) {
   }
 }
 
+const resultTitle = computed(() => {
+  if (game.isVictory) return '胜利'
+  if (resultVoid.value) return '本局已作废'
+  return '失败'
+})
+
 async function handleLeave() {
+  if (game.isGameOver) {
+    router.push('/game-hall')
+    return
+  }
+  showLeaveDialog.value = true
+}
+
+async function leaveToHall() {
+  showLeaveDialog.value = false
+  sessionStorage.removeItem('activeMatchId')
+  sessionStorage.removeItem('activeRoomId')
+  room.resetMatchMaking()
+  game.resetGame()
+  user.loadFriends().catch(() => {})
+  router.push('/game-hall')
+}
+
+async function confirmAbandon() {
+  leavingMatch.value = true
   try {
-    await ElMessageBox.confirm('确定要放弃当前对战吗？进度将不会保存。', '离开对战', {
-      confirmButtonText: '确定离开',
-      cancelButtonText: '继续对战',
-      type: 'warning',
-    })
     if (activeMatchId.value) {
       await abandonMatch(activeMatchId.value)
     }
-    sessionStorage.removeItem('activeMatchId')
-    sessionStorage.removeItem('activeRoomId')
-    room.resetMatchMaking()
-    game.resetGame()
-    user.loadFriends().catch(() => {})
-    router.push('/game-hall')
-  } catch {
-    // cancelled
+    ElMessage.warning('已放弃对局，占用今日任务局数')
+    await leaveToHall()
+  } catch (error: any) {
+    ElMessage.error(error?.message || '放弃对局失败')
+  } finally {
+    leavingMatch.value = false
   }
+}
+
+async function confirmVoidStuck() {
+  leavingMatch.value = true
+  try {
+    if (activeMatchId.value) {
+      await cancelStuckMatch(activeMatchId.value)
+    }
+    showLeaveDialog.value = false
+    resultVoid.value = true
+    game.isGameOver = true
+    game.isVictory = false
+    ElMessage.success('本局已作废，不占用今日任务局数')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '暂不能按卡死取消')
+  } finally {
+    leavingMatch.value = false
+  }
+}
+
+function resolveIsVoid(detail: any): boolean {
+  const winnerType = detail?.winnerType ?? pendingWinnerType
+  const reason = String(detail?.reason ?? '')
+  return Number(winnerType) === 3 || reason === 'void'
 }
 
 function resolveIsVictory(detail: any): boolean {
@@ -1878,7 +1945,8 @@ function pickRewardMoney(detail: any): number {
 function applyGameOver(detail: any) {
   if (justRevived.value) return
   game.isGameOver = true
-  game.isVictory = resolveIsVictory(detail)
+  resultVoid.value = resolveIsVoid(detail)
+  game.isVictory = resultVoid.value ? false : resolveIsVictory(detail)
   resultRounds.value = detail.currentRound ?? detail.roundNo ?? detail.totalRounds ?? 0
   applyBossHp(detail)
   resultPlayers.value = normalizeResultPlayers(detail.players)
@@ -1983,7 +2051,7 @@ async function endMatchDueToDisconnect() {
   room.setMatchId('')
   room.resetMatchMaking()
   game.resetGame()
-  ElMessage.warning('好友掉线，对局已结束')
+  ElMessage.warning('好友掉线，对局已结束，已占用今日任务局数')
   router.push('/game-hall')
 }
 
@@ -2131,9 +2199,10 @@ function logMatchEvent(type: string, data: any, message?: any) {
       break
     }
     case 'match.ended': {
-      const won = resolveIsVictory(d) || game.isVictory
+      const voided = resolveIsVoid(d)
+      const won = !voided && (resolveIsVictory(d) || game.isVictory)
       addAction(
-        won ? '霸凌者倒下，保护成功' : `${fallenDeptLabel.value || '护卫'}倒下，保护失败`,
+        voided ? '对局异常，本局作废' : won ? '霸凌者倒下，保护成功' : `${fallenDeptLabel.value || '护卫'}倒下，保护失败`,
         `ended:${d?.winnerType ?? ''}:${d?.version ?? ''}`,
       )
       break
@@ -2148,6 +2217,7 @@ function makeMatchHandler(eventType: string) {
       const d = unwrapMatchEvent(data, message)
       applyGameOver({
         winnerType: d?.winnerType,
+        reason: d?.reason,
         currentRound: d?.currentRound ?? resultRounds.value,
         bossCurrentHp: d?.bossCurrentHp ?? game.bullyHP,
         bossMaxHp: d?.bossMaxHp ?? game.maxBullyHP,
@@ -3686,6 +3756,17 @@ onUnmounted(() => {
   display: flex;
   gap: 16px;
   justify-content: center;
+}
+.leave-modal {
+  max-width: 460px;
+}
+.leave-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.void-hint {
+  color: var(--color-accent, #c4a962);
 }
 
 </style>

@@ -75,14 +75,15 @@
         <div class="reconnect-modal">
           <h2 class="reconnect-title">你有未完成的对局</h2>
           <p class="reconnect-desc">
-            检测到上一次游戏异常退出，是否重新连接继续对战？
+            检测到上一次游戏异常退出，是否重新连接继续对战？放弃会占用今日任务局数。卡死且重连不上可点「对局异常」。
           </p>
           <p class="reconnect-countdown">
-            {{ reconnectCountdown }} 秒后自动放弃
+            {{ reconnectCountdown }} 秒后将按放弃处理（占用今日任务局数）
           </p>
           <div class="reconnect-actions">
             <el-button type="primary" size="large" @click="doReconnect">重新连接</el-button>
             <el-button size="large" @click="doAbandonMatch">放弃对局</el-button>
+            <el-button size="large" @click="doCancelStuck">对局异常，取消本局</el-button>
           </div>
         </div>
       </div>
@@ -99,7 +100,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useRoomStore } from '@/store/room'
-import { leaveRoom, abandonMatch, getMatchDetail, getCurrentMatch, getCurrentRoom, releaseIdleRoom, fetchMyTaskBoard } from '@/api'
+import { leaveRoom, abandonMatch, cancelStuckMatch, getMatchDetail, getCurrentMatch, getCurrentRoom, releaseIdleRoom, fetchMyTaskBoard } from '@/api'
 import { clearMatchCache } from '@/utils/matchCache'
 import FriendPanel from '@/components/FriendPanel.vue'
 import AnnouncementBar from '@/components/AnnouncementBar.vue'
@@ -182,8 +183,25 @@ async function doAbandonMatch() {
   reconnectMatchId.value = ''
   room.resetMatchMaking()
   clearMatchCache()
-  ElMessage.warning('对局已结束')
+  ElMessage.warning('对局已结束，已占用今日任务局数')
   user.loadFriends().catch(() => {})
+}
+
+async function doCancelStuck() {
+  if (!reconnectMatchId.value) return
+  try {
+    await cancelStuckMatch(reconnectMatchId.value)
+    stopReconnectTimers()
+    reconnectDialogVisible.value = false
+    sessionStorage.removeItem('activeMatchId')
+    reconnectMatchId.value = ''
+    room.resetMatchMaking()
+    clearMatchCache()
+    ElMessage.success('本局已作废，不占用今日任务局数')
+    user.loadFriends().catch(() => {})
+  } catch (error: any) {
+    ElMessage.error(error?.message || '暂不能按卡死取消，请先重连或稍后再试')
+  }
 }
 
 async function doReconnect() {
@@ -773,7 +791,8 @@ async function handleLogout() {
 }
 .reconnect-actions {
   display: flex;
-  gap: 16px;
+  flex-direction: column;
+  gap: 12px;
   justify-content: center;
 }
 </style>
