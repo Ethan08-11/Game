@@ -1990,6 +1990,7 @@ public class MatchServiceImpl implements MatchService {
 
         Map<Long, MatchPendingEffects> guardByWard = loadAllyGuards(match.getId());
         Map<Long, Integer> extraAttack = new HashMap<>();
+        Map<Long, GuardAbsorb> wardAbsorbs = new LinkedHashMap<>();
         Set<Long> redirectedWards = new HashSet<>();
         for (Long targetId : intended) {
             MatchPlayers player = byUserId.get(targetId);
@@ -2001,8 +2002,12 @@ public class MatchServiceImpl implements MatchService {
             MatchPlayers guardian = guard == null ? null : byUserId.get(guard.getSourceUserId());
             if (guard != null && guardian != null && value(guardian.getCurrentHp()) > 0
                     && !guardian.getUserId().equals(player.getUserId())) {
+                GuardAbsorb absorb = absorbWardShield(player, hit);
+                wardAbsorbs.put(player.getUserId(), absorb);
                 redirectedWards.add(player.getUserId());
-                extraAttack.merge(guardian.getUserId(), hit, Integer::sum);
+                if (absorb.overflow() > 0) {
+                    extraAttack.merge(guardian.getUserId(), absorb.overflow(), Integer::sum);
+                }
                 consumePendingGuard(guard);
             } else {
                 extraAttack.merge(player.getUserId(), hit, Integer::sum);
@@ -2014,10 +2019,16 @@ public class MatchServiceImpl implements MatchService {
         for (MatchPlayers player : players) {
             if (redirectedWards.contains(player.getUserId())) {
                 int hp = value(player.getCurrentHp());
-                int shieldBefore = value(player.getShield());
+                GuardAbsorb absorb = wardAbsorbs.getOrDefault(player.getUserId(),
+                        new GuardAbsorb(0, value(player.getShield()), 0, 0));
                 insertBossAttackAction(match, round, player, hp, hp,
-                        "{\"attack\":0,\"redirected\":true,\"absorbedDamage\":0}");
-                results.add(new BossAttackTargetResp(player.getUserId(), 0, shieldBefore, 0, hp, 0, hp, false));
+                        "{\"attack\":" + absorb.attack()
+                                + ",\"redirected\":true"
+                                + ",\"shieldBefore\":" + absorb.shieldBefore()
+                                + ",\"absorbedDamage\":" + absorb.absorbed()
+                                + ",\"overflow\":" + absorb.overflow() + "}");
+                results.add(new BossAttackTargetResp(player.getUserId(), absorb.attack(), absorb.shieldBefore(),
+                        absorb.absorbed(), hp, 0, hp, false));
                 hpLoss.merge(player.getUserId(), 0, Integer::sum);
                 continue;
             }
@@ -2067,10 +2078,22 @@ public class MatchServiceImpl implements MatchService {
         return byWard;
     }
 
+    private GuardAbsorb absorbWardShield(MatchPlayers ward, int hit) {
+        int incoming = Math.max(hit, 0);
+        int shieldBefore = value(ward.getShield());
+        int absorbed = Math.min(shieldBefore, incoming);
+        ward.setShield(shieldBefore - absorbed);
+        matchPlayersMapper.updateById(ward);
+        return new GuardAbsorb(incoming, shieldBefore, absorbed, incoming - absorbed);
+    }
+
     private void consumePendingGuard(MatchPendingEffects guard) {
         guard.setRemainingTriggers(0);
         guard.setStatus("RESOLVED");
         matchPendingEffectsMapper.updateById(guard);
+    }
+
+    private record GuardAbsorb(int attack, int shieldBefore, int absorbed, int overflow) {
     }
 
     private MatchPlayers findOtherLivingPlayer(Long matchId, MatchPlayers actor) {
