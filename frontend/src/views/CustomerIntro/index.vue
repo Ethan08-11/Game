@@ -9,15 +9,11 @@
       <div v-if="catalogReady" class="customer-scroll" :style="{ '--card-bg': `url(${cardBg})` }">
         <div class="customer-grid">
           <article v-for="customer in customers" :key="customer.customerTypeId ?? customer.customerCode" class="customer-item">
-            <div class="name-section">
-              <h2>{{ customer.customerName }}</h2>
-            </div>
-
-            <div class="highlight-section" :style="{ top: (traitsTop - 240) + 'px', height: (240) + 'px' }">
+            <div class="highlight-section">
               <img :src="getImageUrl(customer.imageUrl) || avatarImg" alt="顾客形象" class="customer-avatar-img" loading="lazy" decoding="async" />
             </div>
 
-            <div class="traits-section" :style="{ top: traitsTop + 'px' }">
+            <div class="traits-section">
               <p class="customer-desc">{{ customer.description }}</p>
 
               <div class="customer-meta">
@@ -45,6 +41,10 @@
                 <strong>{{ formatBullyChance(customer.bullySkillChance) }}</strong>
               </div>
             </div>
+
+            <div class="name-section">
+              <h2>{{ customer.customerName }}</h2>
+            </div>
           </article>
 
           <article class="customer-item placeholder-card">
@@ -56,20 +56,6 @@
         <div class="customer-scroll-spacer" aria-hidden="true"></div>
       </div>
     </section>
-    <!-- 绿色框位置调节器 -->
-    <Teleport to="body">
-      <div v-if="showAdjuster" class="traits-adjuster-panel">
-        <div class="adjuster-header">
-          <span>绿色框上下位置 (top)</span>
-          <button class="adjuster-close" @click="showAdjuster = false">✕</button>
-        </div>
-        <div class="adjuster-body">
-          <label>top <span>{{ traitsTop }}px</span></label>
-          <input type="range" v-model.number="traitsTop" min="-200" max="400" />
-        </div>
-      </div>
-      <button class="adjuster-toggle" @click="showAdjuster = !showAdjuster">⚙T</button>
-    </Teleport>
   </main>
 </template>
 
@@ -88,8 +74,6 @@ const bgNight = bg1
 const bgImage = ref('')
 const customers = ref<CustomerApiItem[]>([])
 const catalogReady = ref(false)
-const showAdjuster = ref(false)
-const traitsTop = ref(180)
 
 function formatRate(value?: number) {
   if (value == null) return '后端未配置'
@@ -223,7 +207,7 @@ h1 {
   padding: 156px var(--space-2) 24px;
 }
 .customer-scroll-spacer {
-  height: 220px;
+  height: 80px;
   flex-shrink: 0;
   pointer-events: none;
 }
@@ -231,18 +215,21 @@ h1 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 240px var(--space-4);
+  align-items: start;
 }
 .customer-item {
   position: relative;
   z-index: 1;
-  padding: var(--space-5);
-  padding-bottom: 168px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 12px 128px;
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   overflow: visible;
-  min-height: 396px;
+  min-height: 460px;
 }
 .customer-item:nth-child(3n+1) { z-index: 3; }
 .customer-item:nth-child(3n+2) { z-index: 2; }
@@ -251,31 +238,33 @@ h1 {
   content: '';
   position: absolute;
   width: 210%;
-  height: 546px;
+  height: calc(100% + 150px);
   left: -55%;
   top: -143px;
-  background: var(--card-bg, var(--color-surface-01)) center/contain no-repeat;
+  background: var(--card-bg, var(--color-surface-01)) center / contain no-repeat;
   z-index: -1;
   pointer-events: none;
 }
 .name-section {
   position: absolute;
-  bottom: 18px;
+  bottom: 10%;
   left: 50%;
   transform: translateX(-50%);
   display: inline-block;
   padding: var(--space-2) var(--space-3);
   white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
 }
 .highlight-section {
-  position: absolute;
-  left: var(--space-5);
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 280px;
-  padding: var(--space-2) var(--space-3);
-
+  width: min(280px, 100%);
+  height: 148px;
+  margin-top: -28px;
+  flex-shrink: 0;
   overflow: visible;
 }
 .customer-avatar-img {
@@ -285,12 +274,10 @@ h1 {
   transform: scale(1.04);
 }
 .traits-section {
-  position: absolute;
-  left: var(--space-5);
-  display: inline-block;
-  width: 280px;
-  padding: var(--space-2) var(--space-3);
-
+  position: relative;
+  width: min(280px, 100%);
+  padding: 4px 8px 8px;
+  flex: 1 1 auto;
 }
 h2 {
   margin: 0;
@@ -308,38 +295,45 @@ h2 {
 .customer-desc, .highlight-desc {
   margin: var(--space-2) 0;
   color: #5c3d2e;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 .customer-meta {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: var(--space-3);
-  padding: 4px 0;
+  padding: 2px 0;
   border-top: 1px solid rgba(139, 105, 20, 0.2);
   color: #5c3d2e;
+  font-size: var(--text-sm);
+}
+.customer-meta span {
+  flex: 0 0 auto;
 }
 .customer-meta strong {
   color: #3a1f0d;
   text-align: right;
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: normal;
+  line-height: 1.35;
 }
 .customer-meta-skill {
   align-items: flex-start;
 }
 .customer-meta-skill strong {
-  white-space: normal;
-  max-width: 11em;
-  line-height: 1.35;
+  max-width: none;
 }
 .placeholder-card .name-section {
   position: absolute;
   left: 50%;
   top: 50%;
+  bottom: auto;
   transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-4) var(--space-8);
-
 }
 
 @media (max-width: 900px) {
@@ -352,61 +346,5 @@ h2 {
   top: 28px !important;
   z-index: 10 !important;
 }
-.traits-adjuster-panel {
-  position: fixed;
-  z-index: 9999;
-  right: 12px;
-  bottom: 108px;
-  width: 260px;
-  background: rgba(20, 20, 20, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 12px;
-  color: #ccc;
-  font-size: 13px;
-}
-.adjuster-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  font-weight: bold;
-  color: #fff;
-}
-.adjuster-close {
-  background: none;
-  border: none;
-  color: #999;
-  cursor: pointer;
-  font-size: 14px;
-}
-.adjuster-body label {
-  display: flex;
-  justify-content: space-between;
-  margin: 6px 0 2px;
-}
-.adjuster-body label span {
-  color: #c4a962;
-}
-.adjuster-body input[type="range"] {
-  width: 100%;
-  accent-color: #c4a962;
-}
-.adjuster-toggle {
-  position: fixed;
-  z-index: 9999;
-  right: 12px;
-  bottom: 56px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
-  font-size: 11px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 </style>
+
