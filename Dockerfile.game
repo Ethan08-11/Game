@@ -2,13 +2,11 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-COPY frontend/package.json frontend/package-lock.json ./
-# Vite 8 / rolldown puts Linux native bindings in optionalDependencies.
-# Do not use `npm ci --omit=optional` here — that drops
-# `@rolldown/binding-linux-*-musl` and `vite build` fails with MODULE_NOT_FOUND.
-# Skip only the Electron binary download; the desktop packages stay unused in web mode.
-ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
-RUN npm ci
+COPY frontend/package.json frontend/package-lock.json frontend/docker-prepare-web-install.cjs ./
+# Skip Electron/electron-builder (they make npm ci ~5min and pull deprecated deps).
+# Then install only the Linux musl native bindings Vite/sass need.
+# Also rewrite npmmirror tarball URLs to npmjs — Zeabur fetches those slowly.
+RUN node docker-prepare-web-install.cjs
 
 COPY frontend/ ./
 RUN npm run build:web
