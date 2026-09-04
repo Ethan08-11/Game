@@ -676,6 +676,7 @@ public class MatchServiceImpl implements MatchService {
         MatchPendingEffects multiplierEffect = appliesNumericEffects
                 ? findNextCardMultiplier(matchId, currentUserId) : null;
         int multiplier = multiplierEffect == null ? 1 : Math.max(value(multiplierEffect.getEffectValue()), 1);
+        requireSelfShieldCost(actor, configuredEffects, multiplier);
         List<CardEffectResp> effectResults = new ArrayList<>();
         int actionBeforeEffect = value(actor.getActionPoints());
         // 先扣费用，再结算立即效果，确保 ADD_ACTION_POINTS（如 Dylan）能真正增加剩余调用机会
@@ -1724,6 +1725,27 @@ public class MatchServiceImpl implements MatchService {
             return Math.min(100, Math.max(0, Integer.parseInt(matcher.group(1))));
         } catch (NumberFormatException ignored) {
             return 100;
+        }
+    }
+
+    private void requireSelfShieldCost(MatchPlayers actor, List<CardEffects> effects, int multiplier) {
+        int needed = 0;
+        int factor = Math.max(multiplier, 1);
+        for (CardEffects effect : effects) {
+            if (!"IMMEDIATE".equals(effect.getTriggerTiming()) || !"ADD_SHIELD".equals(effect.getEffectType())) {
+                continue;
+            }
+            String scope = effect.getEffectScope();
+            if (!"SELF".equals(scope) && !"ALL_PLAYERS".equals(scope)) {
+                continue;
+            }
+            int delta = value(effect.getValue()) * factor;
+            if (delta < 0) {
+                needed = Math.max(needed, -delta);
+            }
+        }
+        if (needed > 0 && value(actor.getShield()) < needed) {
+            throw new BusinessException("自身没有足够防御，无法使用该卡牌");
         }
     }
 

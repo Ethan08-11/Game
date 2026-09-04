@@ -91,7 +91,7 @@
                       :damage="card.damage || 0"
                       :shield="card.shield || 0"
                       :image-url="card.imageUrl"
-                      :disabled="!canActWithActivePlayer"
+                      :disabled="!canActWithActivePlayer || !canAffordCard(card)"
                       @play="playCard(card)"
                     />
                   </div>
@@ -452,6 +452,7 @@ import type { MatchChatMessage } from '@/components/MatchChatPanel.vue'
 type BattleCard = {
   id: string
   instanceId: string
+  cardCode?: string
   name: string
   dept: string
   cost: number
@@ -748,6 +749,11 @@ const activeDeckCount = computed(() => currentPlayerDetail.value?.deckCount ?? p
 const activeDiscardCount = computed(() => currentPlayerDetail.value?.discardCount ?? players.value[currentUserSeat.value]?.discardCount ?? 0)
 const currentFunds = computed(() => currentPlayerDetail.value?.actionPoints ?? 0)
 const fundsCap = computed(() => Math.max(3, currentFunds.value))
+const currentSelfShield = computed(() => {
+  const fromDetail = Number(currentPlayerDetail.value?.shield)
+  if (Number.isFinite(fromDetail)) return fromDetail
+  return Number(players.value[currentUserSeat.value]?.defense ?? 0)
+})
 const targetablePlayers = computed(() => players.value.filter((player) => player.userId))
 const isSelectingFirstPlayer = computed(() => activePhase.value === 'SELECT_FIRST_PLAYER')
 const localCurrentHp = computed(() => currentPlayerDetail.value?.currentHp ?? players.value[currentUserSeat.value]?.hp ?? 0)
@@ -1000,6 +1006,7 @@ function mapCard(card: any): BattleCard {
   return {
     id,
     instanceId: id,
+    cardCode: card.cardCode ?? card.card_code ?? '',
     name: card.cardName ?? card.name ?? '未知卡牌',
     dept: normalizeDept(card.deptType ?? card.dept),
     cost: card.cost ?? 0,
@@ -1241,8 +1248,25 @@ function notifyPlayCardEffects(res: any) {
   }
 }
 
+function requiresSelfShield(card: BattleCard) {
+  const code = String(card.cardCode || '').toUpperCase()
+  if (code === 'P-37') return true
+  if (String(card.name || '') === 'Kad3') return true
+  const desc = String(card.description || '')
+  return desc.includes('自己防御 -1') || desc.includes('自己防御-1')
+}
+
+function canAffordCard(card: BattleCard) {
+  return !(requiresSelfShield(card) && currentSelfShield.value < 1)
+}
+
 async function playCard(card: BattleCard) {
   if (!activeMatchId.value || !canActWithActivePlayer.value) return
+  if (!canAffordCard(card)) {
+    ElMessage.closeAll()
+    ElMessage.error('自身没有足够防御，无法使用该卡牌')
+    return
+  }
   const skipTarget = card.requiresPlayerTarget === false
     || (card.requiresPlayerTarget !== true && (card.type === 'attack' || card.type === 'consume' || card.type === 'draw' || card.type === 'support'))
   // 攻击 / 抽牌 / 消耗 / 辅助 / 全体效果：无需选择玩家目标
@@ -1629,6 +1653,11 @@ async function endTurn() {
 
 async function confirmTarget(targetUserId: string) {
   if (!pendingTargetCard.value || !activeMatchId.value) return
+  if (!canAffordCard(pendingTargetCard.value)) {
+    ElMessage.closeAll()
+    ElMessage.error('自身没有足够防御，无法使用该卡牌')
+    return
+  }
   try {
     const res = await playMatchCard(activeMatchId.value, {
       cardInstanceId: pendingTargetCard.value.instanceId,
