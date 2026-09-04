@@ -137,7 +137,7 @@ async function goMatchMaking() {
   z-index: 0;
   pointer-events: none;
 }
-.customer-page > * {
+.customer-page > :not(.back-btn) {
   position: relative;
   z-index: 1;
 }
