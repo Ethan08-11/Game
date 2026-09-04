@@ -1,6 +1,6 @@
 <template>
   <div class="hall-fit">
-    <div class="hall-frame">
+    <div v-show="hallReady" class="hall-frame">
       <div class="hall-page" :style="pageStyle">
         <header class="hall-header">
       <span class="mode-tag">{{ modeText }}</span>
@@ -160,6 +160,7 @@ const startBtnStyle = { backgroundImage: `url(${startBtnImg})`, left: '703px', b
 const modeText = '本周模式：双人模式'
 
 const avatarDialogVisible = ref(false)
+const hallReady = ref(false)
 const reconnectDialogVisible = ref(false)
 const reconnectCountdown = ref(30)
 const reconnectMatchId = ref('')
@@ -241,7 +242,7 @@ async function resolveResumeMatchId(current: Awaited<ReturnType<typeof getCurren
 
 async function checkActiveMatch(current: Awaited<ReturnType<typeof getCurrentRoom>> | null) {
   const savedMatchId = await resolveResumeMatchId(current)
-  if (!savedMatchId) return
+  if (!savedMatchId) return false
 
   try {
     const detail = await getMatchDetail(savedMatchId)
@@ -249,17 +250,19 @@ async function checkActiveMatch(current: Awaited<ReturnType<typeof getCurrentRoo
       sessionStorage.removeItem('activeMatchId')
       room.resetMatchMaking()
       clearMatchCache()
-      return
+      return false
     }
     persistActiveMatch(savedMatchId)
-    router.replace(`/battle/${savedMatchId}`)
+    await router.replace(`/battle/${savedMatchId}`).catch(() => {})
+    return true
   } catch {
     if (matchIdFrom(current?.matchId) === savedMatchId) {
       persistActiveMatch(savedMatchId)
-      router.replace(`/battle/${savedMatchId}`)
-      return
+      await router.replace(`/battle/${savedMatchId}`).catch(() => {})
+      return true
     }
     sessionStorage.removeItem('activeMatchId')
+    return false
   }
 }
 
@@ -335,9 +338,10 @@ onMounted(async () => {
       new Map(user.friends.map(f => [String(f.id), f.displayName || f.username])),
     )
     const matchId = matchIdFrom(current.matchId)
-    if (matchId) persistActiveMatch(matchId)
+    if (matchId)     persistActiveMatch(matchId)
   }
-  await checkActiveMatch(current)
+  const redirected = await checkActiveMatch(current)
+  if (!redirected) hallReady.value = true
   if (!current && !roomLookupFailed && !room.matchId && !sessionStorage.getItem('activeMatchId')) {
     room.resetMatchMaking()
     clearMatchCache()

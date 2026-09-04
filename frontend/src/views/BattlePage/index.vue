@@ -2,6 +2,7 @@
   <div class="battle-page" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '' }">
     <BackButton to="" text="放弃对战" @click="handleLeave" />
 
+    <template v-if="battleReady">
     <div class="battle-main">
       <section class="battle-stage">
         <div class="stage-bg">
@@ -403,6 +404,7 @@
       />
     </div>
     <p v-if="liveTeammateChat" class="match-chat-live" aria-live="polite">{{ liveTeammateChat }}</p>
+    </template>
 
   </div>
 </template>
@@ -582,6 +584,7 @@ let liveTeammateTimer: ReturnType<typeof setTimeout> | null = null
 const activePlayer = ref<0 | 1>(0)
 const players = ref<BattlePlayer[]>([])
 const matchDetail = ref<any>(null)
+const battleReady = ref(false)
 const turnEnded = ref<[boolean, boolean]>([false, false])
 const activeVersion = ref(1)
 const activePhase = ref('')
@@ -590,6 +593,10 @@ const choosingFirstPlayer = ref(false)
 const refreshStateToken = ref(0)
 const firstPlayerUserId = ref('')
 const secondPlayerUserId = ref('')
+
+function markBattleReady() {
+  if (matchDetail.value && activePhase.value) battleReady.value = true
+}
 
 const customerTriggered = ref<number | null>(null)
 const customerEffectType = ref('')
@@ -677,6 +684,16 @@ const HAND_MIN_SLOT_WIDTH = 72
 const handCardsRef = ref<HTMLElement | null>(null)
 const handAreaWidth = ref(0)
 let handResizeObserver: ResizeObserver | null = null
+
+function bindHandResizeObserver() {
+  if (handResizeObserver || !handCardsRef.value || typeof ResizeObserver === 'undefined') return
+  handResizeObserver = new ResizeObserver((entries) => {
+    const width = entries[0]?.contentRect.width ?? 0
+    if (width > 0) handAreaWidth.value = width
+  })
+  handResizeObserver.observe(handCardsRef.value)
+  handAreaWidth.value = handCardsRef.value.clientWidth
+}
 const cardCostTop = ref(0)
 const cardCostLeft = ref(-1)
 const cardCostSize = ref(24)
@@ -902,6 +919,12 @@ watch(canRevealHand, async (show, wasShow) => {
     return
   }
   if (!show) handFlipped.value = false
+})
+
+watch(battleReady, async (ready) => {
+  if (!ready) return
+  await nextTick()
+  bindHandResizeObserver()
 })
 const customerStatusText = computed(() => {
   if (customerTriggered.value === null) return '顾客机制：等待判定'
@@ -1148,6 +1171,7 @@ async function refreshBattleState() {
   const prevPhase = activePhase.value
   const prevHp = Object.fromEntries(players.value.map((player) => [String(player.userId), { hp: player.hp, defense: player.defense }]))
   syncToStore(detail)
+  markBattleReady()
   const queuedFx = queueBossAttackFromHpDrop(prevRound, prevPhase, prevHp, detail)
 
   // 对局已结束 → 不向 room store 同步 match 数据，避免覆盖 App.vue 已执行的房间清理
@@ -2155,6 +2179,7 @@ async function recoverBattleAfterSocketReconnect() {
     if (detail && typeof detail === 'object' && (detail.matchId || detail.phase || detail.bossCurrentHp != null)) {
       syncToStore(detail)
       syncRoomPlayers(detail)
+      markBattleReady()
     }
   } catch {
     // 对局无需重连或后端拒绝重连时，继续以权威查询恢复页面。
@@ -2317,6 +2342,8 @@ watch(() => game.isGameOver, (over) => {
 })
 
 onMounted(async () => {
+  game.resetGameOver()
+  battleReady.value = false
   const hour = new Date().getHours()
   bgImage.value = bgList[hour % bgList.length]
   console.log('[BattlePage onMounted] route.matchId =', route.params.matchId)
@@ -2344,16 +2371,10 @@ onMounted(async () => {
   } catch {
     await refreshBattleState().catch(() => {})
   }
+  markBattleReady()
   if (isSelectingFirstPlayer.value) startFirstPlayerPoll()
   await nextTick()
-  if (handCardsRef.value && typeof ResizeObserver !== 'undefined') {
-    handResizeObserver = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width ?? 0
-      if (width > 0) handAreaWidth.value = width
-    })
-    handResizeObserver.observe(handCardsRef.value)
-    handAreaWidth.value = handCardsRef.value.clientWidth
-  }
+  bindHandResizeObserver()
   unsubscribeFns.push(
     subscribeRoomEvent('ws.connected', () => { void recoverBattleAfterSocketReconnect() }),
     subscribeRoomEvent('friend.presence.changed', handleTeammatePresence),

@@ -1,6 +1,7 @@
 <template>
   <div class="result-page">
     <BackButton to="/game-hall" text="返回大厅" />
+    <template v-if="resultReady">
     <div class="result-header">
       <el-icon :size="48" :color="isVictory ? 'var(--color-accent)' : 'var(--color-text-tertiary)'">
         <component :is="isVictory ? Present : CircleCloseFilled" />
@@ -46,6 +47,7 @@
       <el-button type="primary" @click="$router.push('/game-hall')">返回大厅</el-button>
       <el-button @click="$router.push('/matchmaking')">重新组队</el-button>
     </div>
+    </template>
   </div>
 </template>
 
@@ -68,6 +70,7 @@ const user = useUserStore()
 const room = useRoomStore()
 const rounds = ref(0)
 const settlement = ref<MatchSettlementResp | null>(null)
+const resultReady = ref(false)
 const reviving = ref(false)
 const isVictory = computed(() => {
   if (settlement.value) {
@@ -88,15 +91,20 @@ const collectionComplete = computed(() => Boolean(isVictory.value && settlement.
 onMounted(async () => {
   const matchId = String(route.params.matchId || room.matchId || '')
   if (matchId) {
-    settlement.value = await getMatchSettlement(matchId)
-    rounds.value = settlement.value.totalRounds ?? rounds.value
-    game.isVictory = settlement.value.victory ?? settlement.value.winnerType === 1
-    game.maxBullyHP = settlement.value.bossMaxHp ?? game.maxBullyHP
-    game.bullyHP = settlement.value.bossRemainingHp ?? game.bullyHP
-    game.pointsEarned = rewardMoney.value
+    try {
+      settlement.value = await getMatchSettlement(matchId)
+      rounds.value = settlement.value.totalRounds ?? rounds.value
+      game.isVictory = settlement.value.victory ?? settlement.value.winnerType === 1
+      game.maxBullyHP = settlement.value.bossMaxHp ?? game.maxBullyHP
+      game.bullyHP = settlement.value.bossRemainingHp ?? game.bullyHP
+      game.pointsEarned = rewardMoney.value
+    } catch {
+      // 结算未取到前不展示胜负，避免先闪上一局结果
+    }
   } else {
     game.pointsEarned = 0
   }
+  resultReady.value = !matchId || settlement.value != null || game.isGameOver
   void user.loadMe().catch(() => {})
 })
 

@@ -6,7 +6,7 @@
       <p class="eyebrow">顾客图鉴</p>
       <h1>全部顾客</h1>
 
-      <div class="customer-scroll" :style="{ '--card-bg': `url(${cardBg})` }">
+      <div v-if="catalogReady" class="customer-scroll" :style="{ '--card-bg': `url(${cardBg})` }">
         <div class="customer-grid">
           <article v-for="customer in customers" :key="customer.customerTypeId ?? customer.customerCode" class="customer-item">
             <div class="name-section">
@@ -87,6 +87,7 @@ const bgDay = bg2
 const bgNight = bg1
 const bgImage = ref('')
 const customers = ref<CustomerApiItem[]>([])
+const catalogReady = ref(false)
 const showAdjuster = ref(false)
 const traitsTop = ref(180)
 
@@ -137,54 +138,6 @@ function formatEffectValue(effectType?: string, value?: number) {
   return `${unit}${prefix}${num}`
 }
 
-const mockCustomers: CustomerApiItem[] = [
-  {
-    customerTypeId: 1,
-    customerCode: 'BOSS_WANG',
-    customerName: '王总',
-    description: '外贸行业资深客户，对交货周期要求极高，但订单量大且稳定。',
-    effectType: 'bully_attack_down',
-    effectValue: -8,
-    selectionWeight: 35,
-    triggerChance: 60,
-    status: 1,
-  },
-  {
-    customerTypeId: 2,
-    customerCode: 'BUYER_LI',
-    customerName: '李采购',
-    description: '大型连锁企业采购经理，擅长压价但信誉良好，偶尔会追加紧急订单。',
-    effectType: 'bully_hp_up',
-    effectValue: 15,
-    selectionWeight: 28,
-    triggerChance: 45,
-    status: 1,
-  },
-  {
-    customerTypeId: 3,
-    customerCode: 'CLIENT_ZHANG',
-    customerName: '张客户',
-    description: '初创公司创始人，对产品质量吹毛求疵，但愿意为新供应商提供试单机会。',
-    effectType: 'attack',
-    effectValue: 5,
-    selectionWeight: 22,
-    triggerChance: 55,
-    status: 1,
-  },
-  {
-    customerTypeId: 4,
-    customerCode: 'CUSTOMER_WINDOW',
-    customerName: '闲逛双客',
-    description: '结伴闲逛却从不落单，偶尔会给两名护卫恢复血值。',
-    imageUrl: '/images/customer/p4.webp',
-    effectType: 'player_hp_up',
-    effectValue: 2,
-    selectionWeight: 10,
-    triggerChance: 20,
-    status: 1,
-  },
-]
-
 onMounted(async () => {
   const hour = new Date().getHours()
   bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
@@ -194,13 +147,11 @@ onMounted(async () => {
     customers.value.forEach((c, i) => {
       console.log(`[调试] 顾客[${i}] ${c.customerName} imageUrl:`, c.imageUrl)
     })
-    if (!customers.value || customers.value.length === 0) {
-      customers.value = mockCustomers
-      console.log('[调试] API返回空，使用 mockCustomers')
-    }
   } catch (e) {
     console.log('[调试] API调用失败:', e)
-    customers.value = mockCustomers
+    customers.value = []
+  } finally {
+    catalogReady.value = true
   }
 })
 </script>

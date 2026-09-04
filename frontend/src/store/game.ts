@@ -142,7 +142,9 @@ export const useGameStore = defineStore('game', () => {
     isVictory.value = false
     isGameOver.value = false
     employerLastAction.value = ''
-    initGameEntities()
+    employerTrait.value = null
+    employerName.value = ''
+    bullyName.value = '霸凌者'
   }
 
   async function submitResult(rounds: number): Promise<number> {

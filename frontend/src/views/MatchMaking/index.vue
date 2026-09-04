@@ -393,7 +393,10 @@ async function handleRoomCreated(data: any) {
   room.setCurrentUser(user.userId)
   const hostUserId = String(data?.hostUserId ?? data?.data?.hostUserId ?? '')
   room.isHost = !!user.userId && hostUserId === String(user.userId)
-  if (route.name !== 'MatchMaking') await router.push('/matchmaking')
+  if (enteringBattle.value) return
+  const routeName = String(route.name || '')
+  if (routeName === 'BattlePage' || routeName === 'ResultPage') return
+  if (routeName !== 'MatchMaking') await router.push('/matchmaking')
   await syncRoom(roomId)
 }
 
@@ -402,7 +405,11 @@ async function handleRoomUpdated(data: any) {
   if (!roomId) return
   await syncRoom(roomId)
   if (!room.roomId) return
-  if (route.name !== 'MatchMaking') await router.push('/matchmaking')
+  if (enteringBattle.value) return
+  const liveMatchId = room.matchId || sessionStorage.getItem('activeMatchId') || ''
+  const routeName = String(route.name || '')
+  if (liveMatchId || routeName === 'BattlePage' || routeName === 'ResultPage') return
+  if (routeName !== 'MatchMaking') await router.push('/matchmaking')
 }
 
 watch(
@@ -424,14 +431,18 @@ async function enterBattle(matchId: string) {
   enteringBattle.value = true
   room.setMatchId(matchId)
   sessionStorage.setItem('activeMatchId', matchId)
-  await router.push(`/battle/${matchId}`)
+  await router.replace(`/battle/${matchId}`)
 }
 
 async function handleGameStart(data: any) {
   const matchId = String(data?.matchId ?? data?.data?.matchId ?? room.matchId ?? sessionStorage.getItem('activeMatchId') ?? '')
-  if (route.name !== 'MatchMaking') await router.push('/matchmaking')
-  if (matchId) await enterBattle(matchId)
-  else if (room.matchId) await enterBattle(room.matchId)
+  const targetId = matchId || String(room.matchId || '')
+  if (targetId) {
+    const routeName = String(route.name || '')
+    if (!(routeName === 'BattlePage' && String(route.params.matchId || '') === targetId)) {
+      await enterBattle(targetId)
+    }
+  }
   const roomId = getRoomIdFromEvent(data) || room.roomId
   if (roomId) {
     syncRoom(roomId).catch(() => {})

@@ -111,7 +111,7 @@ router.beforeEach((to, _from, next) => {
   const resumeBattle = Boolean(token && matchId)
     && to.name !== 'BattlePage'
     && to.name !== 'ResultPage'
-    && (to.meta.noAuth || to.name === 'GameHall')
+    && (to.meta.noAuth || to.name === 'GameHall' || to.name === 'MatchMaking' || to.name === 'CustomerCurrent')
 
   if (resumeBattle) {
     next(`/battle/${matchId}`)

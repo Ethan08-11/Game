@@ -92,7 +92,7 @@ async function syncRoom(roomId: string, options: { retries?: number; clearOnMiss
         room.setMatchId(matchId)
         sessionStorage.setItem(ACTIVE_MATCH_KEY, matchId)
         if (String(route.name || '') !== 'BattlePage') {
-          await router.push(`/battle/${matchId}`)
+          await router.replace(`/battle/${matchId}`)
         }
       } else if (!detail.roomId && !detail.id) {
         sessionStorage.removeItem(ACTIVE_MATCH_KEY)
@@ -301,7 +301,7 @@ async function handleMatchStarted(data: any) {
   sessionStorage.setItem(ACTIVE_MATCH_KEY, matchId)
   await refreshFriends()
   if (String(route.name || '') !== 'BattlePage' || String(route.params.matchId || '') !== matchId) {
-    await router.push(`/battle/${matchId}`)
+    await router.replace(`/battle/${matchId}`)
   }
 }
 
