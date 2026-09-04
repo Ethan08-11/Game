@@ -259,13 +259,13 @@ h1 {
 .highlight-section {
   position: absolute;
   left: 50%;
-  top: -78px;
+  top: -56px;
   transform: translateX(-50%);
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  width: 310px;
-  height: 268px;
+  width: 286px;
+  height: 224px;
   overflow: visible;
 }
 .customer-avatar-img {
@@ -273,7 +273,7 @@ h1 {
   height: 100%;
   object-fit: contain;
   object-position: center bottom;
-  transform: scale(1.36);
+  transform: scale(1.16);
   transform-origin: center bottom;
 }
 .traits-section {
