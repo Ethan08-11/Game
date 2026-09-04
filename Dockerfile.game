@@ -3,10 +3,12 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY frontend/package.json frontend/package-lock.json ./
-# Web image does not ship the Electron desktop shell. Skipping those optional
-# packages avoids electron@43's "needs Node >= 22.12" engine warnings and the
-# deprecated rimraf/glob/inflight/boolean tree pulled in by electron-builder.
-RUN npm ci --omit=optional
+# Vite 8 / rolldown puts Linux native bindings in optionalDependencies.
+# Do not use `npm ci --omit=optional` here — that drops
+# `@rolldown/binding-linux-*-musl` and `vite build` fails with MODULE_NOT_FOUND.
+# Skip only the Electron binary download; the desktop packages stay unused in web mode.
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
+RUN npm ci
 
 COPY frontend/ ./
 RUN npm run build:web
