@@ -2,17 +2,17 @@
   <main class="customer-page" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
     <BackButton to="/game-hall" text="返回大厅" />
 
-    <section class="customer-card" :style="{ '--panel-bg': `url(${panelBg})` }">
+    <section v-if="customerReady" class="customer-card" :style="{ '--panel-bg': `url(${panelBg})` }">
       <div class="card-title" :style="{ backgroundImage: `url(${titleBanner})` }">顾客来访</div>
       <div class="card-layout">
         <div class="card-body">
-          <h1>{{ game.employerName || '顾客加载中' }}</h1>
+          <h1>{{ game.employerName }}</h1>
           <p class="story">顾客长期遭受霸凌者欺凌，已向 HIH 发起求助。请先了解本局顾客属性，再进入部门选择。</p>
 
           <div class="trait-panel">
             <span class="trait-label">顾客属性</span>
-            <strong>{{ trait?.name || '加载中' }}</strong>
-            <p>{{ trait?.description || '顾客状态加载中...' }}</p>
+            <strong>{{ trait?.name }}</strong>
+            <p>{{ trait?.description }}</p>
           </div>
 
           <div class="info-grid">
@@ -42,7 +42,7 @@
             </div>
           </div>
         </div>
-        <img :src="getImageUrl(game.employerTrait?.imageUrl) || characterImg" alt="顾客形象" class="customer-avatar" />
+        <img v-if="customerAvatar" :src="customerAvatar" alt="顾客形象" class="customer-avatar" />
       </div>
 
       <div class="card-footer">
@@ -56,14 +56,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/store/game'
 import BackButton from '@/components/BackButton.vue'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
 import panelBg from '@/assets/customer-panel-bg.webp'
-import characterImg from '@/assets/customer-character.webp'
 import titleBanner from '@/assets/title-banner.webp'
 import { getImageUrl } from '@/utils/imageUrl'
 
@@ -75,8 +74,13 @@ const router = useRouter()
 const game = useGameStore()
 const jumping = ref(false)
 const trait = computed(() => game.employerTrait)
+const customerReady = computed(() => {
+  const name = (game.employerName || '').trim()
+  return Boolean(trait.value && name && name !== '雇主')
+})
+const customerAvatar = computed(() => getImageUrl(trait.value?.imageUrl) || '')
 const effectText = computed(() => {
-  if (!trait.value) return '加载中'
+  if (!trait.value) return ''
   const target = trait.value.effectType === 'player_hp'
     ? '我方血值'
     : trait.value.effectType === 'hp'
@@ -96,11 +100,9 @@ function formatRate(value?: number) {
   return `${Math.round(value * 100)}%`
 }
 
-onMounted(() => {
-  const hour = new Date().getHours()
-  bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
-  game.loadCurrentCustomer()
-})
+const hour = new Date().getHours()
+bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
+void game.loadCurrentCustomer()
 
 async function goMatchMaking() {
   if (jumping.value) return

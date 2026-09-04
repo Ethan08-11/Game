@@ -31,7 +31,7 @@ export const useGameStore = defineStore('game', () => {
   const bullyDefense = ref<number>(0)
   const comboActive = ref<boolean>(false)
 
-  const employerName = ref<string>('雇主')
+  const employerName = ref<string>('')
   const employerTrait = ref<EmployerTrait | null>(null)
   const employerLastAction = ref<string>('')
 
@@ -61,7 +61,7 @@ export const useGameStore = defineStore('game', () => {
       employerTrait.value = await getCurrentCustomer()
       employerName.value = employerTrait.value.name
     } catch {
-      if (!employerTrait.value) initGameEntities()
+      // 刷新时不要回退到「雇主」占位数据，等接口成功后再展示顾客卡
     }
   }
 
