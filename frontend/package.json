@@ -27,13 +27,18 @@
     "@types/node": "^24.13.2",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/tsconfig": "^0.9.1",
-    "electron": "^43.1.1",
-    "electron-builder": "^26.15.3",
     "sass-embedded": "^1.100.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
-    "vite-plugin-electron": "^1.1.0",
-    "vite-plugin-electron-renderer": "^1.0.0",
     "vue-tsc": "^3.3.5"
+  },
+  "optionalDependencies": {
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "vite-plugin-electron": "^1.1.0",
+    "vite-plugin-electron-renderer": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }
