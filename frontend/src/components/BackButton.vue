@@ -45,6 +45,10 @@ function goBack() {
   z-index: 100;
   display: inline-flex;
   align-items: center;
+  width: max-content;
+  max-width: max-content;
+  flex: none;
+  align-self: flex-start;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
   border: 1px solid var(--color-border-default);
