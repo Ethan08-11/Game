@@ -43,6 +43,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         runScript("db/024_all_customers_hard_shield.sql");
         runScript("db/025_bully_round_winrate.sql");
         runScript("db/026_bully_hp_180.sql");
+        runScript("db/027_bully_hp_200.sql");
         update("CUSTOMER_KIND", -1, 30, 32);
         update("CUSTOMER_TIMID", 2, 65, 38);
         update("CUSTOMER_ANXIOUS", 2, 60, 30);
