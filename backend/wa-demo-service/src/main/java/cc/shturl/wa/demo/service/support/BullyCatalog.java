@@ -32,7 +32,7 @@ public final class BullyCatalog {
     public static final String PATTERN_BOTH_HALF_SWING = "BOTH_HALF_SWING";
 
     /** 销售+采购、双采购掷点；双销售血量和攻击另取一档。 */
-    public static final int HP = 140;
+    public static final int HP = 180;
     public static final int ATTACK_MIN = 17;
     public static final int ATTACK_MAX = 20;
     public static final int DUAL_SALES_HP = 250;
@@ -121,7 +121,7 @@ public final class BullyCatalog {
     }
 
     /**
-     * 销售+采购、双采购：血量 140，攻击 17～20。
+     * 销售+采购、双采购：血量 180，攻击 17～20。
      * 双销售输出更高：血量 250，攻击 18～21。
      */
     public static Pressure pressureForSalesCount(int salesCount) {
