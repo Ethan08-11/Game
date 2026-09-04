@@ -1,8 +1,36 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import { createRequire } from 'module'
 import { resolve } from 'path'
-import electron from 'vite-plugin-electron'
-import electronRenderer from 'vite-plugin-electron-renderer'
+import { defineConfig, type PluginOption } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+const require = createRequire(import.meta.url)
+
+function loadElectronPlugins(): PluginOption[] {
+  try {
+    const electronMod = require('vite-plugin-electron') as { default?: (options: unknown) => PluginOption } & ((options: unknown) => PluginOption)
+    const rendererMod = require('vite-plugin-electron-renderer') as { default?: () => PluginOption } & (() => PluginOption)
+    const electron = electronMod.default ?? electronMod
+    const electronRenderer = rendererMod.default ?? rendererMod
+    return [
+      electron([
+        {
+          entry: 'electron/main.ts',
+          vite: {
+            build: {
+              outDir: 'dist-electron',
+              rollupOptions: {
+                external: ['electron'],
+              },
+            },
+          },
+        },
+      ]),
+      electronRenderer(),
+    ]
+  } catch {
+    return []
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const enableElectron = mode !== 'web'
@@ -10,24 +38,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
-      ...(enableElectron
-        ? [
-            electron([
-              {
-                entry: 'electron/main.ts',
-                vite: {
-                  build: {
-                    outDir: 'dist-electron',
-                    rollupOptions: {
-                      external: ['electron'],
-                    },
-                  },
-                },
-              },
-            ]),
-            electronRenderer(),
-          ]
-        : []),
+      ...(enableElectron ? loadElectronPlugins() : []),
     ],
     server: {
       proxy: {
