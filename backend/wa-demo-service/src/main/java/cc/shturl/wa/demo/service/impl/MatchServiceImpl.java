@@ -94,7 +94,7 @@ public class MatchServiceImpl implements MatchService {
     private static final int DEPT_STARTER_COPIES = 2;
     private static final int DEPT_COLLECTIBLE_SLOTS = 8;
     private static final int SHARED_COLLECTIBLE_SLOTS = 0;
-    private static final int SHARED_STARTER_SLOTS = 0;
+    private static final int SHARED_STARTER_SLOTS = 6;
     private static final int INITIAL_HAND_SIZE = 5;
     private static final String SALES = "sales";
     private static final String PURCHASE = "purchase";
@@ -860,7 +860,7 @@ public class MatchServiceImpl implements MatchService {
     }
 
     /**
-     * 只用本部门成员卡组牌：基础每种 2 张 + 本部门收藏各 1 张。公共部/中立卡已停用，不再补公共牌。
+     * 本部门成员卡组牌：基础每种 2 张 + 本部门收藏各 1 张，再用公共部雇佣兵基础卡补位。中立卡仍停用。
      * 采购基础卡更少时，多出的空位优先加本部门收藏。收藏名额优先给最近没上场过的已解锁卡。
      * 解锁不足时可以少于 30 张；够填满时必须正好 30 张。
      */
@@ -1592,7 +1592,7 @@ public class MatchServiceImpl implements MatchService {
             case "DAMAGE_BOSS" -> {
                 int hpBefore = value(match.getBossCurrentHp());
                 int shieldBefore = value(match.getBossCurrentShield());
-                int hpLoss = applyBossHpDamage(match, actualValue);
+                int hpLoss = applyBossHpDamage(match, actualValue, parseIgnoreShield(effect.getExtraData()));
                 if (hpLoss > 0) {
                     actor.setDamageDealt(value(actor.getDamageDealt()) + hpLoss);
                 }
@@ -1726,6 +1726,16 @@ public class MatchServiceImpl implements MatchService {
         } catch (NumberFormatException ignored) {
             return 100;
         }
+    }
+
+    private boolean parseIgnoreShield(String extraData) {
+        if (extraData == null || extraData.isBlank()) {
+            return false;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("\"ignoreShield\"\\s*:\\s*(true|false)", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(extraData);
+        return matcher.find() && "true".equalsIgnoreCase(matcher.group(1));
     }
 
     private void requireSelfShieldCost(MatchPlayers actor, List<CardEffects> effects, int multiplier) {
@@ -2259,7 +2269,7 @@ public class MatchServiceImpl implements MatchService {
             }
             if ("DAMAGE_BOSS".equals(pending.getEffectType())) {
                 int rolled = applyTriggerChance(pending.getExtraData(), value(pending.getEffectValue()));
-                int hpLoss = applyBossHpDamage(match, rolled);
+                int hpLoss = applyBossHpDamage(match, rolled, parseIgnoreShield(pending.getExtraData()));
                 if (hpLoss > 0 && pending.getSourceUserId() != null) {
                     MatchPlayers source = matchPlayersMapper.selectOne(Wrappers.<MatchPlayers>lambdaQuery()
                             .eq(MatchPlayers::getMatchId, match.getId())
@@ -2929,13 +2939,19 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private int applyBossHpDamage(Matches match, int rawDamage) {
+        return applyBossHpDamage(match, rawDamage, false);
+    }
+
+    private int applyBossHpDamage(Matches match, int rawDamage, boolean ignoreShield) {
         int damage = Math.max(rawDamage, 0);
-        int shield = value(match.getBossCurrentShield());
-        int blocked = Math.min(shield, damage);
-        match.setBossCurrentShield(shield - blocked);
-        int hpLoss = damage - blocked;
+        if (!ignoreShield) {
+            int shield = value(match.getBossCurrentShield());
+            int blocked = Math.min(shield, damage);
+            match.setBossCurrentShield(shield - blocked);
+            damage = damage - blocked;
+        }
         int before = value(match.getBossCurrentHp());
-        match.setBossCurrentHp(Math.max(0, before - hpLoss));
+        match.setBossCurrentHp(Math.max(0, before - damage));
         return before - value(match.getBossCurrentHp());
     }
 
