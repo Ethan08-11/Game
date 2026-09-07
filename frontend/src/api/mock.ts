@@ -61,11 +61,11 @@ export const mockSkins = [
 // ==================== Quests ====================
 export const mockQuests = [
   { id: 'q1', icon: 'attack', name: '完成第 1 局', description: '今天打完第 1 局即可，输赢都算', progress: 0, target: 1, reward: 30, type: 'daily' as const },
-  { id: 'q2', icon: 'trophy', name: '赢第 1 局', description: '今天第 1 局获胜，看广告复活也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
+  { id: 'q2', icon: 'trophy', name: '赢第 1 局', description: '今天第 1 局最终获胜才算，看广告复活后赢了也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
   { id: 'q3', icon: 'attack', name: '完成第 2 局', description: '今天打完第 2 局即可，输赢都算', progress: 0, target: 1, reward: 40, type: 'daily' as const },
-  { id: 'q4', icon: 'trophy', name: '赢第 2 局', description: '今天第 2 局获胜，看广告复活也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
+  { id: 'q4', icon: 'trophy', name: '赢第 2 局', description: '今天第 2 局最终获胜才算，看广告复活后赢了也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
   { id: 'q5', icon: 'attack', name: '完成第 3 局', description: '今天打完第 3 局即可，输赢都算', progress: 0, target: 1, reward: 50, type: 'daily' as const },
-  { id: 'q6', icon: 'trophy', name: '赢第 3 局', description: '今天第 3 局获胜，看广告复活也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
+  { id: 'q6', icon: 'trophy', name: '赢第 3 局', description: '今天第 3 局最终获胜才算，看广告复活后赢了也算', progress: 0, target: 1, reward: 10, type: 'daily' as const },
   { id: 'q7', icon: 'promotion', name: '跟 10 位不同同事组合', description: '本周在每日前 3 局里，和 10 个不同的人组过队', progress: 0, target: 10, reward: 500, type: 'weekly' as const },
 ]
 
@@ -91,11 +91,11 @@ import type { ApiTask } from './social'
 
 export const mockApiTasks: ApiTask[] = [
   { id: 1, taskCode: 'T-DAILY-MATCH-1', taskName: '完成第 1 局', taskType: 'daily', description: '今天打完第 1 局即可，输赢都算', conditionType: 'match_count', conditionValue: '{}', rewardType: 'money', rewardValue: '{"amount":30}', targetCount: 1, sortNo: 10, status: 1 },
-  { id: 2, taskCode: 'T-DAILY-WIN-1', taskName: '赢第 1 局', taskType: 'daily', description: '今天第 1 局获胜，看广告复活也算', conditionType: 'match_slot_win', conditionValue: '{"slot":1}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 11, status: 1 },
+  { id: 2, taskCode: 'T-DAILY-WIN-1', taskName: '赢第 1 局', taskType: 'daily', description: '今天第 1 局最终获胜才算，看广告复活后赢了也算', conditionType: 'match_slot_win', conditionValue: '{"slot":1}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 11, status: 1 },
   { id: 3, taskCode: 'T-DAILY-MATCH-2', taskName: '完成第 2 局', taskType: 'daily', description: '今天打完第 2 局即可，输赢都算', conditionType: 'match_count', conditionValue: '{}', rewardType: 'money', rewardValue: '{"amount":40}', targetCount: 2, sortNo: 20, status: 1 },
-  { id: 4, taskCode: 'T-DAILY-WIN-2', taskName: '赢第 2 局', taskType: 'daily', description: '今天第 2 局获胜，看广告复活也算', conditionType: 'match_slot_win', conditionValue: '{"slot":2}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 21, status: 1 },
+  { id: 4, taskCode: 'T-DAILY-WIN-2', taskName: '赢第 2 局', taskType: 'daily', description: '今天第 2 局最终获胜才算，看广告复活后赢了也算', conditionType: 'match_slot_win', conditionValue: '{"slot":2}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 21, status: 1 },
   { id: 5, taskCode: 'T-DAILY-MATCH-3', taskName: '完成第 3 局', taskType: 'daily', description: '今天打完第 3 局即可，输赢都算', conditionType: 'match_count', conditionValue: '{}', rewardType: 'money', rewardValue: '{"amount":50}', targetCount: 3, sortNo: 30, status: 1 },
-  { id: 6, taskCode: 'T-DAILY-WIN-3', taskName: '赢第 3 局', taskType: 'daily', description: '今天第 3 局获胜，看广告复活也算', conditionType: 'match_slot_win', conditionValue: '{"slot":3}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 31, status: 1 },
+  { id: 6, taskCode: 'T-DAILY-WIN-3', taskName: '赢第 3 局', taskType: 'daily', description: '今天第 3 局最终获胜才算，看广告复活后赢了也算', conditionType: 'match_slot_win', conditionValue: '{"slot":3}', rewardType: 'money', rewardValue: '{"amount":10}', targetCount: 1, sortNo: 31, status: 1 },
   { id: 7, taskCode: 'T-WEEKLY-TEAM-10', taskName: '跟 10 位不同同事组合', taskType: 'weekly', description: '本周在每日前 3 局里，和 10 个不同的人组过队', conditionType: 'distinct_teammate', conditionValue: '{}', rewardType: 'money', rewardValue: '{"amount":500}', targetCount: 10, sortNo: 90, status: 1 },
 ]
 
