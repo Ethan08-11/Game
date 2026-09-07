@@ -205,10 +205,8 @@ public class TaskServiceImpl implements TaskService {
         if (!userExists(userId)) {
             return;
         }
-        int slot = dailySlotProgress(userId) + 1;
-        if (slot >= 1 && slot <= 3) {
-            completeMatchSlotWin(userId, slot);
-        }
+        // 看广告复活本身不算赢；复活后最终获胜才由 recordMatchResult(WIN) 记「赢第 N 局」。
+        bumpByProgressType(userId, "AD_WATCH", 1, null);
     }
 
     @Override

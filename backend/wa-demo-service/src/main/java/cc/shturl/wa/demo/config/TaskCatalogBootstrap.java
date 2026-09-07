@@ -90,19 +90,19 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
                 "今天打完第 1 局即可，输赢都算。中途放弃占用当日局数，但不算完成、不发这枚金币",
                 "match_count", "{}", "money", "{\"amount\":30}", 1, 10, 1);
         upsert("T-DAILY-WIN-1", "赢第 1 局", "daily", "DAILY", "DAY", "MATCH_SLOT_WIN",
-                "今天第 1 局获胜，看广告复活也算。放弃或掉线超时会占用这局，无法重打",
+                "今天第 1 局最终获胜才算；看广告复活后赢了也算。放弃或掉线超时会占用这局，无法重打",
                 "match_slot_win", "{\"slot\":1}", "money", "{\"amount\":10}", 1, 11, 1);
         upsert("T-DAILY-MATCH-2", "完成第 2 局", "daily", "DAILY", "DAY", "MATCH_COUNT",
                 "今天打完第 2 局即可，输赢都算。中途放弃占用当日局数，但不算完成、不发这枚金币",
                 "match_count", "{}", "money", "{\"amount\":40}", 2, 20, 1);
         upsert("T-DAILY-WIN-2", "赢第 2 局", "daily", "DAILY", "DAY", "MATCH_SLOT_WIN",
-                "今天第 2 局获胜，看广告复活也算。放弃或掉线超时会占用这局，无法重打",
+                "今天第 2 局最终获胜才算；看广告复活后赢了也算。放弃或掉线超时会占用这局，无法重打",
                 "match_slot_win", "{\"slot\":2}", "money", "{\"amount\":10}", 1, 21, 1);
         upsert("T-DAILY-MATCH-3", "完成第 3 局", "daily", "DAILY", "DAY", "MATCH_COUNT",
                 "今天打完第 3 局即可，输赢都算。中途放弃占用当日局数，但不算完成、不发这枚金币",
                 "match_count", "{}", "money", "{\"amount\":50}", 3, 30, 1);
         upsert("T-DAILY-WIN-3", "赢第 3 局", "daily", "DAILY", "DAY", "MATCH_SLOT_WIN",
-                "今天第 3 局获胜，看广告复活也算。放弃或掉线超时会占用这局，无法重打",
+                "今天第 3 局最终获胜才算；看广告复活后赢了也算。放弃或掉线超时会占用这局，无法重打",
                 "match_slot_win", "{\"slot\":3}", "money", "{\"amount\":10}", 1, 31, 1);
         upsert("T-WEEKLY-TEAM-10", "跟 10 位不同同事组合", "weekly", "WEEKLY", "WEEK", "DISTINCT_TEAMMATE_COUNT",
                 "本周在每日前 3 局里，和 10 个不同的人组过队。放弃会占掉其中一局",
