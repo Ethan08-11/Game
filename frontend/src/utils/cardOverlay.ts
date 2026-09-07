@@ -169,6 +169,12 @@ const NAME_TOP_BY_STEM: Record<string, number> = {
   "零售_珠宝商": 73.2,
   "餐饮_厨子": 69.3,
   "餐饮_司膳": 71.5,
+  "雇佣兵_客服剑士": 72.9,
+  "雇佣兵_装备重甲师": 72.9,
+  "雇佣兵_文艺射手": 72.9,
+  "雇佣兵_街艺大力士": 72.9,
+  "雇佣兵_物流骑士": 72.9,
+  "雇佣兵_补给牧师": 72.9,
 }
 
 const NAME_TOP_BY_CARD_NAME: Record<string, number> = {
@@ -314,6 +320,12 @@ const NAME_TOP_BY_CARD_NAME: Record<string, number> = {
   "珠宝商": 73.2,
   "厨子": 69.3,
   "司膳": 71.5,
+  "客服剑士": 72.9,
+  "装备重甲师": 72.9,
+  "文艺射手": 72.9,
+  "街艺大力士": 72.9,
+  "物流骑士": 72.9,
+  "补给牧师": 72.9,
 }
 
 function stemFromImageUrl(imageUrl?: string | null): string {
