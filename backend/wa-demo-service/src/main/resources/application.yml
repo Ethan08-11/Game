@@ -1,6 +1,7 @@
 server:
-  # Zeabur 注入 PORT；本地可用 SERVER_PORT
-  port: ${PORT:${SERVER_PORT:8080}}
+  address: 0.0.0.0
+  # 容器入口会把 SERVER_PORT 指到内网端口；Zeabur 的 PORT 给探针用
+  port: ${SERVER_PORT:${PORT:8080}}
   tomcat:
     threads:
       max: ${TOMCAT_MAX_THREADS:200}
@@ -13,6 +14,15 @@ spring:
     name: wa-demo-service
 
   cloud:
+    discovery:
+      enabled: ${NACOS_DISCOVERY_ENABLED:false}
+    service-registry:
+      auto-registration:
+        enabled: ${NACOS_DISCOVERY_ENABLED:false}
+    loadbalancer:
+      cache:
+        caffeine:
+          spec: initialCapacity=256,expireAfterWrite=60s
     nacos:
       discovery:
         enabled: ${NACOS_DISCOVERY_ENABLED:false}
@@ -23,6 +33,8 @@ spring:
         password: ${NACOS_PASSWORD:}
       config:
         enabled: ${NACOS_CONFIG_ENABLED:false}
+        import-check:
+          enabled: false
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         namespace: ${NACOS_NAMESPACE:}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
