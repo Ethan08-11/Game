@@ -21,20 +21,23 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
-  && apk add --no-cache wget
+  && apk add --no-cache wget socat
 
 COPY --from=builder /build/app.jar app.jar
-RUN chown -R appuser:appgroup /app
+COPY backend/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh \
+  && chown -R appuser:appgroup /app
 USER appuser
 
 ENV JAVA_OPTS="-Xms256m -Xmx768m -XX:+UseG1GC" \
     SERVER_PORT=8080 \
+    APP_INTERNAL_PORT=18080 \
     NACOS_DISCOVERY_ENABLED=false \
     NACOS_CONFIG_ENABLED=false
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=8 \
-  CMD wget -qO- "http://127.0.0.1:${PORT:-8080}/actuator/health" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=8 \
+  CMD wget -qO- "http://127.0.0.1:${APP_INTERNAL_PORT:-18080}/actuator/health" || exit 1
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dserver.port=${PORT:-8080} -jar app.jar"]
+ENTRYPOINT ["sh", "/app/docker-entrypoint.sh"]
