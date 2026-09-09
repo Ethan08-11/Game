@@ -11,6 +11,7 @@ public record CardEffectResp(
         Integer afterValue,
         boolean scheduled,
         Integer triggerRound,
-        Long pendingEffectId
+        Long pendingEffectId,
+        String extraData
 ) {
 }

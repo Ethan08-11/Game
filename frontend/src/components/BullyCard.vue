@@ -1,7 +1,6 @@
 <template>
   <div class="bully-card" :style="{ backgroundImage: `url(${panelBg})` }">
     <div class="bully-status">
-      <div v-if="game.bullyDebuff" class="bully-effect">{{ game.bullyDebuff }}</div>
       <div class="bully-hp-row">
         <div class="bully-hp-bar">
           <div class="bully-hp-fill" :style="{ width: hpPercent + '%' }" />
@@ -99,15 +98,6 @@ function seatDept(seat: number) {
   width: 180px;
   margin: 0 auto var(--space-2);
   overflow: visible;
-}
-.bully-effect {
-  margin-bottom: var(--space-1);
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-full);
-  background: var(--color-surface-02);
-  color: var(--color-accent);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
 }
 .bully-hp-row {
   display: flex;

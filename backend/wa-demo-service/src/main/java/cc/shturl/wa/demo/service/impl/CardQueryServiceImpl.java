@@ -75,7 +75,8 @@ public class CardQueryServiceImpl implements CardQueryService {
                 card.getComboCardId(), card.getIsUnique(), card.getStatus(),
                 effects.stream().map(effect -> new cc.shturl.wa.demo.dto.resp.CardEffectResp(
                         effect.effectType(), effect.triggerTiming(), effect.effectScope(), null,
-                        effect.value(), effect.value(), null, null, false, effect.triggerDelay(), effect.effectId()))
+                        effect.value(), effect.value(), null, null, false, effect.triggerDelay(), effect.effectId(),
+                        effect.extraData()))
                         .toList(),
                 card.getRequireUnlock(), true);
     }

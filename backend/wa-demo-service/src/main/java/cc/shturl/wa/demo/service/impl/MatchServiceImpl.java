@@ -1696,7 +1696,7 @@ public class MatchServiceImpl implements MatchService {
                 pending.setExtraData(effect.getExtraData());
                 matchPendingEffectsMapper.insert(pending);
                 results.add(new CardEffectResp("GUARD_ALLY", "IMMEDIATE", "PLAYER", ward.getUserId(),
-                        1, 1, null, null, true, match.getCurrentRound(), pending.getId()));
+                        1, 1, null, null, true, match.getCurrentRound(), pending.getId(), effect.getExtraData()));
             }
             default -> throw new BusinessException("不支持的立即效果类型：" + effect.getEffectType());
         }
@@ -1791,7 +1791,7 @@ public class MatchServiceImpl implements MatchService {
     private CardEffectResp effectResult(CardEffects effect, String targetType, Long targetUserId, int baseValue,
                                         int actualValue, int beforeValue, int afterValue, Integer triggerRound) {
         return new CardEffectResp(effect.getEffectType(), effect.getTriggerTiming(), targetType, targetUserId,
-                baseValue, actualValue, beforeValue, afterValue, false, triggerRound, null);
+                baseValue, actualValue, beforeValue, afterValue, false, triggerRound, null, effect.getExtraData());
     }
 
     private List<MatchPlayers> resolveEffectTargets(Long matchId, MatchPlayers actor, MatchPlayers selected, CardEffects effect) {
@@ -1888,7 +1888,7 @@ public class MatchServiceImpl implements MatchService {
                 results.add(new CardEffectResp(effect.getEffectType(), effect.getTriggerTiming(),
                         "ALL_PLAYERS".equals(effect.getEffectScope()) ? "ALL_PLAYERS" : pending.getTargetType(),
                         pending.getTargetUserId(), value(effect.getValue()), pending.getEffectValue(), null, null, true,
-                        triggerRound, pending.getId()));
+                        triggerRound, pending.getId(), effect.getExtraData()));
             }
         }
     }
