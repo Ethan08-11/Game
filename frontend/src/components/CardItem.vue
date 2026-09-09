@@ -151,7 +151,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .card-item {
   width: var(--card-width);
-  aspect-ratio: 441 / 800;
+  aspect-ratio: 640 / 1023;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-subtle);
   cursor: pointer;

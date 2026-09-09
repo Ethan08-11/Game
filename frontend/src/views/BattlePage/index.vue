@@ -2953,7 +2953,7 @@ onUnmounted(() => {
 }
 .pile-back {
   width: 52px;
-  aspect-ratio: 441 / 800;
+  aspect-ratio: 640 / 1023;
   border-radius: 6px;
   border: 1px solid rgba(196, 169, 98, 0.55);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
@@ -3138,14 +3138,14 @@ onUnmounted(() => {
 }
 .hand-card-back {
   width: var(--hand-slot-width, 90px);
-  aspect-ratio: 441 / 800;
+  aspect-ratio: 640 / 1023;
   flex: 0 0 auto;
   border-radius: var(--radius-md);
   pointer-events: none;
 }
 .hand-flip {
   width: 90px;
-  aspect-ratio: 441 / 800;
+  aspect-ratio: 640 / 1023;
   flex: 0 0 auto;
   position: relative;
   overflow: visible;
