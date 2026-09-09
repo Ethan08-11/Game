@@ -17,7 +17,11 @@
             <span v-if="statusBullyActionText" class="status-pill">{{ statusBullyActionText }}</span>
             <span v-if="isSelectingFirstPlayer" class="status-pill">先手状态：{{ firstPlayerStatusText }}</span>
           </div>
-          <div class="bully-status-hud" :class="{ 'is-flash': bullyHpFlash }">
+          <div
+            ref="bullyHudRef"
+            class="bully-status-hud"
+            :class="{ 'is-flash': bullyHpFlash, 'is-atk-down': bullyAtkMode === 'down', 'is-atk-up': bullyAtkMode === 'up' }"
+          >
             <BullyCard />
           </div>
           <div class="action-log-panel">
@@ -52,24 +56,24 @@
 
     <footer class="battle-footer">
       <div class="footer-row">
-        <div class="draw-pile card-area-highlight" @click="showDeckModal = true">
+        <div ref="drawPileRef" class="draw-pile card-area-highlight" :class="{ 'is-pulse': pilePulse }" @click="showDeckModal = true">
           <div class="pile-back" :style="cardBackStyle" aria-hidden="true" />
           <span class="pile-count">{{ activeDeckCount }}</span>
           <span class="pile-label">牌库</span>
         </div>
 
         <div class="center-stack">
-          <div class="funds-indicator-wrap funds-indicator-highlight" :style="fundsIndicatorStyle">
+          <div ref="fundsWrapRef" class="funds-indicator-wrap funds-indicator-highlight" :class="{ 'is-pulse': fundsPulse }" :style="fundsIndicatorStyle">
             <div class="funds-indicator"><img class="funds-icon" :src="fundsIcon" alt="" />调用机会 {{ currentFunds }}/{{ fundsCap }}</div>
           </div>
           <div class="hand-actions-row">
-            <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying" @click="endTurn" aria-label="结束回合" />
+            <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying || heroFxPlaying" @click="endTurn" aria-label="结束回合" />
           </div>
 
           <div
             ref="handCardsRef"
             class="hand-cards"
-            :class="{ 'is-waiting': !canRevealHand }"
+            :class="{ 'is-waiting': !canRevealHand, 'is-mult': handMultPulse }"
             :style="{ '--card-width': cardWidth + 'px', '--hand-slot-width': handSlotWidth + 'px', '--hand-overlap': handOverlap + 'px', '--cost-top': cardCostTop + 'px', '--cost-left': cardCostLeft + 'px', '--cost-size': cardCostSize + 'px', '--dept-top': cardDeptTop + 'px', '--dept-left': cardDeptLeft + 'px', '--name-top': cardNameTop + 'px', '--name-left': cardNameLeft + 'px', '--desc-top': cardDescTop + 'px', '--desc-left': cardDescLeft + 'px', '--tag-top': cardTagTop + 'px', '--tag-left': cardTagLeft + 'px', '--effect-top': cardEffectTop + 'px', '--effect-left': cardEffectLeft + 'px', '--effect-size': cardEffectSize + 'px' }"
           >
             <template v-if="canRevealHand">
@@ -92,7 +96,7 @@
                       :damage="card.damage || 0"
                       :shield="card.shield || 0"
                       :image-url="card.imageUrl"
-                      :disabled="!canActWithActivePlayer || !canAffordCard(card)"
+                      :disabled="!canActWithActivePlayer || !canAffordCard(card) || heroFxPlaying"
                       @play="playCard(card)"
                     />
                   </div>
@@ -313,7 +317,7 @@
       <div class="pos-rect pos-rect-customer" :style="{ width: '188px', height: '289px', left: '50%', top: '58%' }">
         <img :src="customerImage" alt="顾客" />
       </div>
-      <div class="pos-rect pos-rect-player1" ref="player1RectRef" :class="{ 'is-struck': struckSeats.includes(0), 'has-shield': (players[0]?.defense || 0) > 0 }" :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }">
+      <div class="pos-rect pos-rect-player1" ref="player1RectRef" :class="playerRectClass(0)" :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }">
         <img class="player-img" :src="player1Img" alt="玩家1" />
         <div v-if="(players[0]?.defense || 0) > 0" class="player-shield-veil" aria-hidden="true" />
         <div class="player-hp-hud" :class="{ 'is-flash': flashSeats.includes(0) }">
@@ -331,7 +335,7 @@
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
       </div>
-      <div class="pos-rect pos-rect-player2" ref="player2RectRef" :class="{ 'is-struck': struckSeats.includes(1), 'has-shield': (players[1]?.defense || 0) > 0 }" :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }">
+      <div class="pos-rect pos-rect-player2" ref="player2RectRef" :class="playerRectClass(1)" :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }">
         <img class="player-img" :src="player2Img" alt="玩家2" />
         <div v-if="(players[1]?.defense || 0) > 0" class="player-shield-veil" aria-hidden="true" />
         <div class="player-hp-hud" :class="{ 'is-flash': flashSeats.includes(1) }">
@@ -367,6 +371,13 @@
         :style="hit.style"
       >{{ hit.text }}</div>
       <div
+        v-for="slash in heroSlashes"
+        :key="slash.id"
+        class="hero-slash"
+        :class="slash.tone"
+        :style="slash.style"
+      />
+      <div
         v-for="bolt in heroBolts"
         :key="bolt.id"
         class="hero-bolt"
@@ -387,6 +398,13 @@
         :class="hit.tone"
         :style="hit.style"
       >{{ hit.text }}</div>
+      <div
+        v-for="mark in heroMarks"
+        :key="mark.id"
+        class="hero-mark"
+        :class="mark.tone"
+        :style="mark.style"
+      >{{ mark.text }}</div>
     </div>
 
     <div class="match-chat-dock">
@@ -550,11 +568,25 @@ let bullyFxChain: Promise<void> = Promise.resolve()
 const heroBolts = ref<Array<{ id: number; tone: string; style: Record<string, string> }>>([])
 const heroBursts = ref<Array<{ id: number; tone: string; style: Record<string, string> }>>([])
 const heroFloats = ref<Array<{ id: number; tone: string; text: string; style: Record<string, string> }>>([])
+const heroMarks = ref<Array<{ id: number; tone: string; text: string; style: Record<string, string> }>>([])
+const heroSlashes = ref<Array<{ id: number; tone: string; style: Record<string, string> }>>([])
 const bullyStruck = ref(false)
 const bullyHpFlash = ref(false)
+const bullyAtkMode = ref<'down' | 'up' | ''>('')
+const heroFxPlaying = ref(false)
+const fundsPulse = ref(false)
+const pilePulse = ref(false)
+const handMultPulse = ref(false)
+const fxGlow = ref<Record<number, string>>({})
+const bullyHudRef = ref<HTMLElement | null>(null)
+const drawPileRef = ref<HTMLElement | null>(null)
+const fundsWrapRef = ref<HTMLElement | null>(null)
 let heroFxSeq = 0
+let heroFxJobs = 0
+let bullyHitLock = 0
 const playedHeroFxKeys = new Set<string>()
 let heroFxAlive = true
+let heroFxChain: Promise<void> = Promise.resolve()
 
 function scrollActionLogToLatest() {
   void nextTick(() => {
@@ -1084,7 +1116,7 @@ function syncToStore(detail: any) {
   const bossAction = detail.bossActionText ?? detail.bullyActionText ?? detail.lastBossActionText
   const shieldAction = typeof bossAction === 'string'
     && (bossAction.startsWith('本回合护盾') || bossAction === '本回合没有护盾')
-  game.bullyDebuff = detail.bullySkillSummary ?? (shieldAction ? game.bullyDebuff : (detail.bossActionText ?? game.bullyDebuff))
+  game.bullyDebuff = shieldAction ? game.bullyDebuff : (detail.bossActionText ?? game.bullyDebuff)
   game.bullyTarget = detail.bullyTarget ?? ''
   bullyActionText.value = bossAction ?? bullyActionText.value
   applyBossHp(detail)
@@ -1232,46 +1264,6 @@ async function refreshBattleState() {
   }
 }
 
-function notifyPlayCardEffects(res: any) {
-  const effects = res?.effects ?? []
-  const apEffects = effects.filter((e: any) => e.effectType === 'ADD_ACTION_POINTS')
-  const immediateAp = apEffects.filter((e: any) => !e.scheduled).reduce((sum: number, e: any) => sum + (e.actualValue ?? e.baseValue ?? 0), 0)
-  const scheduledAp = apEffects.filter((e: any) => e.scheduled).reduce((sum: number, e: any) => sum + (e.actualValue ?? e.baseValue ?? 0), 0)
-  if (immediateAp > 0 || scheduledAp > 0) {
-    const parts: string[] = []
-    if (immediateAp > 0) parts.push(`本回合调用机会 +${immediateAp}`)
-    if (scheduledAp > 0) parts.push(`下回合调用机会 +${scheduledAp}`)
-    ElMessage.success(parts.join('，'))
-  }
-  if (effects.some((e: any) => e.effectType === 'MULTIPLY_NEXT_CARD')) {
-    ElMessage.success('下一张牌的数值效果将翻倍')
-  }
-  if ((res.appliedMultiplier ?? 1) > 1) {
-    ElMessage.success(`数值效果已翻倍（×${res.appliedMultiplier}）`)
-  }
-  const drawn = effects
-    .filter((e: any) => e.effectType === 'DRAW_CARDS' && !e.scheduled)
-    .reduce((sum: number, e: any) => sum + (e.actualValue ?? 0), 0)
-  if (drawn > 0) {
-    ElMessage.success(`抽到 ${drawn} 张牌`)
-  }
-  const attackDown = effects
-    .filter((e: any) => e.effectType === 'REDUCE_BOSS_ATTACK' && !e.scheduled)
-    .reduce((sum: number, e: any) => sum + (e.actualValue ?? e.baseValue ?? 0), 0)
-  if (attackDown > 0) {
-    ElMessage.success(`本回合霸凌者攻击 -${attackDown}`)
-  }
-  if (effects.some((e: any) => e.effectType === 'ADD_SHIELD' && e.targetType === 'ALL_PLAYERS')) {
-    ElMessage.success('双方获得护盾')
-  }
-  if (effects.some((e: any) => e.effectType === 'GUARD_ALLY')) {
-    ElMessage.success('已替队友挡下一次攻击')
-  }
-  if (effects.some((e: any) => e.effectType === 'HEAL_PLAYER' && e.targetType === 'ALL_PLAYERS')) {
-    ElMessage.success('双方恢复血值')
-  }
-}
-
 function requiresSelfShield(card: BattleCard) {
   const code = String(card.cardCode || '').toUpperCase()
   if (code === 'P-37') return true
@@ -1310,13 +1302,14 @@ async function playCard(card: BattleCard) {
       console.log(`[调试] play-card 响应:`, JSON.stringify(res, null, 2))
       console.log(`[调试] boss HP 变化 → beforeValue: ${res.beforeValue}, afterValue: ${res.afterValue}, effects:`, JSON.stringify(res.effects ?? []))
       logMatchEvent('card.played', { ...res, deptType: res.deptType ?? card.dept })
-      notifyPlayCardEffects(res)
-      queueHeroAttackFx(res)
+      queueHeroAttackFx(enrichHeroFxPayload(res, card))
       if (res.matchEnded) {
+        await heroFxChain
         await loadSettlement()
         return
       }
       const hpBefore = game.bullyHP
+      await Promise.race([heroFxChain, waitFx(1800)])
       await refreshBattleState()
       console.log(`[调试] refreshBattleState 后 boss HP: ${hpBefore} → ${game.bullyHP} (变化: ${game.bullyHP - hpBefore})`)
       await loadReviveStatus().catch(() => {})
@@ -1417,6 +1410,18 @@ function playerRectBySeat(seat: number) {
   return seat === 1 ? player2RectRef.value : player1RectRef.value
 }
 
+function playerRectClass(seat: number) {
+  const glow = fxGlow.value[seat]
+  return {
+    'is-struck': struckSeats.value.includes(seat),
+    'has-shield': (players.value[seat]?.defense || 0) > 0 || glow === 'guard' || glow === 'shield',
+    'is-healed': glow === 'heal',
+    'is-shield-glow': glow === 'shield',
+    'is-harmed': glow === 'harm' || glow === 'break',
+    'is-guarded': glow === 'guard',
+  }
+}
+
 function layerOffset(el: HTMLElement, fx: number, fy: number) {
   const origin = bullyFxLayerRef.value?.getBoundingClientRect()
   const box = el.getBoundingClientRect()
@@ -1474,9 +1479,14 @@ function heroToneForActor(actorUserId: unknown) {
   return 'tone-sales'
 }
 
-function heroBoltStyle(fromEl: HTMLElement, toEl: HTMLElement) {
-  const from = layerOffset(fromEl, 0.5, 0.42)
-  const to = layerOffset(toEl, 0.5, 0.38)
+function nextHeroFxId() {
+  heroFxSeq += 1
+  return heroFxSeq
+}
+
+function heroBoltStyle(fromEl: HTMLElement, toEl: HTMLElement, fromFy = 0.42, toFy = 0.38) {
+  const from = layerOffset(fromEl, 0.5, fromFy)
+  const to = layerOffset(toEl, 0.5, toFy)
   return {
     left: `${from.x}px`,
     top: `${from.y}px`,
@@ -1485,9 +1495,442 @@ function heroBoltStyle(fromEl: HTMLElement, toEl: HTMLElement) {
   }
 }
 
-async function playHeroAttackFx(payload: any) {
+function fxType(effect: any) {
+  return String(effect?.effectType ?? effect?.effect_type ?? '').toUpperCase()
+}
+
+function fxNum(effect: any, camel: string, snake: string) {
+  const value = Number(effect?.[camel] ?? effect?.[snake])
+  return Number.isFinite(value) ? value : NaN
+}
+
+function fxActual(effect: any) {
+  const actual = fxNum(effect, 'actualValue', 'actual_value')
+  if (Number.isFinite(actual)) return actual
+  const before = fxNum(effect, 'beforeValue', 'before_value')
+  const after = fxNum(effect, 'afterValue', 'after_value')
+  if (Number.isFinite(before) && Number.isFinite(after)) return after - before
+  const base = fxNum(effect, 'baseValue', 'base_value')
+  return Number.isFinite(base) ? base : 0
+}
+
+function fxSignedText(value: number, prefix = '') {
+  const mag = Math.abs(Math.round(value))
+  const sign = value < 0 ? '−' : '+'
+  return `${prefix}${sign}${mag}`
+}
+
+function parseEffectExtra(effect: any) {
+  const raw = effect?.extraData ?? effect?.extra_data
+  if (!raw) return {} as Record<string, any>
+  if (typeof raw === 'object') return raw as Record<string, any>
+  try {
+    return JSON.parse(String(raw)) as Record<string, any>
+  } catch {
+    return {} as Record<string, any>
+  }
+}
+
+function isPierceEffect(payload: any, effect: any) {
+  const extra = parseEffectExtra(effect)
+  if (extra.ignoreShield === true || extra.ignore_shield === true) return true
+  const blob = [
+    payload?.cardName, payload?.card_name, payload?.cardCode, payload?.card_code,
+    payload?.description, effect?.description,
+  ].map((item) => String(item ?? '')).join(' ')
+  return /穿透|无视护盾|文艺射手/.test(blob)
+}
+
+function isDelayedEffect(effect: any) {
+  const type = fxType(effect)
+  if (type === 'GUARD_ALLY' || type === 'MULTIPLY_NEXT_CARD') return false
+  const timing = String(effect?.triggerTiming ?? effect?.trigger_timing ?? '').toUpperCase()
+  return Boolean(effect?.scheduled) || timing.includes('ROUND')
+}
+
+function listPlayEffects(payload: any) {
+  const raw = payload?.effects ?? payload?.data?.effects ?? []
+  if (Array.isArray(raw) && raw.length) return raw
   const damage = extractBossDamage(payload)
-  if (damage <= 0) return
+  if (damage > 0) return [{ effectType: 'DAMAGE_BOSS', actualValue: damage, scheduled: false, targetType: 'BOSS' }]
+  return []
+}
+
+function actorSeatOf(payload: any) {
+  const actor = payload?.actorUserId ?? payload?.actor_user_id ?? payload?.userId
+  let seat = players.value.findIndex((item) => sameBattleUserId(item.userId, actor))
+  if (seat < 0) seat = players.value.findIndex((item) => sameBattleUserId(item.userId, user.userId))
+  return seat < 0 ? 0 : seat
+}
+
+function resolveTargetSeats(effect: any, actorUserId: unknown) {
+  const targetType = String(effect?.targetType ?? effect?.target_type ?? '').toUpperCase()
+  const targetUserId = effect?.targetUserId ?? effect?.target_user_id
+  if (targetType === 'BOSS') return [] as number[]
+  if (targetType === 'ALL_PLAYERS') {
+    return players.value.map((_, index) => index).filter((index) => players.value[index])
+  }
+  if (targetUserId != null && String(targetUserId) !== '') {
+    const seat = players.value.findIndex((item) => sameBattleUserId(item.userId, targetUserId))
+    if (seat >= 0) return [seat]
+  }
+  const actorSeat = players.value.findIndex((item) => sameBattleUserId(item.userId, actorUserId))
+  return actorSeat >= 0 ? [actorSeat] : [0]
+}
+
+function pulseGlow(seats: number[], mode: string, ms = 480) {
+  const next = { ...fxGlow.value }
+  for (const seat of seats) next[seat] = mode
+  fxGlow.value = next
+  window.setTimeout(() => {
+    if (!heroFxAlive) return
+    const current = { ...fxGlow.value }
+    for (const seat of seats) {
+      if (current[seat] === mode) delete current[seat]
+    }
+    fxGlow.value = current
+  }, ms)
+}
+
+function pulseFlag(flag: { value: boolean }, ms = 480) {
+  flag.value = true
+  window.setTimeout(() => {
+    if (heroFxAlive) flag.value = false
+  }, ms)
+}
+
+function flashBullyHit(withHud: boolean) {
+  bullyHitLock += 1
+  bullyStruck.value = true
+  if (withHud) bullyHpFlash.value = true
+  window.setTimeout(() => {
+    bullyHitLock = Math.max(0, bullyHitLock - 1)
+    if (bullyHitLock === 0) {
+      bullyStruck.value = false
+      bullyHpFlash.value = false
+    }
+  }, 420)
+}
+
+function flashBullyAttack(mode: 'down' | 'up') {
+  bullyAtkMode.value = mode
+  window.setTimeout(() => {
+    if (bullyAtkMode.value === mode) bullyAtkMode.value = ''
+  }, 520)
+}
+
+function spawnHeroBolt(fromEl: HTMLElement, toEl: HTMLElement, tone: string, ms = 280, fromFy?: number, toFy?: number) {
+  const id = nextHeroFxId()
+  const style = {
+    ...heroBoltStyle(fromEl, toEl, fromFy, toFy),
+    animationDuration: `${ms}ms`,
+  }
+  heroBolts.value = [...heroBolts.value, { id, tone, style }]
+  window.setTimeout(() => {
+    if (!heroFxAlive) return
+    heroBolts.value = heroBolts.value.filter((item) => item.id !== id)
+  }, ms)
+}
+
+function spawnHeroBurst(el: HTMLElement, tone: string, fx = 0.5, fy = 0.4) {
+  const id = nextHeroFxId()
+  const point = layerOffset(el, fx, fy)
+  heroBursts.value = [...heroBursts.value, {
+    id,
+    tone,
+    style: { left: `${point.x}px`, top: `${point.y}px` },
+  }]
+  window.setTimeout(() => {
+    if (!heroFxAlive) return
+    heroBursts.value = heroBursts.value.filter((item) => item.id !== id)
+  }, 420)
+}
+
+function spawnHeroFloat(el: HTMLElement, text: string, tone: string, fy = 0.28, size?: number) {
+  const id = nextHeroFxId()
+  const point = layerOffset(el, 0.5, fy)
+  heroFloats.value = [...heroFloats.value, {
+    id,
+    tone,
+    text,
+    style: {
+      left: `${point.x}px`,
+      top: `${point.y}px`,
+      ...(size ? { fontSize: `${size}px` } : {}),
+    },
+  }]
+  window.setTimeout(() => {
+    if (!heroFxAlive) return
+    heroFloats.value = heroFloats.value.filter((item) => item.id !== id)
+  }, 900)
+}
+
+function spawnHeroMark(el: HTMLElement, text: string, tone: string, fy = 0.18) {
+  const id = nextHeroFxId()
+  const point = layerOffset(el, 0.5, fy)
+  heroMarks.value = [...heroMarks.value, {
+    id,
+    tone,
+    text,
+    style: { left: `${point.x}px`, top: `${point.y}px` },
+  }]
+  window.setTimeout(() => {
+    if (!heroFxAlive) return
+    heroMarks.value = heroMarks.value.filter((item) => item.id !== id)
+  }, 980)
+}
+
+function spawnHeroSlash(fromEl: HTMLElement, toEl: HTMLElement, tone: string) {
+  const id = nextHeroFxId()
+  heroSlashes.value = [...heroSlashes.value, { id, tone, style: slashStyle(fromEl, toEl) }]
+  window.setTimeout(() => {
+    if (!heroFxAlive) return
+    heroSlashes.value = heroSlashes.value.filter((item) => item.id !== id)
+  }, 280)
+}
+
+function drawDestEl(seat: number) {
+  if (sameBattleUserId(players.value[seat]?.userId, selfUserId()) && handCardsRef.value) {
+    return handCardsRef.value
+  }
+  return playerRectBySeat(seat)
+}
+
+function apDestEl(seat: number) {
+  if (sameBattleUserId(players.value[seat]?.userId, selfUserId()) && fundsWrapRef.value) {
+    return fundsWrapRef.value
+  }
+  return playerRectBySeat(seat)
+}
+
+function enrichHeroFxPayload(res: any, card?: BattleCard | null) {
+  return {
+    ...res,
+    cardCode: res?.cardCode ?? res?.card_code ?? card?.cardCode,
+    cardName: res?.cardName ?? res?.card_name ?? card?.name,
+    description: res?.description ?? card?.description,
+  }
+}
+
+async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLElement | null; bullyEl: HTMLElement | null; actorTone: string }) {
+  const { fromEl, bullyEl, actorTone, payload } = ctx
+  if (!fromEl || !bullyEl) return
+  const landed = Math.max(0, Math.round(fxActual(effect)))
+  const before = fxNum(effect, 'beforeValue', 'before_value')
+  const after = fxNum(effect, 'afterValue', 'after_value')
+  const hpLoss = Number.isFinite(before) && Number.isFinite(after) ? Math.max(0, Math.round(before - after)) : landed
+  const shieldHit = Math.max(0, landed - hpLoss)
+  const pierce = isPierceEffect(payload, effect)
+  const base = fxNum(effect, 'baseValue', 'base_value')
+  if (landed <= 0) {
+    spawnHeroBolt(fromEl, bullyEl, 'tone-miss', 240)
+    await waitFx(240)
+    if (!heroFxAlive) return
+    spawnHeroMark(bullyEl, '未中', 'tone-miss', 0.22)
+    await waitFx(220)
+    return
+  }
+  if (pierce) {
+    spawnHeroSlash(fromEl, bullyEl, 'tone-pierce')
+    spawnHeroBolt(fromEl, bullyEl, 'tone-pierce', 260)
+    await waitFx(260)
+    if (!heroFxAlive) return
+    spawnHeroBurst(bullyEl, 'tone-pierce')
+    flashBullyHit(true)
+    spawnHeroFloat(bullyEl, `−${hpLoss || landed}`, 'tone-pierce')
+    spawnHeroMark(bullyEl, '无视护盾', 'tone-pierce', 0.12)
+    await waitFx(180)
+    return
+  }
+  spawnHeroBolt(fromEl, bullyEl, actorTone, 260)
+  await waitFx(260)
+  if (!heroFxAlive) return
+  if (shieldHit > 0) {
+    spawnHeroBurst(bullyEl, 'tone-shield-break')
+    spawnHeroFloat(bullyEl, `盾 −${shieldHit}`, 'tone-shield-break', 0.22, 24)
+    flashBullyHit(hpLoss <= 0)
+    if (hpLoss > 0) await waitFx(140)
+  }
+  if (hpLoss > 0) {
+    spawnHeroBurst(bullyEl, actorTone)
+    flashBullyHit(true)
+    spawnHeroFloat(bullyEl, `−${hpLoss}`, actorTone)
+  }
+  await waitFx(base > 1 ? 140 : 160)
+}
+
+async function playPlayerValueFx(
+  effect: any,
+  actorUserId: unknown,
+  kind: 'heal' | 'harm' | 'shield' | 'break',
+  text: string,
+) {
+  const seats = resolveTargetSeats(effect, actorUserId)
+  const tone = kind === 'heal' ? 'tone-heal' : kind === 'harm' ? 'tone-harm' : kind === 'break' ? 'tone-shield-break' : 'tone-shield'
+  const glow = kind === 'heal' ? 'heal' : kind === 'harm' ? 'harm' : kind === 'break' ? 'break' : 'shield'
+  pulseGlow(seats, glow)
+  if (kind === 'harm') {
+    flashSeats.value = [...new Set([...flashSeats.value, ...seats])]
+    window.setTimeout(() => {
+      flashSeats.value = flashSeats.value.filter((seat) => !seats.includes(seat))
+    }, 450)
+  }
+  for (const seat of seats) {
+    const el = playerRectBySeat(seat)
+    if (!el) continue
+    spawnHeroBurst(el, tone, 0.5, 0.45)
+    spawnHeroFloat(el, text, tone, 0.3)
+  }
+  await waitFx(280)
+}
+
+async function playEffectClip(effect: any, ctx: {
+  payload: any
+  fromEl: HTMLElement | null
+  bullyEl: HTMLElement | null
+  hudEl: HTMLElement | null
+  actorUserId: unknown
+  actorTone: string
+  prev: any
+}) {
+  const type = fxType(effect)
+  const actorUserId = ctx.actorUserId
+  if (isDelayedEffect(effect)) {
+    if (type === 'ADD_ACTION_POINTS') {
+      const seats = resolveTargetSeats(effect, actorUserId)
+      for (const seat of seats) {
+        const el = apDestEl(seat)
+        if (el) spawnHeroMark(el, '下回合', 'tone-delay', 0.2)
+      }
+      await waitFx(260)
+      return
+    }
+    const seats = resolveTargetSeats(effect, actorUserId)
+    const els = type.includes('BOSS') || !seats.length
+      ? [ctx.bullyEl]
+      : seats.map((seat) => playerRectBySeat(seat))
+    for (const el of els) {
+      if (el) spawnHeroMark(el, '下回合', 'tone-delay', 0.16)
+    }
+    await waitFx(260)
+    return
+  }
+  const actual = fxActual(effect)
+  if (
+    (type === 'HEAL_PLAYER' || type === 'DRAW_CARDS' || type === 'ADD_ACTION_POINTS' || type === 'ADD_SHIELD')
+    && actual === 0
+  ) {
+    return
+  }
+  switch (type) {
+    case 'DAMAGE_BOSS':
+      await playDamageBossFx(effect, ctx)
+      return
+    case 'ADD_SHIELD': {
+      const prevType = fxType(ctx.prev)
+      const prevActual = ctx.prev ? fxActual(ctx.prev) : 0
+      if (prevType === 'ADD_SHIELD' && prevActual < 0 && actual > 0 && ctx.fromEl) {
+        const destSeat = resolveTargetSeats(effect, actorUserId)[0]
+        const destEl = playerRectBySeat(destSeat)
+        if (destEl) spawnHeroBolt(ctx.fromEl, destEl, 'tone-shield', 280, 0.45, 0.4)
+      }
+      await playPlayerValueFx(
+        effect,
+        actorUserId,
+        actual < 0 ? 'break' : 'shield',
+        actual < 0 ? fxSignedText(actual, '盾 ') : fxSignedText(Math.abs(actual), '盾 '),
+      )
+      return
+    }
+    case 'HEAL_PLAYER':
+      await playPlayerValueFx(effect, actorUserId, 'heal', fxSignedText(Math.max(actual, 0)))
+      return
+    case 'DAMAGE_PLAYER':
+      await playPlayerValueFx(effect, actorUserId, 'harm', `−${Math.max(0, Math.round(actual))}`)
+      return
+    case 'GUARD_ALLY': {
+      const seats = resolveTargetSeats(effect, actorUserId)
+      pulseGlow(seats, 'guard', 720)
+      for (const seat of seats) {
+        const el = playerRectBySeat(seat)
+        if (!el) continue
+        spawnHeroBurst(el, 'tone-guard', 0.5, 0.42)
+        spawnHeroMark(el, '守护', 'tone-guard', 0.2)
+      }
+      await waitFx(300)
+      return
+    }
+    case 'DRAW_CARDS': {
+      const drawn = Math.max(0, Math.round(actual))
+      if (drawn <= 0) return
+      const seats = resolveTargetSeats(effect, actorUserId)
+      const fromEl = drawPileRef.value || ctx.fromEl
+      pilePulse.value = true
+      const hops = Math.min(drawn, 3)
+      for (let i = 0; i < hops; i += 1) {
+        for (const seat of seats) {
+          const dest = fromEl ? drawDestEl(seat) : playerRectBySeat(seat)
+          if (fromEl && dest) spawnHeroBolt(fromEl, dest, 'tone-draw', 260, 0.5, 0.5)
+        }
+        await waitFx(90)
+      }
+      pulseFlag(pilePulse, 360)
+      const dest = drawDestEl(seats[0] ?? actorSeatOf(ctx.payload))
+      if (dest) spawnHeroFloat(dest, `抽 +${drawn}`, 'tone-draw', 0.2, 22)
+      await waitFx(220)
+      return
+    }
+    case 'ADD_ACTION_POINTS': {
+      const seats = resolveTargetSeats(effect, actorUserId)
+      for (const seat of seats) {
+        const el = apDestEl(seat)
+        if (el) spawnHeroFloat(el, `调用 ${fxSignedText(actual)}`, 'tone-ap', 0.2, 22)
+      }
+      pulseFlag(fundsPulse, 520)
+      await waitFx(260)
+      return
+    }
+    case 'REDUCE_BOSS_ATTACK': {
+      const el = ctx.hudEl || ctx.bullyEl
+      if (!el) return
+      spawnHeroFloat(el, `攻 −${Math.max(0, Math.round(actual))}`, 'tone-control', 0.55, 24)
+      flashBullyAttack('down')
+      const after = fxNum(effect, 'afterValue', 'after_value')
+      if (after === 0) spawnHeroMark(el, '✕', 'tone-control', 0.72)
+      await waitFx(280)
+      return
+    }
+    case 'INCREASE_BOSS_ATTACK': {
+      const el = ctx.hudEl || ctx.bullyEl
+      if (!el) return
+      spawnHeroFloat(el, `攻 +${Math.max(0, Math.round(actual))}`, 'tone-harm', 0.55, 24)
+      flashBullyAttack('up')
+      await waitFx(280)
+      return
+    }
+    case 'HEAL_BOSS': {
+      if (!ctx.bullyEl) return
+      spawnHeroBurst(ctx.bullyEl, 'tone-heal')
+      spawnHeroFloat(ctx.bullyEl, fxSignedText(Math.max(actual, 0)), 'tone-heal')
+      await waitFx(260)
+      return
+    }
+    case 'MULTIPLY_NEXT_CARD': {
+      const dest = handCardsRef.value || ctx.fromEl
+      const times = Math.max(2, Math.round(actual || 2))
+      if (dest) spawnHeroMark(dest, `下一张 ×${times}`, 'tone-mult', 0.15)
+      pulseFlag(handMultPulse, 720)
+      await waitFx(300)
+      return
+    }
+    default:
+      return
+  }
+}
+
+async function playHeroCardFx(payload: any) {
+  const effects = listPlayEffects(payload)
+  if (!effects.length) return
   const key = heroFxKey(payload)
   if (!key || playedHeroFxKeys.has(key)) return
   playedHeroFxKeys.add(key)
@@ -1498,49 +1941,49 @@ async function playHeroAttackFx(payload: any) {
   await nextTick()
   await waitForFxAnchors()
   if (!heroFxAlive) return
-  const actor = payload?.actorUserId ?? payload?.actor_user_id ?? payload?.userId
-  let seat = players.value.findIndex((item) => sameBattleUserId(item.userId, actor))
-  if (seat < 0) seat = players.value.findIndex((item) => sameBattleUserId(item.userId, user.userId))
-  const fromEl = playerRectBySeat(seat)
-  const toEl = bullyRectRef.value
-  if (!fromEl || !toEl) return
-  const tone = heroToneForActor(actor)
-  heroFxSeq += 1
-  const boltId = heroFxSeq
-  heroBolts.value = [...heroBolts.value, { id: boltId, tone, style: heroBoltStyle(fromEl, toEl) }]
-  await waitFx(320)
-  if (!heroFxAlive) return
-  heroBolts.value = heroBolts.value.filter((item) => item.id !== boltId)
-  const burstPoint = layerOffset(toEl, 0.5, 0.4)
-  heroFxSeq += 1
-  const burstId = heroFxSeq
-  heroBursts.value = [...heroBursts.value, { id: burstId, tone, style: { left: `${burstPoint.x}px`, top: `${burstPoint.y}px` } }]
-  bullyStruck.value = true
-  bullyHpFlash.value = true
-  heroFxSeq += 1
-  const floatId = heroFxSeq
-  heroFloats.value = [...heroFloats.value, {
-    id: floatId,
-    tone,
-    text: `-${damage}`,
-    style: floatStyle(toEl),
-  }]
-  window.setTimeout(() => {
+  const actorUserId = payload?.actorUserId ?? payload?.actor_user_id ?? payload?.userId
+  const fromEl = playerRectBySeat(actorSeatOf(payload))
+  const bullyEl = bullyRectRef.value
+  const hudEl = bullyHudRef.value
+  const actorTone = heroToneForActor(actorUserId)
+  const multiplier = Number(payload?.appliedMultiplier ?? payload?.applied_multiplier ?? 1)
+  if (multiplier > 1 && fromEl) {
+    spawnHeroMark(fromEl, `×${multiplier}`, 'tone-mult', 0.12)
+    await waitFx(160)
+  }
+  const maxWait = Math.max(90, Math.round(1100 / Math.max(effects.length, 1)))
+  for (let i = 0; i < effects.length; i += 1) {
     if (!heroFxAlive) return
-    heroBursts.value = heroBursts.value.filter((item) => item.id !== burstId)
-    if (heroBursts.value.length === 0) {
-      bullyStruck.value = false
-      bullyHpFlash.value = false
-    }
-  }, 420)
-  window.setTimeout(() => {
-    if (!heroFxAlive) return
-    heroFloats.value = heroFloats.value.filter((item) => item.id !== floatId)
-  }, 900)
+    const started = Date.now()
+    await playEffectClip(effects[i], {
+      payload,
+      fromEl,
+      bullyEl,
+      hudEl,
+      actorUserId,
+      actorTone,
+      prev: i > 0 ? effects[i - 1] : null,
+    })
+    const remain = maxWait - (Date.now() - started)
+    if (i < effects.length - 1 && remain > 40) await waitFx(Math.min(remain, 160))
+  }
 }
 
 function queueHeroAttackFx(payload: any) {
-  void playHeroAttackFx(payload)
+  heroFxChain = heroFxChain.then(async () => {
+    heroFxJobs += 1
+    heroFxPlaying.value = true
+    try {
+      await playHeroCardFx(payload)
+    } finally {
+      heroFxJobs = Math.max(0, heroFxJobs - 1)
+      if (heroFxJobs === 0) heroFxPlaying.value = false
+    }
+  }).catch(() => {
+    heroFxJobs = 0
+    heroFxPlaying.value = false
+  })
+  return heroFxChain
 }
 
 async function waitForFxAnchors() {
@@ -1691,16 +2134,18 @@ async function confirmTarget(targetUserId: string) {
       expectedVersion: activeVersion.value,
     })
     const playedDept = pendingTargetCard.value.dept
+    const playedCard = pendingTargetCard.value
     showTargetDialog.value = false
     pendingTargetUserId.value = targetUserId
     pendingTargetCard.value = null
-    notifyPlayCardEffects(res)
     logMatchEvent('card.played', { ...res, deptType: res.deptType ?? playedDept })
-    queueHeroAttackFx(res)
+    queueHeroAttackFx(enrichHeroFxPayload(res, playedCard))
     if (res.matchEnded) {
+      await heroFxChain
       await loadSettlement()
       return
     }
+    await Promise.race([heroFxChain, waitFx(1800)])
     await refreshBattleState()
   } catch (error: any) {
     const msg = error?.message || '出牌失败'
@@ -2288,7 +2733,9 @@ function makeMatchHandler(eventType: string) {
     }
     logMatchEvent(eventType, data, message)
     if (eventType === 'card.played') {
-      queueHeroAttackFx(unwrapMatchEvent(data, message))
+      const fx = queueHeroAttackFx(unwrapMatchEvent(data, message))
+      void Promise.race([fx, waitFx(1800)]).then(() => refreshBattleState()).catch(() => {})
+      return
     }
     void refreshBattleState().catch(() => {})
   }
@@ -2553,6 +3000,23 @@ onUnmounted(() => {
 }
 .bully-status-hud.is-flash :deep(.bully-hp-bar) {
   filter: brightness(1.7) drop-shadow(0 0 10px rgba(255, 200, 70, 0.8));
+}
+.bully-status-hud.is-atk-down :deep(.bully-damage) {
+  filter: grayscale(0.55) brightness(0.9);
+  animation: atk-down-flash 0.52s ease-out;
+}
+.bully-status-hud.is-atk-up :deep(.bully-damage) {
+  animation: atk-up-flash 0.52s ease-out;
+}
+@keyframes atk-down-flash {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.94); color: #9ab0b8; }
+  100% { transform: scale(1); }
+}
+@keyframes atk-up-flash {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); filter: drop-shadow(0 0 10px rgba(255, 70, 40, 0.8)); }
+  100% { transform: scale(1); }
 }
 .action-log-panel {
   position: absolute;
@@ -3349,7 +3813,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 45;
+  z-index: 60;
   overflow: hidden;
 }
 .bully-slash {
@@ -3476,6 +3940,180 @@ onUnmounted(() => {
 .hero-float.tone-purchase {
   color: #e8ffc8;
   text-shadow: 0 0 10px rgba(160, 220, 120, 0.85), 0 2px 0 #1a1008;
+}
+.hero-bolt.tone-pierce {
+  background: radial-gradient(circle at 35% 30%, #fff 0%, #e8d8ff 28%, #9b6cff 62%, transparent 78%);
+  box-shadow: 0 0 10px 4px rgba(180, 140, 255, 0.95), 0 0 22px 8px rgba(120, 70, 255, 0.4);
+}
+.hero-bolt.tone-shield {
+  background: radial-gradient(circle at 35% 30%, #f4fbff 0%, #b8e0ff 30%, #6cb4ff 62%, #d4b06a 80%, transparent 88%);
+  box-shadow: 0 0 10px 4px rgba(120, 190, 255, 0.9), 0 0 18px 7px rgba(212, 176, 90, 0.35);
+}
+.hero-bolt.tone-draw {
+  background: radial-gradient(circle at 35% 30%, #fff8e6 0%, #f0d48a 36%, #c9a24a 68%, transparent 82%);
+  box-shadow: 0 0 8px 3px rgba(240, 210, 130, 0.85);
+  width: 14px;
+  height: 20px;
+  margin: -10px 0 0 -7px;
+  border-radius: 3px;
+}
+.hero-bolt.tone-miss {
+  background: radial-gradient(circle at 35% 30%, #f2f2f2 0%, #c8c8c8 40%, transparent 72%);
+  box-shadow: 0 0 8px 3px rgba(180, 180, 180, 0.45);
+  opacity: 0.7;
+}
+.hero-burst.tone-pierce {
+  background: radial-gradient(circle, #f4e9ff 0%, rgba(160, 110, 255, 0.55) 28%, rgba(90, 40, 180, 0.16) 54%, transparent 72%);
+}
+.hero-burst.tone-shield,
+.hero-burst.tone-guard {
+  background: radial-gradient(circle, #eef8ff 0%, rgba(110, 180, 255, 0.5) 28%, rgba(212, 176, 90, 0.2) 54%, transparent 72%);
+}
+.hero-burst.tone-shield-break {
+  background: radial-gradient(circle, #ffe8d4 0%, rgba(255, 120, 70, 0.5) 28%, rgba(180, 40, 20, 0.16) 54%, transparent 72%);
+}
+.hero-burst.tone-heal {
+  background: radial-gradient(circle, #eaffd8 0%, rgba(110, 210, 90, 0.5) 28%, rgba(40, 140, 60, 0.16) 54%, transparent 72%);
+}
+.hero-burst.tone-harm {
+  background: radial-gradient(circle, #ffd8d0 0%, rgba(210, 50, 40, 0.5) 28%, rgba(120, 10, 10, 0.16) 54%, transparent 72%);
+}
+.hero-float.tone-heal {
+  color: #b8ff9a;
+  -webkit-text-stroke: 1.2px #14320c;
+  text-shadow: 0 0 10px rgba(90, 210, 70, 0.9), 0 2px 0 #0c1a08;
+}
+.hero-float.tone-shield {
+  color: #c8e8ff;
+  -webkit-text-stroke: 1.2px #123048;
+  text-shadow: 0 0 10px rgba(90, 170, 255, 0.85), 0 2px 0 #0c1824;
+}
+.hero-float.tone-shield-break {
+  color: #ffc8a8;
+  -webkit-text-stroke: 1.2px #4a1808;
+  text-shadow: 0 0 10px rgba(255, 120, 60, 0.85), 0 2px 0 #2a0c08;
+}
+.hero-float.tone-harm {
+  color: #ff8a78;
+  -webkit-text-stroke: 1.2px #3a0808;
+  text-shadow: 0 0 10px rgba(220, 40, 30, 0.85), 0 2px 0 #1a0404;
+}
+.hero-float.tone-pierce {
+  color: #f0e4ff;
+  -webkit-text-stroke: 1.2px #2a1450;
+  text-shadow: 0 0 10px rgba(170, 120, 255, 0.9), 0 2px 0 #140828;
+}
+.hero-float.tone-control {
+  color: #c8e8e0;
+  -webkit-text-stroke: 1.2px #143038;
+  text-shadow: 0 0 10px rgba(90, 180, 170, 0.8), 0 2px 0 #081418;
+}
+.hero-float.tone-draw {
+  color: #ffe7b0;
+  -webkit-text-stroke: 1.1px #3a2808;
+  font-size: 22px;
+}
+.hero-float.tone-ap {
+  color: #ffd36a;
+  -webkit-text-stroke: 1.1px #3a2408;
+  font-size: 22px;
+}
+.hero-float.tone-miss {
+  color: #d0d0d0;
+  -webkit-text-stroke: 1px #303030;
+  font-size: 22px;
+  text-shadow: none;
+}
+.hero-mark {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  padding: 4px 10px 5px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: #fff8e4;
+  background: rgba(18, 12, 8, 0.78);
+  border: 1px solid rgba(255, 220, 140, 0.55);
+  animation: hero-mark-pop 0.98s ease-out forwards;
+}
+.hero-mark.tone-pierce {
+  color: #f4e8ff;
+  border-color: rgba(180, 140, 255, 0.7);
+}
+.hero-mark.tone-guard {
+  color: #d8eeff;
+  border-color: rgba(110, 180, 255, 0.7);
+}
+.hero-mark.tone-mult {
+  color: #ffe08a;
+  border-color: rgba(255, 200, 80, 0.8);
+}
+.hero-mark.tone-delay {
+  color: #dce8ff;
+  border-color: rgba(150, 180, 220, 0.65);
+}
+.hero-mark.tone-miss,
+.hero-mark.tone-control {
+  color: #d8e0e4;
+  border-color: rgba(160, 180, 180, 0.55);
+}
+@keyframes hero-mark-pop {
+  0% { opacity: 0; transform: translate(-50%, -20%) scale(0.7); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }
+}
+.hero-slash {
+  position: absolute;
+  height: 7px;
+  transform-origin: 0 50%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, #fff 10%, #c9a8ff 48%, #7a4dff 82%, transparent 100%);
+  box-shadow: 0 0 16px 4px rgba(140, 90, 255, 0.55);
+  animation: slash-strike 0.26s ease-out forwards;
+}
+.hero-slash.tone-pierce {
+  height: 5px;
+}
+.pos-rect-player1.is-healed .player-img,
+.pos-rect-player2.is-healed .player-img {
+  filter: drop-shadow(0 0 16px rgba(90, 220, 90, 0.85));
+}
+.pos-rect-player1.is-shield-glow .player-img,
+.pos-rect-player2.is-shield-glow .player-img,
+.pos-rect-player1.is-guarded .player-img,
+.pos-rect-player2.is-guarded .player-img {
+  filter: drop-shadow(0 0 18px rgba(110, 190, 255, 0.9));
+}
+.pos-rect-player1.is-harmed .player-img,
+.pos-rect-player2.is-harmed .player-img {
+  animation: owl-hit 0.4s ease-out;
+}
+.pos-rect-player1.is-guarded .player-shield-veil,
+.pos-rect-player2.is-guarded .player-shield-veil {
+  opacity: 1;
+  filter: brightness(1.35);
+}
+.funds-indicator-wrap.is-pulse .funds-indicator {
+  animation: funds-ap-pulse 0.52s ease-out;
+}
+.draw-pile.is-pulse .pile-back {
+  animation: pile-draw-pulse 0.46s ease-out;
+}
+.hand-cards.is-mult {
+  filter: drop-shadow(0 0 12px rgba(255, 200, 80, 0.55));
+}
+@keyframes funds-ap-pulse {
+  0% { filter: none; transform: scale(1); }
+  40% { filter: drop-shadow(0 0 12px rgba(255, 196, 64, 0.9)); transform: scale(1.06); }
+  100% { filter: none; transform: scale(1); }
+}
+@keyframes pile-draw-pulse {
+  0% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-8px) scale(1.08); }
+  100% { transform: translateY(0) scale(1); }
 }
 .position-rects.is-impact {
   animation: bully-impact 0.26s linear;
