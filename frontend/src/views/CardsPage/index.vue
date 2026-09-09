@@ -312,7 +312,7 @@ h2 {
 
 .card-image-box {
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 640 / 1023;
   background: rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   display: flex;
@@ -323,9 +323,8 @@ h2 {
 }
 .card-face {
   position: relative;
+  width: 100%;
   height: 100%;
-  aspect-ratio: 640 / 1023;
-  max-width: 100%;
 }
 .card-img {
   width: 100%;
