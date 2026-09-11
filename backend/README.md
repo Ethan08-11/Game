@@ -131,6 +131,8 @@ wa-demo-service/src/main/resources/application.yml
 - `REDIS_PORT`
 - `REDIS_PASSWORD`
 
+另有对局开关 `MATCH_ALLOW_SAME_IP`（默认 `true`）：本地双窗口联机保持开启；Zeabur 生产请设为 `false`，禁止同一公网 IP 的两个账号组队。客户端 IP 记在 Redis `wa:demo:presence:ip:{userId}`。
+
 Redis 主要用于：
 
 - Token / 会话相关能力

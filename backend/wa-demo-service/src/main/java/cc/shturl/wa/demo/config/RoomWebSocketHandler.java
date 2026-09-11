@@ -1,10 +1,12 @@
 package cc.shturl.wa.demo.config;
 
 import cc.shturl.wa.demo.security.AuthTokenSupport;
+import cc.shturl.wa.demo.service.ClientNetworkService;
 import cc.shturl.wa.demo.service.MatchChatService;
 import cc.shturl.wa.demo.service.RoomPresenceCleanupService;
 import cc.shturl.wa.demo.service.RoomWebSocketSessionService;
 import cc.shturl.wa.demo.service.UserPresenceService;
+import cc.shturl.wa.demo.support.ClientIps;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -31,16 +33,19 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
     private final UserPresenceService presenceService;
     private final RoomPresenceCleanupService cleanupService;
     private final MatchChatService matchChatService;
+    private final ClientNetworkService clientNetworkService;
     private final ObjectMapper objectMapper;
 
     public RoomWebSocketHandler(RoomWebSocketSessionService sessionService, AuthTokenSupport authTokenSupport,
                                 UserPresenceService presenceService, RoomPresenceCleanupService cleanupService,
-                                MatchChatService matchChatService, ObjectMapper objectMapper) {
+                                MatchChatService matchChatService, ClientNetworkService clientNetworkService,
+                                ObjectMapper objectMapper) {
         this.sessionService = sessionService;
         this.authTokenSupport = authTokenSupport;
         this.presenceService = presenceService;
         this.cleanupService = cleanupService;
         this.matchChatService = matchChatService;
+        this.clientNetworkService = clientNetworkService;
         this.objectMapper = objectMapper;
     }
 
@@ -53,6 +58,7 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
         }
         session.getAttributes().put("authenticatedUserId", userId);
         sessionService.bind(userId, session);
+        rememberIp(userId, session);
         cleanupService.handleUserConnected(userId);
         sessionService.sendText(session,
                 "{\"type\":\"ws.connected\",\"message\":\"connected\",\"heartbeatIntervalSeconds\":20,\"onlineTimeoutSeconds\":60}");
@@ -71,6 +77,7 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
             String type = payload.path("type").asText();
             if ("ws.heartbeat".equals(type)) {
                 sessionService.heartbeat(userId, session);
+                rememberIp(userId, session);
                 sessionService.sendText(session,
                         "{\"type\":\"ws.heartbeat.ack\",\"timestamp\":" + System.currentTimeMillis() + "}");
             } else if ("match.chat".equals(type)) {
@@ -165,6 +172,10 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
             session.close(status);
         } catch (Exception ignored) {
         }
+    }
+
+    private void rememberIp(Long userId, WebSocketSession session) {
+        clientNetworkService.rememberIp(userId, ClientIps.fromSession(session));
     }
 
     private Long resolveAuthenticatedUserId(WebSocketSession session) {

@@ -22,4 +22,7 @@ public final class RedisKeyConstants {
 
     /** 用户 WebSocket 连接集合前缀，Key 格式为前缀 + userId */
     public static final String USER_CONNECTIONS_PREFIX = CACHE_PREFIX + "presence:user:";
+
+    /** 用户当前客户端 IP，Key 格式为前缀 + userId */
+    public static final String USER_CLIENT_IP_PREFIX = CACHE_PREFIX + "presence:ip:";
 }

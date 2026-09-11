@@ -7,6 +7,7 @@ import cc.shturl.wa.demo.mapper.CardsMapper;
 import cc.shturl.wa.demo.mapper.UserCardPoolsMapper;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.service.CardCollectionService;
+import cc.shturl.wa.demo.support.TestAccounts;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -22,8 +23,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CardCollectionServiceImpl implements CardCollectionService {
-    private static final String FULL_COLLECTION_USERNAME = "ethan";
-
     private final CardsMapper cardsMapper;
     private final UserCardPoolsMapper userCardPoolsMapper;
     private final UserMapper userMapper;
@@ -97,8 +96,7 @@ public class CardCollectionServiceImpl implements CardCollectionService {
             return false;
         }
         User user = userMapper.selectById(userId);
-        return user != null && user.getUsername() != null
-                && FULL_COLLECTION_USERNAME.equalsIgnoreCase(user.getUsername().trim());
+        return user != null && TestAccounts.isTester(user.getUsername());
     }
 
     private Set<Long> listOwnedCollectibleIds(Long userId) {

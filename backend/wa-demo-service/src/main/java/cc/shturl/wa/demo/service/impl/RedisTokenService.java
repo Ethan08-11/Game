@@ -34,6 +34,7 @@ public class RedisTokenService implements TokenService {
 
     @Override
     public TokenPair issue(Long userId) {
+        revokeExistingUserTokens(userId);
         String access = UUID.randomUUID().toString().replace("-", "");
         String refresh = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
         storeAccessToken(access, userId);
@@ -65,8 +66,27 @@ public class RedisTokenService implements TokenService {
 
     @Override
     public Long resolveUserId(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            return null;
+        }
         String value = redisTemplate.opsForValue().get(ACCESS_PREFIX + accessToken);
-        return value == null ? null : Long.valueOf(value);
+        if (value == null) {
+            return null;
+        }
+        Long userId = Long.valueOf(value);
+        if (!isCurrentAccessToken(userId, accessToken)) {
+            return null;
+        }
+        return userId;
+    }
+
+    @Override
+    public boolean isCurrentAccessToken(Long userId, String accessToken) {
+        if (userId == null || accessToken == null || accessToken.isBlank()) {
+            return false;
+        }
+        String current = redisTemplate.opsForValue().get(USER_ACCESS_PREFIX + userId);
+        return current == null || current.equals(accessToken);
     }
 
     @Override
@@ -113,6 +133,17 @@ public class RedisTokenService implements TokenService {
         redisTemplate.delete(REFRESH_PAIR_PREFIX + refreshToken);
         if (userId != null) {
             redisTemplate.delete(USER_REFRESH_PREFIX + userId);
+        }
+    }
+
+    private void revokeExistingUserTokens(Long userId) {
+        String oldAccess = redisTemplate.opsForValue().get(USER_ACCESS_PREFIX + userId);
+        String oldRefresh = redisTemplate.opsForValue().get(USER_REFRESH_PREFIX + userId);
+        if (oldAccess != null) {
+            revokeAccessToken(oldAccess);
+        }
+        if (oldRefresh != null) {
+            revokeRefreshToken(oldRefresh);
         }
     }
 

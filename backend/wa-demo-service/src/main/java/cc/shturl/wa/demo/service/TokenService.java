@@ -6,6 +6,7 @@ public interface TokenService {
     Long resolveUserId(String accessToken);
     Long resolveUserIdByRefreshToken(String refreshToken);
     String resolveAccessTokenByRefreshToken(String refreshToken);
+    boolean isCurrentAccessToken(Long userId, String accessToken);
     void markOnline(Long userId);
     void markOffline(Long userId);
     Integer resolveOnlineStatus(Long userId);

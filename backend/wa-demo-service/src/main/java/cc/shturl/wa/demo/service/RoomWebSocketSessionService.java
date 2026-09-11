@@ -6,6 +6,7 @@ import java.io.IOException;
 
 public interface RoomWebSocketSessionService {
     void bind(Long userId, WebSocketSession session);
+    void kickAllSessions(Long userId);
     void unbind(Long userId, WebSocketSession session);
     void heartbeat(Long userId, WebSocketSession session);
     boolean isOnline(Long userId);
