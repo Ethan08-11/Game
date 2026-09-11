@@ -352,6 +352,17 @@ function handleAuthExpired() {
   router.push('/login')
 }
 
+function handleSessionReplaced() {
+  if (!user.token && !localStorage.getItem('token')) return
+  user.logout()
+  disconnectRoomSocket()
+  stopFriendsFallbackRefresh()
+  sessionStorage.removeItem('activeMatchId')
+  clearMatchCache()
+  ElMessage.warning('账号已在其他端登录')
+  router.push('/login')
+}
+
 onMounted(() => {
   window.addEventListener('auth:token-refreshed', handleTokenRefreshed)
   window.addEventListener('auth:expired', handleAuthExpired)
@@ -368,6 +379,7 @@ onMounted(() => {
     subscribeRoomEvent('room.closed', handleRoomClosed),
     subscribeRoomEvent('match.started', handleMatchStarted),
     subscribeRoomEvent('match.ended', handleMatchEnded),
+    subscribeRoomEvent('auth.session.replaced', handleSessionReplaced),
   )
 })
 

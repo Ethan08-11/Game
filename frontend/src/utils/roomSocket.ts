@@ -26,6 +26,7 @@ function getWsBase() {
 }
 const HEARTBEAT_INTERVAL = 20_000
 const RECONNECT_DELAY = 3_000
+const SESSION_REPLACED_CODE = 4001
 
 let socket: WebSocket | null = null
 const handlers = new Map<string, Set<RoomWsHandler>>()
@@ -76,6 +77,14 @@ function stopHeartbeat() {
   heartbeatTimer = null
 }
 
+function markSessionReplaced() {
+  manuallyClosed = true
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
 async function reconnectWithFreshToken() {
   const freshToken = await getFreshTokenForReconnect()
   if (!freshToken || manuallyClosed) return
@@ -123,6 +132,9 @@ export function connectRoomSocket(accessToken: string) {
   socket.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data) as RoomWsMessage
+      if (message.type === 'auth.session.replaced') {
+        markSessionReplaced()
+      }
       if (message.type === 'ws.connected' || message.type === 'ws.heartbeat.ack') {
         lastHeartbeatAckAt = Date.now()
       }
@@ -135,6 +147,10 @@ export function connectRoomSocket(accessToken: string) {
   socket.onclose = (event) => {
     stopHeartbeat()
     socket = null
+    if (event.code === SESSION_REPLACED_CODE) {
+      markSessionReplaced()
+      emit({ type: 'auth.session.replaced', message: '账号已在其他端登录' })
+    }
     if (manuallyClosed) return
     const needRefresh = event.code === 1008 || event.code === 4401
     scheduleReconnect(needRefresh)

@@ -49,6 +49,7 @@ import cc.shturl.wa.demo.mapper.RoomMembersMapper;
 import cc.shturl.wa.demo.mapper.UserCardPoolsMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.CardCollectionService;
+import cc.shturl.wa.demo.service.ClientNetworkService;
 import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomNotificationService;
@@ -146,6 +147,7 @@ public class MatchServiceImpl implements MatchService {
     private final CardCollectionService cardCollectionService;
     private final PlatformTransactionManager transactionManager;
     private final LeaderboardService leaderboardService;
+    private final ClientNetworkService clientNetworkService;
 
     @Override
     @Transactional
@@ -177,6 +179,7 @@ public class MatchServiceImpl implements MatchService {
                 .eq(RoomMembers::getRoomId, roomId)
                 .orderByAsc(RoomMembers::getSeatNo));
         validateReadyMembers(members);
+        clientNetworkService.requireDistinctNetwork(members.get(0).getUserId(), members.get(1).getUserId());
         CustomerTypes customer = pickCustomer();
         Bullies bully = requireBullyForCustomer(customer);
 

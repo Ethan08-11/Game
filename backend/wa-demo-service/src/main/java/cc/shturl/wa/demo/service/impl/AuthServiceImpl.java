@@ -17,12 +17,17 @@ import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.AuthService;
 import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.TokenService;
+import cc.shturl.wa.demo.service.ClientNetworkService;
+import cc.shturl.wa.demo.service.RoomWebSocketSessionService;
+import cc.shturl.wa.demo.support.ClientIps;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +42,8 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final TaskService taskService;
+    private final RoomWebSocketSessionService roomWebSocketSessionService;
+    private final ClientNetworkService clientNetworkService;
 
     @Override
     @Transactional
@@ -102,6 +109,7 @@ public class AuthServiceImpl implements AuthService {
         }
         UserProfile profile = profileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery().eq(UserProfile::getUserId, userId));
         TokenService.TokenPair rotated = tokenService.rotateRefreshToken(refreshToken, userId);
+        rememberLoginIp(userId);
         String displayName = profile == null ? user.getUsername() : profile.getDisplayName();
         return new AuthResp(rotated.accessToken(), rotated.refreshToken(),
                 new AuthResp.UserSummary(user.getId(), user.getUsername(), displayName, user.getAvatarUrl()));
@@ -165,9 +173,19 @@ public class AuthServiceImpl implements AuthService {
     private AuthResp response(User user, UserProfile profile) {
         TokenService.TokenPair tokens = tokenService.issue(user.getId());
         tokenService.markOnline(user.getId());
+        roomWebSocketSessionService.kickAllSessions(user.getId());
+        rememberLoginIp(user.getId());
         String displayName = profile == null ? user.getUsername() : profile.getDisplayName();
         return new AuthResp(tokens.accessToken(), tokens.refreshToken(),
                 new AuthResp.UserSummary(user.getId(), user.getUsername(), displayName, user.getAvatarUrl()));
+    }
+
+    private void rememberLoginIp(Long userId) {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return;
+        }
+        clientNetworkService.rememberIp(userId, ClientIps.fromRequest(attributes.getRequest()));
     }
 
     private void linkExistingFriends(Long newUserId) {

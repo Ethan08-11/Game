@@ -33,6 +33,10 @@ class AuthServiceImplChangePasswordTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private TokenService tokenService;
+    @Mock
+    private cc.shturl.wa.demo.service.RoomWebSocketSessionService roomWebSocketSessionService;
+    @Mock
+    private cc.shturl.wa.demo.service.ClientNetworkService clientNetworkService;
 
     @InjectMocks
     private AuthServiceImpl authService;

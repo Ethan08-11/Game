@@ -95,6 +95,7 @@ RABBITMQ_USERNAME=...
 RABBITMQ_PASSWORD=...
 NACOS_DISCOVERY_ENABLED=false
 NACOS_CONFIG_ENABLED=false
+MATCH_ALLOW_SAME_IP=false
 ```
 
 若 backend 一直崩溃：把 **backend 运行日志最后 40 行**发出来。

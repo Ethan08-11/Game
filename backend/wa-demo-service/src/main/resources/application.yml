@@ -8,6 +8,7 @@ server:
     accept-count: 200
     max-connections: 10000
     connection-timeout: 20000
+  forward-headers-strategy: framework
 
 spring:
   application:
@@ -94,6 +95,9 @@ app:
   auth:
     access-token-ttl: ${AUTH_ACCESS_TOKEN_TTL:30d}
     refresh-token-ttl: ${AUTH_REFRESH_TOKEN_TTL:365d}
+  match:
+    # 本地双窗口联机用 true；Zeabur 生产设 MATCH_ALLOW_SAME_IP=false
+    allow-same-ip: ${MATCH_ALLOW_SAME_IP:true}
 
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml

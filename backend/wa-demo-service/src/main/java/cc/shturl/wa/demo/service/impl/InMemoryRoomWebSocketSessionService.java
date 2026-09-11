@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
@@ -13,6 +14,7 @@ import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorato
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +26,9 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
     private static final int SEND_TIME_LIMIT_MS = 5_000;
     private static final int SEND_BUFFER_LIMIT = 512 * 1024;
     private static final String ATTR_OUTBOUND = "outboundSession";
+    private static final CloseStatus SESSION_REPLACED = new CloseStatus(4001, "session-replaced");
+    private static final String REPLACED_PAYLOAD =
+            "{\"type\":\"auth.session.replaced\",\"message\":\"账号已在其他端登录\"}";
 
     private final Map<Long, Map<String, WebSocketSession>> sessions = new ConcurrentHashMap<>();
     private final Map<Long, Long> lastHeartbeatAt = new ConcurrentHashMap<>();
@@ -41,6 +46,12 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
         WebSocketSession outbound = wrapOutbound(session);
         sessions.computeIfAbsent(userId, ignored -> new ConcurrentHashMap<>()).put(connectionId, outbound);
         heartbeat(userId, session);
+        kickOtherSessions(userId, connectionId);
+    }
+
+    @Override
+    public void kickAllSessions(Long userId) {
+        kickOtherSessions(userId, null);
     }
 
     @Override
@@ -150,6 +161,34 @@ public class InMemoryRoomWebSocketSessionService implements RoomWebSocketSession
                     log.debug("Skip websocket send sessionId={}: {}", session.getId(), e.getMessage());
                 }
             }
+        }
+    }
+
+    private void kickOtherSessions(Long userId, String keepConnectionId) {
+        Map<String, WebSocketSession> userSessions = sessions.get(userId);
+        if (userSessions == null || userSessions.isEmpty()) {
+            return;
+        }
+        TextMessage payload = new TextMessage(REPLACED_PAYLOAD);
+        for (Map.Entry<String, WebSocketSession> entry : List.copyOf(userSessions.entrySet())) {
+            if (keepConnectionId != null && keepConnectionId.equals(entry.getKey())) {
+                continue;
+            }
+            WebSocketSession session = entry.getValue();
+            sendSafely(session, payload);
+            closeReplaced(session);
+        }
+    }
+
+    private void closeReplaced(WebSocketSession session) {
+        if (session == null) {
+            return;
+        }
+        try {
+            if (session.isOpen()) {
+                session.close(SESSION_REPLACED);
+            }
+        } catch (Exception ignored) {
         }
     }
 

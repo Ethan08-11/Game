@@ -30,6 +30,7 @@ import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.RoomPresenceCleanupService;
 import cc.shturl.wa.demo.service.RoomService;
 import cc.shturl.wa.demo.service.UserPresenceService;
+import cc.shturl.wa.demo.service.ClientNetworkService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -63,6 +64,7 @@ public class RoomServiceImpl implements RoomService {
     private final RedisDistributedLock distributedLock;
     private final TransactionTemplate transactionTemplate;
     private final RoomPresenceCleanupService roomPresenceCleanupService;
+    private final ClientNetworkService clientNetworkService;
 
     @Override
     @Transactional
@@ -75,6 +77,7 @@ public class RoomServiceImpl implements RoomService {
         roomPresenceCleanupService.releaseIdleRooms(friendId);
         requireInvitableUser(currentUserId, "你当前不在线，请刷新页面后重试");
         requireInvitableUser(friendId, "对方不在线，无法邀请");
+        clientNetworkService.requireDistinctNetwork(currentUserId, friendId);
         RoomInvites invite = new RoomInvites();
         invite.setFromUserId(currentUserId);
         invite.setToUserId(friendId);
@@ -202,6 +205,7 @@ public class RoomServiceImpl implements RoomService {
         cleanupStaleMemberships(invite.getToUserId());
         requireOnlineAndIdle(invite.getFromUserId());
         requireOnlineAndIdle(invite.getToUserId());
+        clientNetworkService.requireDistinctNetwork(invite.getFromUserId(), invite.getToUserId());
         GameRooms room = createRoom(invite.getFromUserId());
         addRoomMember(room.getId(), invite.getFromUserId(), 1);
         addRoomMember(room.getId(), invite.getToUserId(), 2);
@@ -335,6 +339,19 @@ public class RoomServiceImpl implements RoomService {
         if (member.getDeptType() == null || member.getDeptType().isBlank()) {
             throw new BusinessException("请先选择部门");
         }
+        RoomDetailResp beforeReady = getRoomDetail(currentUserId, roomId);
+        Long otherId = beforeReady.members().stream()
+                .map(RoomMemberResp::userId)
+                .filter(id -> id != null && !id.equals(currentUserId))
+                .findFirst()
+                .orElse(null);
+        boolean otherReady = beforeReady.members().size() == 2
+                && beforeReady.members().stream()
+                .filter(item -> item.userId() != null && !item.userId().equals(currentUserId))
+                .allMatch(item -> item.readyStatus() != null && item.readyStatus() == 1);
+        if (otherReady) {
+            clientNetworkService.requireDistinctNetwork(currentUserId, otherId);
+        }
         member.setReadyStatus(1);
         roomMembersMapper.updateById(member);
         RoomDetailResp detailResp = getRoomDetail(currentUserId, roomId);
@@ -348,6 +365,7 @@ public class RoomServiceImpl implements RoomService {
                 allReady,
                 System.currentTimeMillis()));
         if (allReady) {
+            clientNetworkService.requireDistinctNetwork(currentUserId, otherId);
             matchService.initializeMatch(roomId);
             return getRoomDetail(currentUserId, roomId);
         }
