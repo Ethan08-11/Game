@@ -31,12 +31,10 @@ public final class BullyCatalog {
     public static final String PATTERN_FOCUS_TOP_DAMAGE = "FOCUS_TOP_DAMAGE";
     public static final String PATTERN_BOTH_HALF_SWING = "BOTH_HALF_SWING";
 
-    /** 各组队血量统一；双销售攻击另取一档。 */
+    /** 各组队血量 150、攻击 17～20。 */
     public static final int HP = 150;
     public static final int ATTACK_MIN = 17;
     public static final int ATTACK_MAX = 20;
-    public static final int DUAL_SALES_ATTACK_MIN = 18;
-    public static final int DUAL_SALES_ATTACK_MAX = 21;
     public static final int DEFENSE_STANCE_CHANCE = 15;
     public static final int DEFENSE_SHIELD = 14;
     public static final int PAIR_CHIP_THRESHOLD = 3;
@@ -120,13 +118,9 @@ public final class BullyCatalog {
     }
 
     /**
-     * 各组队血量统一 150。销售+采购、双采购攻击 17～20；双销售 18～21。
+     * 各组队血量 150、攻击 17～20。salesCount 保留给开局调用方，不再分档。
      */
     public static Pressure pressureForSalesCount(int salesCount) {
-        int n = Math.max(0, salesCount);
-        if (n >= 2) {
-            return new Pressure(HP, HP, DUAL_SALES_ATTACK_MIN, DUAL_SALES_ATTACK_MAX);
-        }
         return new Pressure(HP, HP, ATTACK_MIN, ATTACK_MAX);
     }
 
