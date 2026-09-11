@@ -110,7 +110,8 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                     "UPDATE leaderboard_week SET week_start = ? WHERE id = 1 AND week_start < ?",
                     Date.valueOf(monthStart), Date.valueOf(monthStart));
             if (claimed > 0) {
-                log.info("Leaderboard month rolled to {}.", monthStart);
+                int reset = resetMonthStats();
+                log.info("Leaderboard month rolled to {}, reset {} profiles.", monthStart, reset);
             }
         } catch (Exception e) {
             log.warn("Skip monthly leaderboard roll: {}", e.getMessage());
@@ -119,6 +120,17 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     public static LocalDate currentMonthStart() {
         return LocalDate.now(LEADERBOARD_ZONE).with(TemporalAdjusters.firstDayOfMonth());
+    }
+
+    public int resetMonthStats() {
+        return jdbcTemplate.update("""
+                UPDATE user_profiles
+                SET money = 0,
+                    weekly_money = 0,
+                    win_count = 0,
+                    lose_count = 0,
+                    draw_count = 0
+                """);
     }
 
     private boolean isWinRateBoard(String type) {
