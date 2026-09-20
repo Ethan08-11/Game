@@ -424,8 +424,8 @@ npm run dev
 负责任务系统。
 
 - `GET /`：任务列表
-- `GET /me`：我的任务进度
-- `POST /{userTaskId}/claim`：领取任务奖励
+- `GET /me`：我的任务进度（含本月工作日 `workDaysUsed` / `workDaysQuota` / `restDay`）
+- `POST /{userTaskId}/claim`：领取任务奖励；休息日领取金币会失败
 
 ### 8.10 `AchievementController`  `/api/achievements`
 
@@ -1000,6 +1000,15 @@ sql_file/wa_demo最终版.sql
   - `2`：已完成
   - `3`：已领取
 - `completed_at` / `claimed_at`：完成与领取时间
+
+#### `user_month_work_days`
+
+每月已领金币的工作日。正常月定额为当月天数减 4（单休）；2026 年 9 月发布月固定 16 天。休息日不发放金币。
+
+关键字段：
+
+- `user_id`：用户
+- `day_date`：自然日（Asia/Shanghai）
 
 #### `achievement_defs`
 

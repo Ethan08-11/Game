@@ -46,6 +46,9 @@ export interface MyTaskBoard {
   claimableCount: number
   firstWinIncomplete: boolean
   resetInSeconds: number
+  workDaysUsed?: number
+  workDaysQuota?: number
+  restDay?: boolean
 }
 
 export interface TaskClaimResult {
