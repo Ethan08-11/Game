@@ -43,9 +43,46 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
         }
         ensureLoginStreakColumns();
         ensureUserTaskExtraData();
+        ensureWorkDayTable();
+        backfillWorkDays();
         upsertCatalog();
         disableInactiveTasks();
         log.info("Task catalog ready.");
+    }
+
+    private void ensureWorkDayTable() {
+        if (tableExists("user_month_work_days")) {
+            return;
+        }
+        jdbcTemplate.execute("""
+                CREATE TABLE `user_month_work_days` (
+                  `user_id` bigint NOT NULL COMMENT '用户ID',
+                  `day_date` date NOT NULL COMMENT '已领金币的自然日 Asia/Shanghai',
+                  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (`user_id`, `day_date`),
+                  KEY `idx_work_day_month` (`user_id`, `day_date`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每月工作日：领过任务金币的自然日'
+                """);
+        log.info("Created user_month_work_days table.");
+    }
+
+    private void backfillWorkDays() {
+        if (!tableExists("user_month_work_days") || !tableExists("user_tasks") || !tableExists("tasks")) {
+            return;
+        }
+        int inserted = jdbcTemplate.update("""
+                INSERT IGNORE INTO user_month_work_days (user_id, day_date)
+                SELECT DISTINCT ut.user_id, CAST(ut.period_key AS DATE)
+                FROM user_tasks ut
+                INNER JOIN tasks t ON t.id = ut.task_id
+                WHERE ut.status = 3
+                  AND LOWER(t.task_type) = 'daily'
+                  AND LOWER(IFNULL(t.reward_type, '')) = 'money'
+                  AND ut.period_key REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                """);
+        if (inserted > 0) {
+            log.info("Backfilled {} monthly work-day rows from claimed daily tasks.", inserted);
+        }
     }
 
     private void ensureLoginStreakColumns() {

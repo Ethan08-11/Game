@@ -15,6 +15,8 @@ import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.mapper.UserTaskMapper;
 import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.TaskService;
+import cc.shturl.wa.demo.service.WorkDayQuota;
+import cc.shturl.wa.demo.service.WorkDayService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,6 +52,7 @@ public class TaskServiceImpl implements TaskService {
     private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
     private final LeaderboardService leaderboardService;
+    private final WorkDayService workDayService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -70,24 +73,31 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public MyTaskBoardResp listMyTaskBoard(Long userId) {
+        int quota = WorkDayQuota.days(YearMonth.now(ZONE));
         if (!userExists(userId)) {
-            return new MyTaskBoardResp(List.of(), 0, 0, false, secondsUntilDailyReset());
+            return new MyTaskBoardResp(List.of(), 0, 0, false, secondsUntilDailyReset(), 0, quota, false);
         }
         ensureDefaultTasks(userId);
         recordLogin(userId);
+        WorkDayService.Snapshot workDays = workDayService.snapshot(userId);
         List<UserTaskResp> visible = currentVisibleTasks(userId);
         int remainingMoney = 0;
         int claimable = 0;
         for (UserTaskResp item : visible) {
             int status = item.status() == null ? 0 : item.status();
-            if (status < 3 && "daily".equalsIgnoreCase(item.taskType()) && "money".equalsIgnoreCase(item.rewardType())) {
+            boolean moneyReward = "money".equalsIgnoreCase(item.rewardType());
+            if (!workDays.restDay()
+                    && status < 3
+                    && "daily".equalsIgnoreCase(item.taskType())
+                    && moneyReward) {
                 remainingMoney += rewardAmount(item.rewardValue());
             }
-            if (status == 2) {
+            if (status == 2 && !(workDays.restDay() && moneyReward)) {
                 claimable++;
             }
         }
-        return new MyTaskBoardResp(visible, remainingMoney, claimable, false, secondsUntilDailyReset());
+        return new MyTaskBoardResp(visible, remainingMoney, claimable, false, secondsUntilDailyReset(),
+                workDays.used(), workDays.quota(), workDays.restDay());
     }
 
     @Override
@@ -116,6 +126,9 @@ public class TaskServiceImpl implements TaskService {
             } else if ("exp".equalsIgnoreCase(task.getRewardType())) {
                 exp = amount;
             }
+        }
+        if (money > 0 && !workDayService.allowGold(userId)) {
+            throw new BusinessException("本月工作日已用完，休息日不发放金币");
         }
         if (money > 0 || exp > 0) {
             leaderboardService.ensureCurrentMonth();

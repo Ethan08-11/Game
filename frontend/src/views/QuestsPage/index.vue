@@ -9,7 +9,8 @@
 
       <div v-else class="task-list-area">
         <div class="quest-summary">
-          <span>今日还可领 {{ remainingMoney }} 金币</span>
+          <span v-if="restDay">本月工作日已满 {{ workDaysUsed }}/{{ workDaysQuota }}，休息日不发金币</span>
+          <span v-else>今日还可领 {{ remainingMoney }} 金币 · 本月工作日 {{ workDaysUsed }}/{{ workDaysQuota }}</span>
           <span class="quest-reset">刷新倒计时 {{ resetLabel }}</span>
         </div>
         <template v-for="(entry, idx) in flatTaskList" :key="entry.task.id">
@@ -45,11 +46,16 @@
                 <span class="reward-text">{{ rewardText(entry.task) }}</span>
               </div>
               <button
-                v-if="entry.task.status === 2"
+                v-if="canClaim(entry.task)"
                 class="quest-action claim"
                 :disabled="claimingId === entry.task.id"
                 @click="onClaim(entry.task)"
               >{{ claimingId === entry.task.id ? '领取中' : '领取' }}</button>
+              <button
+                v-else-if="restDayBlocked(entry.task)"
+                class="quest-action done"
+                disabled
+              >休息日</button>
               <button
                 v-else-if="entry.task.status >= 3"
                 class="quest-action done"
@@ -130,6 +136,9 @@ const router = useRouter()
 const user = useUserStore()
 const tasks = ref<UserTask[]>([])
 const remainingMoney = ref(0)
+const workDaysUsed = ref(0)
+const workDaysQuota = ref(0)
+const restDay = ref(false)
 const resetInSeconds = ref(0)
 const loading = ref(true)
 const error = ref('')
@@ -198,6 +207,14 @@ function canGoStart(task: UserTask): boolean {
   return type !== 'LOGIN_COUNT' && type !== 'LOGIN_STREAK'
 }
 
+function canClaim(task: UserTask): boolean {
+  return task.status === 2 && !restDayBlocked(task)
+}
+
+function restDayBlocked(task: UserTask): boolean {
+  return restDay.value && task.status === 2 && task.rewardType === 'money'
+}
+
 function goStartMatch() {
   const matchId = sessionStorage.getItem('activeMatchId')
   if (matchId) {
@@ -211,6 +228,9 @@ async function loadBoard() {
   const board = await fetchMyTaskBoard()
   tasks.value = board.tasks || []
   remainingMoney.value = board.remainingMoney || 0
+  workDaysUsed.value = board.workDaysUsed || 0
+  workDaysQuota.value = board.workDaysQuota || 0
+  restDay.value = Boolean(board.restDay)
   resetInSeconds.value = board.resetInSeconds || 0
 }
 

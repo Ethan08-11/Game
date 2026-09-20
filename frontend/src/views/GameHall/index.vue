@@ -298,8 +298,8 @@ async function clearLocalCache() {
 async function loadQuestBadge() {
   try {
     const board = await fetchMyTaskBoard()
-    const claimable = (board.tasks || []).filter((task) => Number(task.status) === 2).length
-    if (claimable > 0) {
+    const claimable = Number(board.claimableCount)
+    if (Number.isFinite(claimable) && claimable > 0) {
       questBadgeText.value = String(claimable)
       questBadgeTitle.value = `有 ${claimable} 个任务可领`
     } else {

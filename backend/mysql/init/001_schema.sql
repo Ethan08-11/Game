@@ -823,6 +823,18 @@ CREATE TABLE `user_tasks`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 34 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户任务进度表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
+-- Table structure for user_month_work_days
+-- ----------------------------
+DROP TABLE IF EXISTS `user_month_work_days`;
+CREATE TABLE `user_month_work_days`  (
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `day_date` date NOT NULL COMMENT '已领金币的自然日 Asia/Shanghai',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`, `day_date`) USING BTREE,
+  INDEX `idx_work_day_month`(`user_id` ASC, `day_date` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '每月工作日：领过任务金币的自然日' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
 -- Table structure for users
 -- ----------------------------
 DROP TABLE IF EXISTS `users`;

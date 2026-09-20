@@ -7,6 +7,9 @@ public record MyTaskBoardResp(
         Integer remainingMoney,
         Integer claimableCount,
         Boolean firstWinIncomplete,
-        Long resetInSeconds
+        Long resetInSeconds,
+        Integer workDaysUsed,
+        Integer workDaysQuota,
+        Boolean restDay
 ) {
 }
