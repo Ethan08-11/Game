@@ -110,10 +110,10 @@ public class MatchServiceImpl implements MatchService {
     private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
     private static final long REVIVE_TIMEOUT_MILLIS = 90_000L;
     private static final long REVIVE_MAX_WAIT_MILLIS = 180_000L;
-    /** 玩家申请「对局异常」：至少 3 分钟没有任何有效操作。 */
-    private static final long STUCK_CANCEL_IDLE_MILLIS = 180_000L;
-    /** 看门狗自动作废：卡死满 5 分钟。 */
-    private static final long STUCK_AUTO_VOID_IDLE_MILLIS = 300_000L;
+    /** 玩家申请「对局异常」：至少 5 分钟没有任何有效操作。 */
+    private static final long STUCK_CANCEL_IDLE_MILLIS = 300_000L;
+    /** 看门狗自动作废：卡死满 10 分钟。 */
+    private static final long STUCK_AUTO_VOID_IDLE_MILLIS = 600_000L;
     private static final int WINNER_INTERRUPTED = 3;
     private static final String RECONNECT_ATTEMPT_ACTION = "reconnect_attempt";
     private static final Set<String> KEEP_PHASE_ON_DISCONNECT = Set.of(
@@ -180,7 +180,7 @@ public class MatchServiceImpl implements MatchService {
                 .orderByAsc(RoomMembers::getSeatNo));
         validateReadyMembers(members);
         clientNetworkService.requireDistinctNetwork(members.get(0).getUserId(), members.get(1).getUserId());
-        CustomerTypes customer = pickCustomer();
+        CustomerTypes customer = pickCustomer(members);
         Bullies bully = requireBullyForCustomer(customer);
 
         Matches match = buildMatch(roomId, customer, bully, members);
@@ -261,9 +261,12 @@ public class MatchServiceImpl implements MatchService {
     public MatchReviveStatusResp getReviveStatus(Long currentUserId, Long matchId) {
         Matches match = requireMatch(matchId);
         MatchPlayers player = requirePlayer(currentUserId, matchId);
+        List<MatchPlayers> players = listPlayers(matchId);
         boolean reviveEnabled = true;
+        boolean teammateAlreadyRevived = teammateAlreadyRevived(players, currentUserId);
         boolean canRevive = reviveEnabled && value(match.getStatus()) == 1 && value(player.getCurrentHp()) <= 0
-                && value(player.getReviveCount()) < value(player.getReviveLimit());
+                && value(player.getReviveCount()) < value(player.getReviveLimit())
+                && !teammateAlreadyRevived;
         String message;
         if (!reviveEnabled) {
             message = "当前对局未开启广告复活";
@@ -271,10 +274,12 @@ public class MatchServiceImpl implements MatchService {
             message = "当前对局不在可复活阶段";
         } else if (value(player.getCurrentHp()) > 0) {
             message = "当前玩家未死亡";
+        } else if (teammateAlreadyRevived) {
+            message = "本局已有一名玩家复活，不能再次复活";
         } else if (value(player.getReviveCount()) >= value(player.getReviveLimit())) {
             message = "本局复活次数已用尽";
         } else {
-            message = "可以观看广告复活";
+            message = "可以观看广告复活。全队每局限 1 人";
         }
         Integer remainingSeconds = null;
         if (canRevive && "REVIVE_WAIT".equals(match.getPhase())) {
@@ -377,6 +382,7 @@ public class MatchServiceImpl implements MatchService {
         List<MatchPlayers> waiting = players.stream()
                 .filter(player -> value(player.getCurrentHp()) <= 0)
                 .filter(player -> value(player.getReviveCount()) < value(player.getReviveLimit()))
+                .filter(player -> !teammateAlreadyRevived(players, player.getUserId()))
                 .toList();
         boolean timedOut = revivePhaseMaxExceeded(match, now)
                 || waiting.isEmpty()
@@ -452,6 +458,19 @@ public class MatchServiceImpl implements MatchService {
         if (value(player.getReviveCount()) >= value(player.getReviveLimit())) {
             throw new BusinessException("本局复活次数已用尽");
         }
+        List<MatchPlayers> playersBefore = listPlayers(matchId);
+        if (teammateAlreadyRevived(playersBefore, currentUserId)) {
+            player.setReviveCount(value(player.getReviveCount()) + 1);
+            player.setLastReviveAt(LocalDateTime.now());
+            player.setReviveStatus(2);
+            matchPlayersMapper.updateById(player);
+            finishMatch(match, 2);
+            notifyPlayers(matchId, "match.ended", Map.of(
+                    "matchId", matchId, "winnerType", 2, "reason", "double_revive"));
+            return new MatchReviveResp(matchId, currentUserId, value(player.getCurrentHp()), value(player.getCurrentHp()),
+                    player.getReviveCount(), player.getReviveStatus(), match.getCurrentRound(), match.getVersion(),
+                    player.getLastReviveAt(), "两名玩家都已复活，本局失败");
+        }
         int beforeHp = value(player.getCurrentHp());
         int reviveHp = ThreadLocalRandom.current().nextInt(REVIVE_HP_MIN, REVIVE_HP_MAX + 1);
         reviveHp = Math.min(reviveHp, value(player.getMaxHp()));
@@ -463,6 +482,14 @@ public class MatchServiceImpl implements MatchService {
         matchPlayersMapper.updateById(player);
 
         List<MatchPlayers> players = listPlayers(matchId);
+        if (revivedPlayerCount(players) >= 2) {
+            finishMatch(match, 2);
+            notifyPlayers(matchId, "match.ended", Map.of(
+                    "matchId", matchId, "winnerType", 2, "reason", "double_revive"));
+            return new MatchReviveResp(matchId, currentUserId, beforeHp, player.getCurrentHp(),
+                    player.getReviveCount(), player.getReviveStatus(), match.getCurrentRound(), match.getVersion(),
+                    player.getLastReviveAt(), "两名玩家都已复活，本局失败");
+        }
         boolean startedNextRound = false;
         if ("REVIVE_WAIT".equals(match.getPhase()) && hasBossAttackThisRound(match)) {
             finishRoundAndStartNext(match, currentRound(match), players);
@@ -1136,25 +1163,48 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
-    private CustomerTypes pickCustomer() {
+    private CustomerTypes pickCustomer(List<RoomMembers> members) {
         List<CustomerTypes> customers = customerTypesMapper.selectList(Wrappers.<CustomerTypes>lambdaQuery()
                 .eq(CustomerTypes::getStatus, 1)
                 .orderByAsc(CustomerTypes::getSortNo));
         if (customers.isEmpty()) {
             throw new BusinessException("没有可用的顾客配置");
         }
-        int totalWeight = customers.stream().mapToInt(customer -> Math.max(value(customer.getSelectionWeight()), 0)).sum();
+        boolean highPressure = leaderboardService.teamTouchesDailyTop(
+                members.stream().map(RoomMembers::getUserId).toList());
+        int totalWeight = customers.stream()
+                .mapToInt(customer -> customerWeight(customer, highPressure))
+                .sum();
         if (totalWeight <= 0) {
             return customers.get(0);
         }
         int random = ThreadLocalRandom.current().nextInt(totalWeight);
         for (CustomerTypes customer : customers) {
-            random -= Math.max(value(customer.getSelectionWeight()), 0);
+            random -= customerWeight(customer, highPressure);
             if (random < 0) {
+                if (highPressure) {
+                    logger.info("High-pressure customer pool picked {} for users {}",
+                            customer.getCustomerCode(),
+                            members.stream().map(RoomMembers::getUserId).toList());
+                }
                 return customer;
             }
         }
         return customers.get(0);
+    }
+
+    private int customerWeight(CustomerTypes customer, boolean highPressure) {
+        if (!highPressure) {
+            return Math.max(value(customer.getSelectionWeight()), 0);
+        }
+        String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
+        if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code)) {
+            return 70;
+        }
+        if (BullyCatalog.CUSTOMER_TIMID.equals(code)) {
+            return 30;
+        }
+        return 0;
     }
 
     private Bullies requireBullyForCustomer(CustomerTypes customer) {
@@ -2630,13 +2680,15 @@ public class MatchServiceImpl implements MatchService {
             member.setReadyStatus(0);
             roomMembersMapper.updateById(member);
         }
-        for (MatchPlayers player : listPlayers(match.getId())) {
+        List<MatchPlayers> settledPlayers = listPlayers(match.getId());
+        boolean skipWinRate = revivedPlayerCount(settledPlayers) == 1;
+        for (MatchPlayers player : settledPlayers) {
             player.setResultType(winnerType == 1 ? 1 : winnerType == 2 ? 2 : 3);
             player.setFinalConfidence(value(player.getCurrentHp()));
             player.setPlayerStatus(winnerType == 1 ? "ACTIVE" : "LEFT");
             matchPlayersMapper.updateById(player);
             if (kind != MatchEndKind.VOID) {
-                applyProfileSettlement(player.getUserId(), winnerType, grantRewards);
+                applyProfileSettlement(player.getUserId(), winnerType, grantRewards, skipWinRate);
             }
         }
         if (room != null) {
@@ -2650,7 +2702,6 @@ public class MatchServiceImpl implements MatchService {
             }
         }
         if (grantRewards && (winnerType == 1 || winnerType == 2)) {
-            List<MatchPlayers> settledPlayers = listPlayers(match.getId());
             for (MatchPlayers player : settledPlayers) {
                 try {
                     String resultType = winnerType == 1 ? "WIN" : "LOSE";
@@ -2697,14 +2748,14 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
-    private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards) {
+    private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards, boolean skipWinRate) {
         if (winnerType != 1 && winnerType != 2) {
             return;
         }
         leaderboardService.ensureCurrentMonth();
-        int winDelta = winnerType == 1 ? 1 : 0;
-        int loseDelta = winnerType == 2 ? 1 : 0;
-        int drawDelta = winnerType == 1 || winnerType == 2 ? 0 : 1;
+        int winDelta = skipWinRate ? 0 : (winnerType == 1 ? 1 : 0);
+        int loseDelta = skipWinRate ? 0 : (winnerType == 2 ? 1 : 0);
+        int drawDelta = 0;
         int expDelta = grantRewards ? rewardExp(winnerType) : 0;
         long moneyDelta = grantRewards ? rewardMoney(winnerType) : 0L;
         userProfileMapper.applyMatchSettlement(userId, winDelta, loseDelta, drawDelta, expDelta, moneyDelta);
@@ -2759,7 +2810,9 @@ public class MatchServiceImpl implements MatchService {
         match.setUpdatedAt(now);
         matchesMapper.updateById(match);
         for (MatchPlayers player : players) {
-            if (value(player.getCurrentHp()) <= 0 && value(player.getReviveCount()) < value(player.getReviveLimit())) {
+            if (value(player.getCurrentHp()) <= 0
+                    && value(player.getReviveCount()) < value(player.getReviveLimit())
+                    && !teammateAlreadyRevived(players, player.getUserId())) {
                 player.setReviveStatus(1);
                 player.setUpdatedAt(now);
                 matchPlayersMapper.updateById(player);
@@ -2845,6 +2898,12 @@ public class MatchServiceImpl implements MatchService {
                     "matchId", match.getId(), "winnerType", 2, "reason", "round_settled"));
             return;
         }
+        if (anyDead && teamReviveUsed(players)) {
+            finishMatch(match, 2);
+            notifyPlayers(match.getId(), "match.ended", Map.of(
+                    "matchId", match.getId(), "winnerType", 2, "reason", "second_down_after_revive"));
+            return;
+        }
         if (anyDead) {
             enterReviveWait(match, players);
             notifyPlayers(match.getId(), "match.revive.required", Map.of(
@@ -2883,6 +2942,12 @@ public class MatchServiceImpl implements MatchService {
             finishMatch(match, 2);
             return new RoundSettleResult(true, true, targets);
         }
+        if (anyDead && teamReviveUsed(players)) {
+            finishMatch(match, 2);
+            notifyPlayers(match.getId(), "match.ended", Map.of(
+                    "matchId", match.getId(), "winnerType", 2, "reason", "second_down_after_revive"));
+            return new RoundSettleResult(true, true, targets);
+        }
         if (anyDead) {
             enterReviveWait(match, players);
             notifyPlayers(match.getId(), "match.revive.required", Map.of(
@@ -2902,6 +2967,25 @@ public class MatchServiceImpl implements MatchService {
     private List<MatchPlayers> listPlayers(Long matchId) {
         return matchPlayersMapper.selectList(Wrappers.<MatchPlayers>lambdaQuery()
                 .eq(MatchPlayers::getMatchId, matchId).orderByAsc(MatchPlayers::getSeatNo));
+    }
+
+    private int revivedPlayerCount(List<MatchPlayers> players) {
+        if (players == null) {
+            return 0;
+        }
+        return (int) players.stream().filter(player -> value(player.getReviveCount()) > 0).count();
+    }
+
+    private boolean teamReviveUsed(List<MatchPlayers> players) {
+        return revivedPlayerCount(players) > 0;
+    }
+
+    private boolean teammateAlreadyRevived(List<MatchPlayers> players, Long userId) {
+        if (players == null || userId == null) {
+            return false;
+        }
+        return players.stream().anyMatch(player ->
+                !userId.equals(player.getUserId()) && value(player.getReviveCount()) > 0);
     }
 
     private void notifyAfterCommit(Runnable task) {
