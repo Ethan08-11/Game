@@ -36,6 +36,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
         ensureWeeklyMoneyColumn();
         ensureWeekStateTable();
         ensureAlignedFlagColumn();
+        ensureDailyTopTable();
         alignWeeklyToTotalOnce();
         log.info("Leaderboard schema ready, month starting {}.", LeaderboardServiceImpl.currentMonthStart());
     }
@@ -80,6 +81,24 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
                 COMMENT '是否已用总榜金币对齐周榜，只执行一次'
                 """);
         log.info("Added leaderboard_week.aligned_to_total column.");
+    }
+
+    private void ensureDailyTopTable() {
+        if (tableExists("leaderboard_daily_top")) {
+            return;
+        }
+        jdbcTemplate.execute("""
+                CREATE TABLE `leaderboard_daily_top` (
+                  `day_date` date NOT NULL COMMENT '快照日期 Asia/Shanghai',
+                  `rank_no` int NOT NULL COMMENT '当日总榜名次',
+                  `user_id` bigint NOT NULL COMMENT '用户ID',
+                  `money` bigint NOT NULL DEFAULT 0 COMMENT '截榜时金币',
+                  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (`day_date`, `rank_no`),
+                  KEY `idx_day_user` (`day_date`, `user_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日0点总榜前五快照，高难顾客奖池用'
+                """);
+        log.info("Created leaderboard_daily_top table.");
     }
 
     /**

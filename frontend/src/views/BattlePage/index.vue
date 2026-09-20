@@ -298,7 +298,7 @@
             <h2>观看视频广告复活</h2>
             <p v-if="reviveStatusLoading">正在查询复活状态…</p>
             <template v-else>
-              <p>当前可复活次数：{{ reviveStatus?.reviveCount ?? 0 }}/{{ reviveStatus?.reviveLimit ?? 1 }}</p>
+              <p>本局全队限复活 1 次（{{ reviveStatus?.reviveCount ?? 0 }}/1）</p>
               <p>当前血量：{{ reviveStatus?.currentHp ?? 0 }}/{{ reviveStatus?.maxHp ?? 0 }}</p>
               <p v-if="reviveStatus && !reviveStatus.canRevive" class="revive-hint">{{ reviveStatus.message || '当前无法复活' }}</p>
               <p v-else-if="reviveRemainingSeconds != null" class="revive-hint">请看完视频后确认复活，剩余 {{ reviveRemainingSeconds }} 秒</p>

@@ -19,8 +19,11 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -131,6 +134,69 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                     lose_count = 0,
                     draw_count = 0
                 """);
+    }
+
+    @Override
+    @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Shanghai")
+    public void ensureDailyTopSnapshot() {
+        ensureCurrentMonth();
+        if (!dailyTopTableExists()) {
+            return;
+        }
+        Date day = Date.valueOf(LocalDate.now(LEADERBOARD_ZONE));
+        Integer existing = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM leaderboard_daily_top WHERE day_date = ?",
+                Integer.class,
+                day);
+        if (existing != null && existing > 0) {
+            return;
+        }
+        List<LeaderboardResp> top = listLeaderboard(null, "total", 1, 0).stream()
+                .filter(item -> item.userId() != null && item.money() != null && item.money() > 0)
+                .limit(5)
+                .toList();
+        int rank = 1;
+        for (LeaderboardResp item : top) {
+            try {
+                jdbcTemplate.update(
+                        "INSERT INTO leaderboard_daily_top(day_date, rank_no, user_id, money) VALUES (?, ?, ?, ?)",
+                        day, rank, item.userId(), item.money());
+                rank++;
+            } catch (Exception e) {
+                log.warn("Skip daily top snapshot row rank={} user={}: {}", rank, item.userId(), e.getMessage());
+                return;
+            }
+        }
+        log.info("Snapshotted {} daily top leaderboard users for {}.", top.size(), day);
+    }
+
+    @Override
+    public boolean teamTouchesDailyTop(Collection<Long> userIds) {
+        ensureDailyTopSnapshot();
+        if (!dailyTopTableExists() || userIds == null || userIds.isEmpty()) {
+            return false;
+        }
+        List<Long> ids = userIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return false;
+        }
+        String placeholders = ids.stream().map(id -> "?").collect(Collectors.joining(","));
+        List<Object> args = new ArrayList<>();
+        args.add(Date.valueOf(LocalDate.now(LEADERBOARD_ZONE)));
+        args.addAll(ids);
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM leaderboard_daily_top WHERE day_date = ? AND user_id IN (" + placeholders + ")",
+                Integer.class,
+                args.toArray());
+        return count != null && count > 0;
+    }
+
+    private boolean dailyTopTableExists() {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
+                Integer.class,
+                "leaderboard_daily_top");
+        return count != null && count > 0;
     }
 
     private boolean isWinRateBoard(String type) {
