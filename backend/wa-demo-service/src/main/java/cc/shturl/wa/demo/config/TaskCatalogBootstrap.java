@@ -1,5 +1,6 @@
 package cc.shturl.wa.demo.config;
 
+import cc.shturl.wa.demo.service.WorkDayQuota;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -8,6 +9,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.sql.Date;
 import java.util.List;
 
 /**
@@ -44,6 +46,7 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
         ensureLoginStreakColumns();
         ensureUserTaskExtraData();
         ensureWorkDayTable();
+        purgePreLaunchSeptemberWorkDays();
         backfillWorkDays();
         upsertCatalog();
         disableInactiveTasks();
@@ -66,6 +69,19 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
         log.info("Created user_month_work_days table.");
     }
 
+    private void purgePreLaunchSeptemberWorkDays() {
+        if (!tableExists("user_month_work_days")) {
+            return;
+        }
+        int deleted = jdbcTemplate.update(
+                "DELETE FROM user_month_work_days WHERE day_date >= ? AND day_date < ?",
+                Date.valueOf(WorkDayQuota.LAUNCH_MONTH.atDay(1)),
+                Date.valueOf(WorkDayQuota.LAUNCH_COUNT_START));
+        if (deleted > 0) {
+            log.info("Removed {} September work days before {}.", deleted, WorkDayQuota.LAUNCH_COUNT_START);
+        }
+    }
+
     private void backfillWorkDays() {
         if (!tableExists("user_month_work_days") || !tableExists("user_tasks") || !tableExists("tasks")) {
             return;
@@ -79,7 +95,8 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
                   AND LOWER(t.task_type) = 'daily'
                   AND LOWER(IFNULL(t.reward_type, '')) = 'money'
                   AND ut.period_key REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-                """);
+                  AND (ut.period_key < ? OR ut.period_key >= ?)
+                """, WorkDayQuota.LAUNCH_MONTH.atDay(1).toString(), WorkDayQuota.LAUNCH_COUNT_START.toString());
         if (inserted > 0) {
             log.info("Backfilled {} monthly work-day rows from claimed daily tasks.", inserted);
         }

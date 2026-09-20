@@ -38,10 +38,13 @@ public class WorkDayService {
             return true;
         }
         LocalDate today = LocalDate.now(WorkDayQuota.ZONE);
+        YearMonth month = YearMonth.from(today);
+        if (today.isBefore(WorkDayQuota.countStart(month))) {
+            return false;
+        }
         if (exists(userId, today)) {
             return true;
         }
-        YearMonth month = YearMonth.from(today);
         if (countUsed(userId, month) >= WorkDayQuota.days(month)) {
             return false;
         }
@@ -52,7 +55,7 @@ public class WorkDayService {
     }
 
     private int countUsed(Long userId, YearMonth month) {
-        Date start = Date.valueOf(month.atDay(1));
+        Date start = Date.valueOf(WorkDayQuota.countStart(month));
         Date end = Date.valueOf(month.plusMonths(1).atDay(1));
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM user_month_work_days WHERE user_id = ? AND day_date >= ? AND day_date < ?",
