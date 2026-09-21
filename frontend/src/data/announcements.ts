@@ -24,7 +24,7 @@ export const announcements: Announcement[] = [
     id: 'topic-team-revive-once',
     title: '复活调整：全队每局限 1 人，双人复活即负',
     date: '2026-09-20',
-    content: '对局全队只允许一名玩家看广告复活。只有一人复活时，本局胜负不计入排行榜胜率（每日任务仍按最终输赢结算）。若两名玩家都复活，立即判定保护失败，并计入败场。',
+    content: '对局全队只允许一名玩家看广告复活。只有一人复活时，本局仍按最终胜负计入排行榜。若两名玩家都复活，立即判定保护失败，并计入败场。',
   },
   {
     id: 'topic-bully-attack-unified',
