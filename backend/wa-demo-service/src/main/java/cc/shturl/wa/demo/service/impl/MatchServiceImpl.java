@@ -2681,14 +2681,13 @@ public class MatchServiceImpl implements MatchService {
             roomMembersMapper.updateById(member);
         }
         List<MatchPlayers> settledPlayers = listPlayers(match.getId());
-        boolean skipWinRate = revivedPlayerCount(settledPlayers) == 1;
         for (MatchPlayers player : settledPlayers) {
             player.setResultType(winnerType == 1 ? 1 : winnerType == 2 ? 2 : 3);
             player.setFinalConfidence(value(player.getCurrentHp()));
             player.setPlayerStatus(winnerType == 1 ? "ACTIVE" : "LEFT");
             matchPlayersMapper.updateById(player);
             if (kind != MatchEndKind.VOID) {
-                applyProfileSettlement(player.getUserId(), winnerType, grantRewards, skipWinRate);
+                applyProfileSettlement(player.getUserId(), winnerType, grantRewards);
             }
         }
         if (room != null) {
@@ -2748,13 +2747,13 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
-    private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards, boolean skipWinRate) {
+    private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards) {
         if (winnerType != 1 && winnerType != 2) {
             return;
         }
         leaderboardService.ensureCurrentMonth();
-        int winDelta = skipWinRate ? 0 : (winnerType == 1 ? 1 : 0);
-        int loseDelta = skipWinRate ? 0 : (winnerType == 2 ? 1 : 0);
+        int winDelta = winnerType == 1 ? 1 : 0;
+        int loseDelta = winnerType == 2 ? 1 : 0;
         int drawDelta = 0;
         int expDelta = grantRewards ? rewardExp(winnerType) : 0;
         long moneyDelta = grantRewards ? rewardMoney(winnerType) : 0L;
