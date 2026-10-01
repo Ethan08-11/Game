@@ -59,6 +59,11 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         runScript("db/028_public_mercenary_cards.sql");
         runScript("db/031_public_logistics_knight_cards.sql");
         runScript("db/032_public_marketing_strongman_cards.sql");
+        runScript("db/035_public_design_archer_cards.sql");
+        runScript("db/036_public_tech_sapper_cards.sql");
+        runScript("db/037_public_finance_pastor_cards.sql");
+        runScript("db/038_public_hr_oracle_cards.sql");
+        runScript("db/039_public_admin_clerk_cards.sql");
         log.info("Card collection schema bootstrap finished.");
     }
 
@@ -100,13 +105,13 @@ public class CardCollectionSchemaBootstrap implements ApplicationRunner {
         int riley = jdbcTemplate.update("""
                 UPDATE `cards`
                 SET `dept_id` = 1, `dept_type` = 'sales'
-                WHERE (`card_code` = 'O-15' OR `card_name` = 'Riley')
+                WHERE `card_code` = 'O-15'
                   AND (`dept_id` IS NULL OR `dept_id` <> 1 OR `dept_type` IS NULL OR `dept_type` <> 'sales')
                 """);
         int charlene = jdbcTemplate.update("""
                 UPDATE `cards`
                 SET `dept_id` = 2, `dept_type` = 'purchase'
-                WHERE (`card_code` = 'O-01' OR `card_name` IN ('Charlene', 'Cherlene'))
+                WHERE `card_code` = 'O-01'
                   AND (`dept_id` IS NULL OR `dept_id` <> 2 OR `dept_type` IS NULL OR `dept_type` <> 'purchase')
                 """);
         if (riley > 0 || charlene > 0) {
