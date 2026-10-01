@@ -28,18 +28,6 @@
                 <span>效果数值</span>
                 <strong>{{ formatEffectValue(customer.effectType, customer.effectValue) }}</strong>
               </div>
-              <div v-if="customer.bullyName" class="customer-meta">
-                <span>对应霸凌者</span>
-                <strong>{{ customer.bullyName }}</strong>
-              </div>
-              <div v-if="customer.bullySkillSummary" class="customer-meta customer-meta-skill">
-                <span>霸凌者特效</span>
-                <strong>{{ customer.bullySkillSummary }}</strong>
-              </div>
-              <div v-if="customer.bullyName" class="customer-meta">
-                <span>霸凌者特效概率</span>
-                <strong>{{ formatBullyChance(customer.bullySkillChance) }}</strong>
-              </div>
             </div>
 
             <div class="name-section">
@@ -78,11 +66,6 @@ const catalogReady = ref(false)
 function formatRate(value?: number) {
   if (value == null) return '后端未配置'
   return `${Math.round((value > 1 ? value / 100 : value) * 100)}%`
-}
-
-function formatBullyChance(value?: number | null) {
-  if (value == null) return '常驻'
-  return formatRate(value)
 }
 
 function effectLabel(effectType?: string) {
@@ -341,17 +324,6 @@ h2 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.customer-meta-skill {
-  align-items: flex-start;
-}
-.customer-meta-skill strong {
-  white-space: normal;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 .placeholder-card .name-section {
   position: absolute;
