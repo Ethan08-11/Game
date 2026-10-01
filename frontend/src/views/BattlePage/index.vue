@@ -1052,6 +1052,7 @@ function effectLabel(effectType?: string) {
     bully_hp_up: '霸凌者血量提升',
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
+    player_action_hp_down: '一名玩家调用机会-1且失血1',
     bully_defense_up: '霸凌者防御提升',
     ADD_BOSS_SHIELD: '霸凌者防御提升',
     REDUCE_BOSS_ATTACK: '霸凌者攻击降低',
@@ -1159,13 +1160,15 @@ function syncToStore(detail: any) {
     helpMax: 0,
     hinderMin: 0,
     hinderMax: 0,
-    effectType: detail.customer.effectType?.includes('player_action')
-      ? 'player_action'
-      : detail.customer.effectType?.includes('player_hp')
-        ? 'player_hp'
-        : detail.customer.effectType?.includes('hp')
-          ? 'hp'
-          : 'attack',
+    effectType: /player_action_hp|harsh/i.test(detail.customer.effectType || '')
+      ? 'player_harsh'
+      : detail.customer.effectType?.includes('player_action')
+        ? 'player_action'
+        : detail.customer.effectType?.includes('player_hp')
+          ? 'player_hp'
+          : detail.customer.effectType?.includes('hp')
+            ? 'hp'
+            : 'attack',
     effectValue: detail.customer.effectValue ?? 0,
     effectTriggerRate: (detail.customer.triggerChance ?? 40) / 100,
     bullyName: detail.customer.bullyName ?? null,

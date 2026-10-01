@@ -17,6 +17,12 @@ export const announcements: Announcement[] = [
     content: LEADERBOARD_PRIZE_NOTICE_BODY,
   },
   {
+    id: 'topic-harsh-customer',
+    title: '顾客图鉴：刻薄尖客戴着眼镜进铺',
+    date: '2026-10-01',
+    content: '图鉴新增「刻薄尖客」：目光很尖的戴镜客，登场权重与闲逛双客相近，因此不算常见。若抽到他，约四成回合会随机让一名存活护卫本回合少 1 点调用机会，并刻薄到扣 1 点血。护盾挡不住这记刻薄，血掉到 0 会倒下。高压组仍只抽胆小怕事 / 焦虑难安。\n\n保护顾客、将霸凌者血值打到 0 即可获胜。所有顾客共用硬扛恶霸。',
+  },
+  {
     id: 'topic-wealthy-customer',
     title: '顾客图鉴：阔绰金客带着余钱进铺',
     date: '2026-10-01',

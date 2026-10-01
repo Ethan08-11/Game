@@ -21,6 +21,7 @@ public final class BullyCatalog {
     public static final String CUSTOMER_ANXIOUS = "CUSTOMER_ANXIOUS";
     public static final String CUSTOMER_WINDOW = "CUSTOMER_WINDOW";
     public static final String CUSTOMER_WEALTHY = "CUSTOMER_WEALTHY";
+    public static final String CUSTOMER_HARSH = "CUSTOMER_HARSH";
 
     public static final String BULLY_FOCUS = "BULLY_FOCUS_001";
     public static final String BULLY_SHIELD = "BULLY_SHIELD_001";
@@ -47,7 +48,8 @@ public final class BullyCatalog {
             CUSTOMER_TIMID, BULLY_SHIELD,
             CUSTOMER_ANXIOUS, BULLY_SHIELD,
             CUSTOMER_WINDOW, BULLY_SHIELD,
-            CUSTOMER_WEALTHY, BULLY_SHIELD
+            CUSTOMER_WEALTHY, BULLY_SHIELD,
+            CUSTOMER_HARSH, BULLY_SHIELD
     );
 
     private BullyCatalog() {

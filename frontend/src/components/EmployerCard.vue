@@ -37,6 +37,11 @@ const game = useGameStore()
 const effectText = computed(() => {
   const trait = game.employerTrait
   if (!trait) return '加载中'
+  const value = trait.effectValue ?? 0
+  if (trait.effectType === 'player_harsh') {
+    const amount = Math.abs(value)
+    return `一名玩家调用机会-${amount}且失血${amount}`
+  }
   const target = trait.effectType === 'player_hp'
     ? '我方血值'
     : trait.effectType === 'player_action'
@@ -44,7 +49,6 @@ const effectText = computed(() => {
       : trait.effectType === 'hp'
         ? '霸凌者血量'
         : '霸凌者基础攻击'
-  const value = trait.effectValue ?? 0
   return `${target}${value >= 0 ? '+' : ''}${value}`
 })
 

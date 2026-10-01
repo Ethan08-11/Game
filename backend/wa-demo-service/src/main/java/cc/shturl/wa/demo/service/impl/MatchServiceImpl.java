@@ -2530,25 +2530,41 @@ public class MatchServiceImpl implements MatchService {
                 }
             }
         }
-        MatchPlayers actionBonusTarget = null;
-        int actionBonus = 0;
+        MatchPlayers actionTarget = null;
+        int actionDelta = 0;
+        int playerHpLoss = 0;
+        int harshHpBefore = 0;
         if (triggered && customer != null && "player_action_up".equals(customer.getEffectType())) {
-            actionBonus = Math.max(value(customer.getEffectValue()), 0);
-            actionBonusTarget = pickLivingPlayer(players);
+            actionDelta = Math.max(value(customer.getEffectValue()), 0);
+            actionTarget = pickLivingPlayer(players);
+        } else if (triggered && customer != null && "player_action_hp_down".equals(customer.getEffectType())) {
+            int amount = Math.max(value(customer.getEffectValue()), 0);
+            actionDelta = -amount;
+            playerHpLoss = amount;
+            actionTarget = pickLivingPlayer(players);
+            if (actionTarget != null) {
+                harshHpBefore = value(actionTarget.getCurrentHp());
+            }
         }
         match.setCurrentRound(nextRoundNo);
         match.setPhase(PLAYER_ACTION);
         match.setBossCurrentAttack(attack);
         for (MatchPlayers player : players) {
             int actionPoints = value(player.getBaseActionPoints());
-            if (actionBonusTarget != null && actionBonus > 0
-                    && actionBonusTarget.getUserId() != null
-                    && actionBonusTarget.getUserId().equals(player.getUserId())) {
-                actionPoints += actionBonus;
+            if (actionTarget != null && actionDelta != 0
+                    && actionTarget.getUserId() != null
+                    && actionTarget.getUserId().equals(player.getUserId())) {
+                actionPoints = Math.max(0, actionPoints + actionDelta);
             }
             player.setActionPoints(actionPoints);
             player.setEndedTurn(0);
             player.setShield(0);
+            if (playerHpLoss > 0 && actionTarget != null
+                    && actionTarget.getUserId() != null
+                    && actionTarget.getUserId().equals(player.getUserId())
+                    && value(player.getCurrentHp()) > 0) {
+                applyPlayerHpLoss(player, playerHpLoss);
+            }
             if (value(player.getCurrentHp()) > 0) {
                 player.setReviveStatus(0);
             }
@@ -2558,6 +2574,10 @@ public class MatchServiceImpl implements MatchService {
         applyBullyRoundSkills(match, listPlayers(match.getId()));
         if (value(match.getBossCurrentHp()) <= 0) {
             finishMatch(match, 1);
+            return;
+        }
+        if (players.stream().allMatch(player -> value(player.getCurrentHp()) <= 0)) {
+            finishMatch(match, 2);
             return;
         }
         for (MatchPlayers player : players) {
@@ -2585,17 +2605,30 @@ public class MatchServiceImpl implements MatchService {
             nextRound.setChosenByUserId(currentRound.getChosenByUserId());
         }
         matchRoundsMapper.insert(nextRound);
-        if (actionBonusTarget != null && actionBonus > 0) {
+        if (actionTarget != null && actionDelta > 0) {
             MatchActions grant = new MatchActions();
             grant.setMatchId(match.getId());
             grant.setRoundId(nextRound.getId());
             grant.setActorType("customer");
             grant.setActionType("customer_grant_ap");
-            grant.setTargetUserId(actionBonusTarget.getUserId());
-            grant.setBeforeValue(value(actionBonusTarget.getBaseActionPoints()));
-            grant.setAfterValue(value(actionBonusTarget.getActionPoints()));
-            grant.setDeltaValue(actionBonus);
+            grant.setTargetUserId(actionTarget.getUserId());
+            grant.setBeforeValue(value(actionTarget.getBaseActionPoints()));
+            grant.setAfterValue(value(actionTarget.getActionPoints()));
+            grant.setDeltaValue(actionDelta);
             matchActionsMapper.insert(grant);
+        }
+        if (actionTarget != null && (actionDelta < 0 || playerHpLoss > 0)) {
+            MatchActions harsh = new MatchActions();
+            harsh.setMatchId(match.getId());
+            harsh.setRoundId(nextRound.getId());
+            harsh.setActorType("customer");
+            harsh.setActionType("customer_harsh");
+            harsh.setTargetUserId(actionTarget.getUserId());
+            harsh.setBeforeValue(harshHpBefore);
+            harsh.setAfterValue(value(actionTarget.getCurrentHp()));
+            harsh.setDeltaValue(-playerHpLoss);
+            harsh.setExtraData("{\"apDelta\":" + actionDelta + ",\"hpLoss\":" + playerHpLoss + "}");
+            matchActionsMapper.insert(harsh);
         }
     }
 
@@ -3460,7 +3493,48 @@ public class MatchServiceImpl implements MatchService {
         }
         if ("player_action_up".equals(type)) {
             revertCustomerActionBonus(match, round, players, Math.max(val, 0));
+            return;
         }
+        if ("player_action_hp_down".equals(type)) {
+            revertCustomerHarsh(match, round, players, Math.max(val, 0));
+        }
+    }
+
+    private void revertCustomerHarsh(Matches match, MatchRounds round, List<MatchPlayers> players, int amount) {
+        if (amount <= 0 || players == null || players.isEmpty()) {
+            return;
+        }
+        Long targetId = null;
+        if (round != null && round.getId() != null) {
+            MatchActions harsh = matchActionsMapper.selectOne(Wrappers.<MatchActions>lambdaQuery()
+                    .eq(MatchActions::getMatchId, match.getId())
+                    .eq(MatchActions::getRoundId, round.getId())
+                    .eq(MatchActions::getActionType, "customer_harsh")
+                    .last("LIMIT 1"));
+            if (harsh != null) {
+                targetId = harsh.getTargetUserId();
+            }
+        }
+        MatchPlayers target = null;
+        if (targetId != null) {
+            for (MatchPlayers player : players) {
+                if (targetId.equals(player.getUserId())) {
+                    target = player;
+                    break;
+                }
+            }
+        }
+        if (target == null) {
+            return;
+        }
+        target.setActionPoints(value(target.getActionPoints()) + amount);
+        int hp = Math.min(value(target.getMaxHp()), value(target.getCurrentHp()) + amount);
+        target.setCurrentHp(hp);
+        if (hp > 0) {
+            target.setPlayerStatus("ACTIVE");
+            target.setReviveStatus(0);
+        }
+        matchPlayersMapper.updateById(target);
     }
 
     private void revertCustomerActionBonus(Matches match, MatchRounds round, List<MatchPlayers> players, int bonus) {
