@@ -108,6 +108,13 @@ export interface Achievement {
   description: string
   unlockedAt: string | null
   icon: string
+  difficulty: number
+  progressValue: number
+  targetCount: number
+  category: string
+  hidden: boolean
+  conditionType?: string
+  sortNo?: number
 }
 
 interface BackendAchievement {
@@ -127,32 +134,82 @@ interface BackendAchievement {
   isUnlocked?: boolean | number
   unlocked?: boolean
   status?: number
+  unlockStatus?: number
+  category?: string
+  difficulty?: number
+  conditionType?: string
+  conditionValue?: string
+  progressValue?: number
+  sortNo?: number
+  targetCount?: number
 }
 
 function getAchievementKey(item: BackendAchievement): string {
-  return String(item.id ?? item.achievementId ?? item.code ?? item.achievementCode ?? '')
+  return String(item.achievementCode ?? item.code ?? item.achievementId ?? item.id ?? '')
 }
 
-function transformAchievement(item: BackendAchievement): Achievement {
-  const unlocked = item.unlocked === true || item.isUnlocked === true || item.isUnlocked === 1
+function parseConditionCount(raw: string | undefined): number {
+  if (!raw) return 1
+  try {
+    const parsed = JSON.parse(raw) as { count?: number; sales?: number }
+    if (typeof parsed.count === 'number' && parsed.count > 0) return parsed.count
+    if (typeof parsed.sales === 'number' && parsed.sales > 0) return parsed.sales
+  } catch {
+    return 1
+  }
+  return 1
+}
+
+function iconFor(category: string | undefined, hidden: boolean): string {
+  if (hidden) return 'question'
+  if (category === 'social') return 'star'
+  if (category === 'growth') return 'medal'
+  return 'trophy'
+}
+
+function transformAchievement(item: BackendAchievement, mine?: BackendAchievement): Achievement {
+  const unlockedFlag = mine?.unlockStatus === 1 || mine?.unlocked === true || mine?.isUnlocked === true || mine?.isUnlocked === 1
+  const unlockedAt = mine?.unlockedAt ?? mine?.unlockTime ?? item.unlockedAt ?? item.unlockTime
+    ?? (unlockedFlag ? new Date().toISOString() : null)
+  const hidden = (item.category || '').toLowerCase() === 'hidden'
+  const targetCount = Number(item.targetCount) > 0
+    ? Number(item.targetCount)
+    : parseConditionCount(item.conditionValue)
   return {
     id: getAchievementKey(item),
     name: item.name ?? item.achievementName ?? item.title ?? '未命名成就',
     description: item.description ?? item.achievementDesc ?? '',
-    icon: item.icon ?? item.iconUrl ?? 'trophy',
-    unlockedAt: item.unlockedAt ?? item.unlockTime ?? (unlocked ? new Date().toISOString() : null),
+    icon: item.icon ?? item.iconUrl ?? iconFor(item.category, hidden),
+    unlockedAt: unlockedAt || null,
+    difficulty: Number(item.difficulty) > 0 ? Number(item.difficulty) : 1,
+    progressValue: Math.max(0, Number(mine?.progressValue) || 0),
+    targetCount,
+    category: item.category || 'battle',
+    hidden,
+    conditionType: item.conditionType || '',
+    sortNo: Number(item.sortNo) || 0,
   }
 }
 
 function mergeAchievements(all: BackendAchievement[], mine: BackendAchievement[]): Achievement[] {
-  const unlockedKeys = new Set(mine.map(getAchievementKey))
-  return all.map((item) => {
-    const achievement = transformAchievement(item)
-    if (unlockedKeys.has(getAchievementKey(item)) && !achievement.unlockedAt) {
-      achievement.unlockedAt = new Date().toISOString()
-    }
-    return achievement
-  })
+  const mineByKey = new Map<string, BackendAchievement>()
+  for (const item of mine) {
+    mineByKey.set(getAchievementKey(item), item)
+    if (item.achievementId != null) mineByKey.set(String(item.achievementId), item)
+  }
+  return all
+    .map((item) => {
+      const mineRow = mineByKey.get(getAchievementKey(item)) ?? mineByKey.get(String(item.id ?? ''))
+      return transformAchievement(item, mineRow)
+    })
+    .sort(compareAchievementSlots)
+}
+
+/** 按目录序号占位，不用解锁状态或显示名排序，翻面不换位。 */
+function compareAchievementSlots(a: Achievement, b: Achievement): number {
+  const bySort = (a.sortNo || 0) - (b.sortNo || 0)
+  if (bySort !== 0) return bySort
+  return a.id.localeCompare(b.id)
 }
 
 // ---------- 用户资料 ----------

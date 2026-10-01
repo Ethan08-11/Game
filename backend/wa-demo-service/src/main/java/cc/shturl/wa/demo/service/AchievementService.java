@@ -8,4 +8,6 @@ import java.util.List;
 public interface AchievementService {
     List<AchievementResp> listAchievements(String category);
     List<UserAchievementResp> listMyAchievements(Long userId);
+    void bump(Long userId, String conditionType, int delta);
+    void refreshProgress(Long userId);
 }

@@ -40,34 +40,33 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     public List<LeaderboardResp> listLeaderboard(Long currentUserId, String type, int page, int size) {
         ensureCurrentMonth();
         boolean winRateBoard = isWinRateBoard(type);
-        List<UserProfile> profiles = userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery());
-        List<LeaderboardResp> ranked = new ArrayList<>();
-        for (UserProfile profile : profiles) {
+        List<UserProfile> eligible = new ArrayList<>();
+        for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
             if (profile.getUserId() == null) {
                 continue;
             }
             if (winRateBoard && totalMatches(profile) < MIN_WINRATE_MATCHES) {
                 continue;
             }
-            ranked.add(toResp(0, profile));
+            eligible.add(profile);
         }
         if (winRateBoard) {
-            ranked.sort(Comparator
-                    .comparing(LeaderboardResp::winRate, Comparator.nullsLast(Comparator.reverseOrder()))
-                    .thenComparing(LeaderboardResp::winCount, Comparator.nullsLast(Comparator.reverseOrder()))
-                    .thenComparing(LeaderboardResp::userId, Comparator.nullsLast(Comparator.naturalOrder())));
+            eligible.sort(Comparator
+                    .comparingDouble((UserProfile profile) -> exactWinRate(profile)).reversed()
+                    .thenComparing(profile -> profile.getWinCount() == null ? 0 : profile.getWinCount(),
+                            Comparator.reverseOrder())
+                    .thenComparing(UserProfile::getUserId, Comparator.nullsLast(Comparator.naturalOrder())));
         } else {
-            ranked.sort(Comparator
-                    .comparing(LeaderboardResp::money, Comparator.nullsLast(Comparator.reverseOrder()))
-                    .thenComparing(LeaderboardResp::winRate, Comparator.nullsLast(Comparator.reverseOrder()))
-                    .thenComparing(LeaderboardResp::userId, Comparator.nullsLast(Comparator.naturalOrder())));
+            eligible.sort(Comparator
+                    .comparing((UserProfile profile) -> profile.getMoney() == null ? 0L : profile.getMoney(),
+                            Comparator.reverseOrder())
+                    .thenComparingDouble((UserProfile profile) -> exactWinRate(profile)).reversed()
+                    .thenComparing(UserProfile::getUserId, Comparator.nullsLast(Comparator.naturalOrder())));
         }
         int displayRank = 1;
         List<LeaderboardResp> withRank = new ArrayList<>();
-        for (LeaderboardResp item : ranked) {
-            withRank.add(new LeaderboardResp(displayRank++, item.userId(), item.username(),
-                    item.displayName(), item.avatarUrl(), item.money(), item.winRate(),
-                    item.winCount(), item.loseCount()));
+        for (UserProfile profile : eligible) {
+            withRank.add(toResp(displayRank++, profile));
         }
 
         if (size <= 0) {
@@ -231,14 +230,18 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return wins + losses + draws;
     }
 
-    private int winRatePercent(UserProfile profile) {
+    private double exactWinRate(UserProfile profile) {
         int wins = profile.getWinCount() == null ? 0 : profile.getWinCount();
         int losses = profile.getLoseCount() == null ? 0 : profile.getLoseCount();
         int draws = profile.getDrawCount() == null ? 0 : profile.getDrawCount();
         int total = wins + losses + draws;
         if (total <= 0) {
-            return 0;
+            return 0d;
         }
-        return (int) Math.round(wins * 100.0 / total);
+        return wins / (double) total;
+    }
+
+    private int winRatePercent(UserProfile profile) {
+        return (int) Math.round(exactWinRate(profile) * 100.0);
     }
 }

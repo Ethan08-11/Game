@@ -17,6 +17,7 @@ public class AchievementDefs extends BaseEntity {
     private String rewardType;
     private String rewardValue;
     private Integer sortNo;
+    private Integer difficulty;
     private Integer status;
 }
 

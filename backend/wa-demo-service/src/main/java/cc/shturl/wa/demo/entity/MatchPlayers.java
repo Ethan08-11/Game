@@ -16,6 +16,7 @@ public class MatchPlayers extends BaseEntity {
     private String deptType;
     private Integer maxHp;
     private Integer currentHp;
+    private Integer minHp;
     private Integer shield;
     private Integer baseActionPoints;
     private Integer actionPoints;

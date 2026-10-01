@@ -21,6 +21,13 @@ export interface Achievement {
   description: string
   unlockedAt: string | null
   icon: string
+  difficulty?: number
+  progressValue?: number
+  targetCount?: number
+  category?: string
+  hidden?: boolean
+  conditionType?: string
+  sortNo?: number
 }
 
 export const useUserStore = defineStore('user', () => {
@@ -138,19 +145,34 @@ export const useUserStore = defineStore('user', () => {
   }
 
   function getFallbackAchievements(): Achievement[] {
-    const list: Achievement[] = [
-      { id: 'fb-1', name: '初次胜利', description: '赢得第一场战斗', unlockedAt: new Date().toISOString(), icon: 'trophy' },
-      { id: 'fb-2', name: '百战老兵', description: '完成100场战斗', unlockedAt: null, icon: 'medal' },
-      { id: 'fb-3', name: '社交达人', description: '添加5位好友', unlockedAt: new Date().toISOString(), icon: 'star' },
-      { id: 'fb-4', name: '收藏家', description: '收集全部卡牌', unlockedAt: null, icon: 'box' },
-      { id: 'fb-5', name: '连胜传奇', description: '连胜10场', unlockedAt: null, icon: 'promotion' },
-      { id: 'fb-6', name: '战斗之王', description: '累计造成10000点伤害', unlockedAt: new Date().toISOString(), icon: 'magic' },
-      { id: 'fb-7', name: '初出茅庐', description: '完成新手教程', unlockedAt: new Date().toISOString(), icon: 'check' },
-      { id: 'fb-8', name: '财力雄厚', description: '累计获得5000金币', unlockedAt: null, icon: 'coin' },
-      { id: 'fb-9', name: '卡牌大师', description: '单局打出20张卡牌', unlockedAt: null, icon: 'tickets' },
-      { id: 'fb-10', name: '时间管理者', description: '在线时长达到10小时', unlockedAt: null, icon: 'clock' },
+    return [
+      { id: 'ACH-002', name: '百战老兵', description: '累计取得 10 场胜利', unlockedAt: null, icon: 'trophy', difficulty: 2, progressValue: 0, targetCount: 10, category: 'battle', hidden: false, sortNo: 2 },
+      { id: 'ACH-003', name: '任务达人', description: '累计领取 20 个任务', unlockedAt: null, icon: 'medal', difficulty: 2, progressValue: 0, targetCount: 20, category: 'growth', hidden: false, sortNo: 3 },
+      { id: 'ACH-004', name: '社交先锋', description: '累计添加 5 位好友', unlockedAt: null, icon: 'star', difficulty: 2, progressValue: 0, targetCount: 5, category: 'social', hidden: false, sortNo: 4 },
+      { id: 'ACH-012', name: '稳定输出', description: '累计打完 20 局（输赢都算，作废不计）', unlockedAt: null, icon: 'trophy', difficulty: 2, progressValue: 0, targetCount: 20, category: 'battle', hidden: false, sortNo: 201 },
+      { id: 'ACH-014', name: '三日打卡', description: '累计 3 个工作日领过金币', unlockedAt: null, icon: 'medal', difficulty: 2, progressValue: 0, targetCount: 3, category: 'growth', hidden: false, sortNo: 202 },
+      { id: 'ACH-016', name: '换着组', description: '本周在每日前 3 局里和 5 个不同的人组过队', unlockedAt: null, icon: 'star', difficulty: 2, progressValue: 0, targetCount: 5, category: 'social', hidden: false, sortNo: 203 },
+      { id: 'ACH-017', name: '连胜三', description: '连续获胜 3 局（放弃或失败打断，作废不打断）', unlockedAt: null, icon: 'trophy', difficulty: 2, progressValue: 0, targetCount: 3, category: 'battle', hidden: false, sortNo: 204 },
+      { id: 'ACH-018', name: '混组默契', description: '销售+采购组合获胜 5 局', unlockedAt: null, icon: 'trophy', difficulty: 2, progressValue: 0, targetCount: 5, category: 'battle', hidden: false, sortNo: 205 },
+      { id: 'ACH-019', name: '收藏入门', description: '图鉴解锁 8 张收藏卡', unlockedAt: null, icon: 'medal', difficulty: 2, progressValue: 0, targetCount: 8, category: 'growth', hidden: false, sortNo: 206 },
+      { id: 'ACH-020', name: '顶压过关', description: '与今日总榜前五组队并获胜 1 局', unlockedAt: null, icon: 'trophy', difficulty: 2, progressValue: 0, targetCount: 1, category: 'battle', hidden: false, sortNo: 207 },
+      { id: 'ACH-021', name: '五十胜', description: '累计取得 50 场胜利', unlockedAt: null, icon: 'trophy', difficulty: 3, progressValue: 0, targetCount: 50, category: 'battle', hidden: false, sortNo: 301 },
+      { id: 'ACH-022', name: '满勤一周', description: '同一自然周领满 5 个工作日金币', unlockedAt: null, icon: 'medal', difficulty: 3, progressValue: 0, targetCount: 5, category: 'growth', hidden: false, sortNo: 302 },
+      { id: 'ACH-023', name: '十日十人', description: '本周在每日前 3 局里和 10 个不同的人组过队', unlockedAt: null, icon: 'star', difficulty: 3, progressValue: 0, targetCount: 10, category: 'social', hidden: false, sortNo: 303 },
+      { id: 'ACH-024', name: '连胜五', description: '连续获胜 5 局', unlockedAt: null, icon: 'trophy', difficulty: 3, progressValue: 0, targetCount: 5, category: 'battle', hidden: false, sortNo: 304 },
+      { id: 'ACH-025', name: '无复活十胜', description: '无人复活的胜利累计 10 局', unlockedAt: null, icon: 'trophy', difficulty: 3, progressValue: 0, targetCount: 10, category: 'battle', hidden: false, sortNo: 305 },
+      { id: 'ACH-026', name: '双职精通', description: '销售获胜 20 局且采购获胜 20 局', unlockedAt: null, icon: 'trophy', difficulty: 3, progressValue: 0, targetCount: 20, category: 'battle', hidden: false, sortNo: 306 },
+      { id: 'ACH-027', name: '图鉴过半', description: '可解锁收藏卡已解锁过半', unlockedAt: null, icon: 'medal', difficulty: 3, progressValue: 0, targetCount: 1, category: 'growth', hidden: false, sortNo: 307 },
+      { id: 'ACH-028', name: '高压五胜', description: '与今日总榜前五组队并获胜 5 局', unlockedAt: null, icon: 'trophy', difficulty: 3, progressValue: 0, targetCount: 5, category: 'battle', hidden: false, sortNo: 308 },
+      { id: 'ACH-029', name: '月度过半', description: '当月工作日领过不少于定额一半', unlockedAt: null, icon: 'medal', difficulty: 3, progressValue: 0, targetCount: 1, category: 'growth', hidden: false, sortNo: 309 },
+      { id: 'ACH-030', name: '百胜传奇', description: '累计取得 100 场胜利', unlockedAt: null, icon: 'trophy', difficulty: 4, progressValue: 0, targetCount: 100, category: 'battle', hidden: false, sortNo: 401 },
+      { id: 'ACH-031', name: '连胜十', description: '连续获胜 10 局', unlockedAt: null, icon: 'trophy', difficulty: 4, progressValue: 0, targetCount: 10, category: 'battle', hidden: false, sortNo: 402 },
+      { id: 'ACH-032', name: '满勤十月', description: '2026 年 10 月领满 24 个工作日', unlockedAt: null, icon: 'medal', difficulty: 4, progressValue: 0, targetCount: 24, category: 'growth', hidden: false, sortNo: 403 },
+      { id: 'ACH-033', name: '图鉴大师', description: '当前可解锁的收藏卡全部集齐', unlockedAt: null, icon: 'medal', difficulty: 4, progressValue: 0, targetCount: 1, category: 'growth', hidden: false, sortNo: 404 },
+      { id: 'ACH-034', name: '隐藏 · 绝境翻盘', description: '双方都曾掉到危险血（≤5）后仍获胜', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 1, category: 'hidden', hidden: true, conditionType: 'both_low_hp_win', sortNo: 405 },
+      { id: 'ACH-035', name: '隐藏 · 完美一日', description: '同一自然日完成并赢得当日第 1、2、3 局', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 1, category: 'hidden', hidden: true, conditionType: 'daily_three_wins', sortNo: 406 },
+      { id: 'ACH-005', name: '隐藏彩蛋', description: '成功解锁全部成就', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 1, category: 'hidden', hidden: true, conditionType: 'all_unlocked', sortNo: 407 },
     ]
-    return list
   }
 
   // ---------- 用户资料 ----------
