@@ -10,6 +10,7 @@ import cc.shturl.wa.demo.mapper.AchievementDefsMapper;
 import cc.shturl.wa.demo.mapper.UserAchievementsMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.AchievementService;
+import cc.shturl.wa.demo.service.QuestPeriod;
 import cc.shturl.wa.demo.service.WorkDayQuota;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,11 +19,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -224,15 +223,16 @@ public class AchievementServiceImpl implements AchievementService {
                 "SELECT COUNT(*) FROM user_card_pools WHERE user_id = ? AND IFNULL(unlocked_status, 1) = 1", userId);
         int collectible = queryCount(
                 "SELECT COUNT(*) FROM cards WHERE status = 1 AND IFNULL(require_unlock, 0) = 1");
-        LocalDate today = LocalDate.now(WorkDayQuota.ZONE);
+        LocalDateTime now = QuestPeriod.now();
+        LocalDate today = QuestPeriod.dailyDate(now);
         YearMonth month = YearMonth.from(today);
         int workDaysMonth = queryCount(
                 "SELECT COUNT(*) FROM user_month_work_days WHERE user_id = ? AND day_date >= ? AND day_date < ?",
                 userId, month.atDay(1).toString(), month.plusMonths(1).atDay(1).toString());
-        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate weekStart = QuestPeriod.weeklyStart(now);
         int workDaysWeek = queryCount(
-                "SELECT COUNT(*) FROM user_month_work_days WHERE user_id = ? AND day_date >= ? AND day_date <= ?",
-                userId, weekStart.toString(), today.toString());
+                "SELECT COUNT(*) FROM user_month_work_days WHERE user_id = ? AND day_date >= ? AND day_date < ?",
+                userId, weekStart.toString(), weekStart.plusWeeks(1).toString());
         int workDaysOctober = WorkDayQuota.OCTOBER_VACATION_MONTH.equals(month) ? workDaysMonth : 0;
         int uniqueTeammates = queryUniqueTeammates(userId, weekStart.toString());
         int dailyDone = queryCount("""
