@@ -6,7 +6,7 @@
       <button :class="{ active: tab === 'total' }" @click="tab = 'total'">总榜</button>
       <button :class="{ active: tab === 'winrate' }" @click="tab = 'winrate'">胜率榜</button>
     </div>
-    <p class="week-hint">{{ tab === 'total' ? '本月金币 · 每月 1 日清零' : '本月胜率 · 满 20 场起算 · 每月 1 日清零' }}</p>
+    <p class="week-hint">{{ tab === 'total' ? '本月金币 · 每月 1 日清零' : '本月精确胜率 · 满 20 场起算 · 每月 1 日清零' }}</p>
     <div ref="listRef" class="list" :key="tab">
       <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${Math.min(idx * 0.03, 0.4)}s` }">
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
@@ -15,10 +15,10 @@
         <div class="stats">
           <template v-if="tab === 'total'">
             <span class="pts">{{ item.money }} 金币</span>
-            <span class="rate">胜率 {{ item.winRate }}%</span>
+            <span class="rate">胜率 {{ Math.round(item.winRate) }}%</span>
           </template>
           <template v-else>
-            <span class="pts">胜率 {{ item.winRate }}%</span>
+            <span class="pts">胜率 {{ formatWinRate(item.winRate) }}%</span>
             <span class="rate">{{ item.winCount }}胜 {{ item.loseCount }}负</span>
           </template>
         </div>
@@ -58,6 +58,10 @@ async function loadLeaderboard() {
 
 onMounted(loadLeaderboard)
 watch(tab, loadLeaderboard)
+
+function formatWinRate(rate: number) {
+  return Number.isFinite(rate) ? rate.toFixed(2) : '0.00'
+}
 </script>
 
 <style scoped>
@@ -133,7 +137,7 @@ watch(tab, loadLeaderboard)
 .list { max-width: 760px; margin: 0 auto; flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 120px; width: 100%; }
 .row {
   display: grid;
-  grid-template-columns: 48px 56px minmax(0, 1fr) 132px;
+  grid-template-columns: 48px 56px minmax(0, 1fr) 148px;
   align-items: center;
   column-gap: 12px;
   padding: 8px 96px 8px 20px;

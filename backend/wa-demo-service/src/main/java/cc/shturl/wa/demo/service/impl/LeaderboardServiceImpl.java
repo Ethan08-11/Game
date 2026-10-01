@@ -15,6 +15,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.sql.Date;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
@@ -97,7 +99,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                             user == null ? null : user.getUsername(),
                             user == null ? null : user.getUsername(),
                             user == null ? null : user.getAvatarUrl(),
-                            0L, 0, 0, 0);
+                            0L, 0d, 0, 0);
                 });
     }
 
@@ -216,6 +218,8 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             eligible.sort(Comparator
                     .comparingLong(this::safeMoney).reversed()
                     .thenComparing(Comparator.comparingDouble(this::exactWinRate).reversed())
+                    .thenComparing(this::safeWinCount, Comparator.reverseOrder())
+                    .thenComparing(this::totalMatches, Comparator.reverseOrder())
                     .thenComparing(byUserId));
         }
     }
@@ -287,7 +291,15 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return wins / (double) total;
     }
 
-    private int winRatePercent(UserProfile profile) {
-        return (int) Math.round(exactWinRate(profile) * 100.0);
+    private double winRatePercent(UserProfile profile) {
+        int wins = profile.getWinCount() == null ? 0 : profile.getWinCount();
+        int total = totalMatches(profile);
+        if (total <= 0) {
+            return 0d;
+        }
+        return BigDecimal.valueOf(wins)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP)
+                .doubleValue();
     }
 }
