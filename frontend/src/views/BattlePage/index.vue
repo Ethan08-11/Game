@@ -40,7 +40,7 @@
       <div class="first-player-card">
         <h2>{{ room.isHost ? '选择本局先手' : '等待房主选择先手' }}</h2>
         <p>双方查看手牌后，由房主决定谁先出牌。</p>
-        <el-button text type="primary" @click="openTeammateHand">查看队友手牌</el-button>
+        <p class="teammate-hand-hover-tip" @mouseenter="openTeammateHand" @mouseleave="scheduleHideTeammateHand">悬停此处查看队友手牌</p>
         <div class="first-player-actions">
           <el-button
             v-for="player in players"
@@ -56,27 +56,30 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="showTeammateHand" class="teammate-hand-overlay" @click.self="showTeammateHand = false">
-        <div class="teammate-hand-panel">
-          <h2>{{ teammateHandTitle }}</h2>
-          <p>仅查看，不能替队友出牌</p>
-          <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
-          <div v-else class="teammate-hand-grid" style="--card-width: 148px">
-            <CardItem
-              v-for="card in teammateHand"
-              :key="card.id"
-              :name="card.name"
-              :dept="card.dept"
-              :cost="card.cost"
-              :type="card.type"
-              :description="card.description"
-              :damage="card.damage || 0"
-              :shield="card.shield || 0"
-              :image-url="card.imageUrl"
-              disabled
-            />
-          </div>
-          <el-button type="primary" @click="showTeammateHand = false">关闭</el-button>
+      <div
+        v-if="showTeammateHand"
+        class="teammate-hand-popover"
+        :style="teammateHandStyle"
+        @mouseenter="keepTeammateHand"
+        @mouseleave="scheduleHideTeammateHand"
+      >
+        <h2>{{ teammateHandTitle }}</h2>
+        <p>悬停查看，不能替队友出牌</p>
+        <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
+        <div v-else class="teammate-hand-grid" style="--card-width: 108px">
+          <CardItem
+            v-for="card in teammateHand"
+            :key="card.id"
+            :name="card.name"
+            :dept="card.dept"
+            :cost="card.cost"
+            :type="card.type"
+            :description="card.description"
+            :damage="card.damage || 0"
+            :shield="card.shield || 0"
+            :image-url="card.imageUrl"
+            disabled
+          />
         </div>
       </div>
     </Teleport>
@@ -360,8 +363,9 @@
         ref="player1RectRef"
         :class="[playerRectClass(0), { 'is-peekable': isTeammateSeat(0) }]"
         :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }"
-        :title="isTeammateSeat(0) ? '点击查看队友手牌' : undefined"
-        @click="openTeammateHandFromSeat(0)"
+        :title="isTeammateSeat(0) ? '悬停查看队友手牌' : undefined"
+        @mouseenter="openTeammateHandFromSeat(0)"
+        @mouseleave="scheduleHideTeammateHand"
       >
         <img class="player-img" :src="player1Img" alt="玩家1" />
         <div v-if="(players[0]?.defense || 0) > 0" class="player-shield-veil" aria-hidden="true" />
@@ -376,12 +380,7 @@
             :defense="players[0].defense"
           />
         </div>
-        <button
-          v-if="isTeammateSeat(0)"
-          type="button"
-          class="teammate-hand-hint"
-          @click.stop="openTeammateHandFromSeat(0)"
-        >查看手牌</button>
+        <div v-if="isTeammateSeat(0)" class="teammate-hand-hint">悬停查看手牌</div>
         <div v-if="isPlayer1Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
@@ -391,8 +390,9 @@
         ref="player2RectRef"
         :class="[playerRectClass(1), { 'is-peekable': isTeammateSeat(1) }]"
         :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }"
-        :title="isTeammateSeat(1) ? '点击查看队友手牌' : undefined"
-        @click="openTeammateHandFromSeat(1)"
+        :title="isTeammateSeat(1) ? '悬停查看队友手牌' : undefined"
+        @mouseenter="openTeammateHandFromSeat(1)"
+        @mouseleave="scheduleHideTeammateHand"
       >
         <img class="player-img" :src="player2Img" alt="玩家2" />
         <div v-if="(players[1]?.defense || 0) > 0" class="player-shield-veil" aria-hidden="true" />
@@ -407,12 +407,7 @@
             :defense="players[1].defense"
           />
         </div>
-        <button
-          v-if="isTeammateSeat(1)"
-          type="button"
-          class="teammate-hand-hint"
-          @click.stop="openTeammateHandFromSeat(1)"
-        >查看手牌</button>
+        <div v-if="isTeammateSeat(1)" class="teammate-hand-hint">悬停查看手牌</div>
         <div v-if="isPlayer2Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
@@ -826,6 +821,8 @@ const teammateId = computed(() => {
   return teammate?.userId || ''
 })
 const showTeammateHand = ref(false)
+const teammateHandStyle = ref<Record<string, string>>({})
+let teammateHandHideTimer: ReturnType<typeof setTimeout> | null = null
 const teammatePlayer = computed(() =>
   players.value.find((player) => player.userId && !sameBattleUserId(player.userId, selfUserId())) || null,
 )
@@ -840,12 +837,48 @@ function isTeammateSeat(seat: number) {
   const player = players.value[seat]
   return Boolean(player?.userId && !sameBattleUserId(player.userId, selfUserId()))
 }
+function keepTeammateHand() {
+  if (teammateHandHideTimer) {
+    clearTimeout(teammateHandHideTimer)
+    teammateHandHideTimer = null
+  }
+}
+function scheduleHideTeammateHand() {
+  if (teammateHandHideTimer) clearTimeout(teammateHandHideTimer)
+  teammateHandHideTimer = setTimeout(() => {
+    showTeammateHand.value = false
+    teammateHandHideTimer = null
+  }, 180)
+}
+function positionTeammateHandPopover(seat?: number) {
+  const targetSeat = seat ?? players.value.findIndex((_, index) => isTeammateSeat(index))
+  const el = playerRectBySeat(targetSeat < 0 ? 0 : targetSeat)
+  const box = el?.getBoundingClientRect()
+  if (!box) {
+    teammateHandStyle.value = { left: '50%', top: '16%', transform: 'translateX(-50%)' }
+    return
+  }
+  const popW = 420
+  const gap = 12
+  const placeRight = box.left + box.width / 2 < window.innerWidth / 2
+  const left = placeRight
+    ? Math.min(window.innerWidth - popW - 12, box.right + gap)
+    : Math.max(12, box.left - popW - gap)
+  teammateHandStyle.value = {
+    left: `${Math.max(12, left)}px`,
+    top: `${Math.max(12, box.top)}px`,
+  }
+}
 function openTeammateHand() {
+  keepTeammateHand()
+  positionTeammateHandPopover()
   showTeammateHand.value = true
 }
 function openTeammateHandFromSeat(seat: number) {
   if (!isTeammateSeat(seat)) return
-  openTeammateHand()
+  keepTeammateHand()
+  positionTeammateHandPopover(seat)
+  showTeammateHand.value = true
 }
 const finishBtnStyle = computed(() => ({
   right: px(finishBtn.right),
@@ -3072,6 +3105,10 @@ onUnmounted(() => {
     clearTimeout(liveTeammateTimer)
     liveTeammateTimer = null
   }
+  if (teammateHandHideTimer) {
+    clearTimeout(teammateHandHideTimer)
+    teammateHandHideTimer = null
+  }
   unsubscribeFns.splice(0).forEach((unsubscribe) => unsubscribe())
   // 离开对局页时重置游戏状态，确保下一局不会残留旧数据
   if (game.isGameOver) {
@@ -3591,49 +3628,43 @@ onUnmounted(() => {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
 }
-.teammate-hand-overlay {
+.teammate-hand-popover {
   position: fixed;
-  inset: 0;
-  z-index: 100012;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(4, 8, 12, 0.55);
-}
-.teammate-hand-panel {
-  width: min(920px, 92vw);
-  max-height: 86vh;
+  z-index: 100020;
+  width: min(420px, 92vw);
+  max-height: min(72vh, 640px);
   overflow: auto;
-  padding: var(--space-8);
+  padding: 14px 16px 16px;
   border: 1px solid rgba(196, 169, 98, 0.45);
   border-radius: var(--radius-xl);
   background: rgba(11, 19, 27, 0.96);
   color: #fff;
   text-align: center;
   box-shadow: var(--shadow-lg);
+  pointer-events: auto;
 }
-.teammate-hand-panel h2 {
-  margin: 0 0 8px;
-  font-size: 22px;
+.teammate-hand-popover h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
 }
-.teammate-hand-panel p {
-  margin: 0 0 16px;
+.teammate-hand-popover p {
+  margin: 0 0 12px;
   color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
+  font-size: 12px;
 }
 .teammate-hand-empty {
-  margin: 24px 0;
+  margin: 16px 0;
   color: rgba(255, 255, 255, 0.7);
 }
 .teammate-hand-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: var(--space-4);
-  margin-bottom: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 10px;
   justify-items: center;
 }
 .teammate-hand-grid :deep(.card-item) {
   pointer-events: none;
+  transform: none;
 }
 .pos-rect-player1.is-peekable,
 .pos-rect-player2.is-peekable {
@@ -3644,8 +3675,8 @@ onUnmounted(() => {
 .teammate-hand-hint {
   position: absolute;
   left: 50%;
-  bottom: -6px;
-  transform: translate(-50%, 100%);
+  top: 6px;
+  transform: translate(-50%, -100%);
   z-index: 6;
   padding: 2px 10px;
   border: 1px solid rgba(196, 169, 98, 0.55);
@@ -3655,11 +3686,12 @@ onUnmounted(() => {
   font-size: 12px;
   line-height: 1.4;
   white-space: nowrap;
-  cursor: pointer;
-  pointer-events: auto;
+  pointer-events: none;
 }
-.teammate-hand-hint:hover {
-  background: rgba(28, 36, 44, 0.96);
+.teammate-hand-hover-tip {
+  margin: 0 0 12px;
+  color: #f3e0a8 !important;
+  cursor: pointer;
 }
 .first-player-card {
   position: relative;
@@ -4026,7 +4058,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 3;
   overflow: hidden;
   clip-path: inset(0 0 240px 0);
 }
