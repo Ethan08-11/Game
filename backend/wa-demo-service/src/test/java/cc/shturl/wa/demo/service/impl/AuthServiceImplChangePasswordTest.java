@@ -1,7 +1,7 @@
 package cc.shturl.wa.demo.service.impl;
 
-import cc.shturl.wa.common.exception.BusinessException;
 import cc.shturl.wa.demo.dto.req.ChangePasswordReq;
+import cc.shturl.wa.demo.dto.req.PublicChangePasswordReq;
 import cc.shturl.wa.demo.entity.User;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.service.TokenService;
@@ -12,6 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,6 +34,8 @@ class AuthServiceImplChangePasswordTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private TokenService tokenService;
+    @Mock
+    private JdbcTemplate jdbcTemplate;
     @Mock
     private cc.shturl.wa.demo.service.RoomWebSocketSessionService roomWebSocketSessionService;
     @Mock
@@ -93,6 +96,60 @@ class AuthServiceImplChangePasswordTest {
 
         assertThatThrownBy(() -> authService.changePassword(1L, new ChangePasswordReq("same1234", "same1234")))
                 .hasMessageContaining("不能与原密码相同");
+        verify(userMapper, never()).updateById(any());
+    }
+
+    @Test
+    @DisplayName("登录页改密：原密码正确且两次新密码一致时写入哈希")
+    void shouldChangePasswordByCredentials() {
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Charlene");
+        user.setPasswordHash("old-hash");
+        user.setStatus(1);
+        when(userMapper.selectOne(any())).thenReturn(user);
+        when(passwordEncoder.matches("old-pass", "old-hash")).thenReturn(true);
+        when(passwordEncoder.encode("new-pass")).thenReturn("new-hash");
+
+        authService.changePasswordByCredentials(
+                new PublicChangePasswordReq("charlene", "old-pass", "new-pass", "new-pass"));
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getPasswordHash()).isEqualTo("new-hash");
+    }
+
+    @Test
+    @DisplayName("登录页改密：两次新密码不一致抛异常")
+    void shouldRejectMismatchedConfirmPassword() {
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Charlene");
+        user.setPasswordHash("old-hash");
+        user.setStatus(1);
+        when(userMapper.selectOne(any())).thenReturn(user);
+
+        assertThatThrownBy(() -> authService.changePasswordByCredentials(
+                new PublicChangePasswordReq("Charlene", "old-pass", "new-pass", "other-pass")))
+                .hasMessageContaining("两次新密码不一致");
+        verify(userMapper, never()).updateById(any());
+        verify(passwordEncoder, never()).matches(any(), any());
+    }
+
+    @Test
+    @DisplayName("登录页改密：原密码错误抛异常")
+    void shouldRejectWrongOldPasswordOnLoginPage() {
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Charlene");
+        user.setPasswordHash("old-hash");
+        user.setStatus(1);
+        when(userMapper.selectOne(any())).thenReturn(user);
+        when(passwordEncoder.matches("wrong", "old-hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.changePasswordByCredentials(
+                new PublicChangePasswordReq("Charlene", "wrong", "new-pass", "new-pass")))
+                .hasMessageContaining("用户名或原密码错误");
         verify(userMapper, never()).updateById(any());
     }
 }

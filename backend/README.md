@@ -342,10 +342,11 @@ npm run dev
 
 - `POST /register`：注册新用户
 - `POST /login`：账号密码登录
+- `POST /change-password`：登录页改密（用户名 + 原密码 + 两次新密码）
 - `POST /refresh`：使用刷新令牌换取新访问令牌
 - `POST /logout`：退出登录，失效 Token
 - `GET /me`：获取当前登录用户信息
-- `PUT /password`：修改密码
+- `PUT /password`：已登录修改密码
 
 ### 8.2 `UserController`  `/api/users`
 

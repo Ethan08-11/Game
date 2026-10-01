@@ -18,6 +18,15 @@
             <el-form-item><el-button type="success" @click="handleRegister" style="width:100%">注册</el-button></el-form-item>
           </el-form>
         </el-tab-pane>
+        <el-tab-pane label="修改密码" name="password">
+          <el-form @submit.prevent="handleChangePassword">
+            <el-form-item><el-input :model-value="pwdForm.username" placeholder="用户名" @update:model-value="onPwdUsername" /></el-form-item>
+            <el-form-item><el-input v-model="pwdForm.oldPassword" type="password" placeholder="原密码" show-password /></el-form-item>
+            <el-form-item><el-input v-model="pwdForm.newPassword" type="password" placeholder="新密码（至少3位）" show-password /></el-form-item>
+            <el-form-item><el-input v-model="pwdForm.confirmPassword" type="password" placeholder="再输入一次新密码" show-password /></el-form-item>
+            <el-form-item><el-button type="primary" @click="handleChangePassword" style="width:100%">确认修改</el-button></el-form-item>
+          </el-form>
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -29,6 +38,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/store/user'
 import { useCommonStore } from '@/store/common'
+import { changePassword } from '@/api'
 
 import { connectRoomSocket } from '@/utils/roomSocket'
 import { capitalizeUsername } from '@/utils/playerName'
@@ -43,6 +53,7 @@ const activeTab = ref('login')
 
 const loginForm = reactive({ username: '', password: '' })
 const regForm = reactive({ username: '', password: '' })
+const pwdForm = reactive({ username: '', oldPassword: '', newPassword: '', confirmPassword: '' })
 
 function onLoginUsername(value: string | number) {
   loginForm.username = capitalizeUsername(String(value ?? ''))
@@ -52,11 +63,17 @@ function onRegUsername(value: string | number) {
   regForm.username = capitalizeUsername(String(value ?? ''))
 }
 
+function onPwdUsername(value: string | number) {
+  pwdForm.username = capitalizeUsername(String(value ?? ''))
+}
+
 function onEnterKey() {
   if (activeTab.value === 'login') {
     handleLogin()
-  } else {
+  } else if (activeTab.value === 'register') {
     handleRegister()
+  } else {
+    void handleChangePassword()
   }
 }
 
@@ -110,6 +127,45 @@ async function handleRegister() {
   } catch (e: any) {
     console.error('[LoginPage] 注册失败:', e)
     ElMessage.error(e.message || '注册失败，请稍后重试')
+  } finally {
+    common.hideLoading()
+  }
+}
+
+async function handleChangePassword() {
+  const username = capitalizeUsername(pwdForm.username)
+  const oldPassword = pwdForm.oldPassword
+  const newPassword = pwdForm.newPassword
+  const confirmPassword = pwdForm.confirmPassword
+  if (!username || !oldPassword || !newPassword || !confirmPassword) {
+    ElMessage.warning('请输入用户名、原密码，并填写两次新密码')
+    return
+  }
+  if (newPassword.length < 3 || newPassword.length > 64) {
+    ElMessage.warning('新密码须为3-64位')
+    return
+  }
+  if (newPassword !== confirmPassword) {
+    ElMessage.warning('两次新密码不一致')
+    return
+  }
+  if (oldPassword === newPassword) {
+    ElMessage.warning('新密码不能与原密码相同')
+    return
+  }
+  try {
+    common.showLoading()
+    await changePassword({ username, oldPassword, newPassword, confirmPassword })
+    ElMessage.success('密码已修改，请用新密码登录')
+    pwdForm.oldPassword = ''
+    pwdForm.newPassword = ''
+    pwdForm.confirmPassword = ''
+    loginForm.username = username
+    loginForm.password = ''
+    activeTab.value = 'login'
+  } catch (e: any) {
+    console.error('[LoginPage] 修改密码失败:', e)
+    ElMessage.error(e.message || '修改密码失败，请稍后重试')
   } finally {
     common.hideLoading()
   }
@@ -171,7 +227,8 @@ async function handleRegister() {
 
 .login-card :deep(.el-tabs__item) {
   color: #5c3d2e;
-  font-size: 18px;
+  font-size: 16px;
+  padding: 0 14px;
 }
 .login-card :deep(.el-tabs__item.is-active) {
   color: #3e2a14;
@@ -187,6 +244,9 @@ async function handleRegister() {
 .login-card :deep(.el-input__inner::placeholder) {
   color: #8b6b4a;
   font-size: 16px;
+}
+.login-card :deep(.el-form-item) {
+  margin-bottom: 14px;
 }
 .login-card :deep(.el-button--primary) {
   background-color: #4a3520;

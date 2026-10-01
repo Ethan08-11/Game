@@ -68,3 +68,14 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<MeInfo> {
   return apiCall('/auth/me', { method: 'GET' })
 }
+
+export interface ChangePasswordParams {
+  username: string
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export async function changePassword(params: ChangePasswordParams): Promise<void> {
+  return apiCall('/auth/change-password', { method: 'POST', body: params })
+}
