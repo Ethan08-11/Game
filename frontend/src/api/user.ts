@@ -306,8 +306,8 @@ function transformLeaderboardEntry(be: BackendLeaderboardEntry): LeaderboardEntr
   const loseCount = Math.max(0, Number(be.loseCount) || 0)
   const games = winCount + loseCount + (be.drawCount ?? 0)
   const winRate = Number.isFinite(Number(be.winRate))
-    ? Math.max(0, Math.round(Number(be.winRate)))
-    : (games <= 0 ? 0 : Math.round((winCount * 100) / games))
+    ? Math.max(0, Number(be.winRate))
+    : (games <= 0 ? 0 : Math.round((winCount * 10000) / games) / 100)
   return {
     userId: be.userId,
     username: formatPlayerName(be.username),
