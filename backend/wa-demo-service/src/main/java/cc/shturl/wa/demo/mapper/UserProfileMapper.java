@@ -16,7 +16,8 @@ public interface UserProfileMapper extends BaseMapper<UserProfile> {
                 draw_count = IFNULL(draw_count, 0) + #{drawDelta},
                 exp = IFNULL(exp, 0) + #{expDelta},
                 money = IFNULL(money, 0) + #{moneyDelta},
-                weekly_money = IFNULL(weekly_money, 0) + #{moneyDelta}
+                weekly_money = IFNULL(weekly_money, 0) + #{moneyDelta},
+                money_reached_at = CASE WHEN #{moneyDelta} > 0 THEN NOW() ELSE money_reached_at END
             WHERE user_id = #{userId}
             """)
     int applyMatchSettlement(@Param("userId") Long userId,

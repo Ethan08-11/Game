@@ -131,7 +131,8 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                     weekly_money = 0,
                     win_count = 0,
                     lose_count = 0,
-                    draw_count = 0
+                    draw_count = 0,
+                    money_reached_at = NULL
                 """);
     }
 
@@ -220,6 +221,8 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                     .thenComparing(Comparator.comparingDouble(this::exactWinRate).reversed())
                     .thenComparing(this::safeWinCount, Comparator.reverseOrder())
                     .thenComparing(this::totalMatches, Comparator.reverseOrder())
+                    .thenComparing(UserProfile::getMoneyReachedAt,
+                            Comparator.nullsLast(Comparator.naturalOrder()))
                     .thenComparing(byUserId));
         }
     }
