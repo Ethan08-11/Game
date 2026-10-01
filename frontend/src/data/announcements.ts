@@ -9,6 +9,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-bully-hp-180',
+    title: '难度调整：霸凌者血量改为 180',
+    date: '2026-10-01',
+    content: '硬扛恶霸开局血量改为各组队都是 180（含双销售、双采购、混组）。出手仍为 17～20。约一成五回合自己 +14 盾且攻击减半。',
+  },
+  {
     id: 'topic-leaderboard-reward-202609',
     title: '定榜：9月30日 17:00，按总榜名次发奖励',
     date: '2026-09-28',
