@@ -31,8 +31,8 @@ public final class BullyCatalog {
     public static final String PATTERN_FOCUS_TOP_DAMAGE = "FOCUS_TOP_DAMAGE";
     public static final String PATTERN_BOTH_HALF_SWING = "BOTH_HALF_SWING";
 
-    /** 各组队血量 150、攻击 17～20。 */
-    public static final int HP = 150;
+    /** 各组队血量 180、攻击 17～20。 */
+    public static final int HP = 180;
     public static final int ATTACK_MIN = 17;
     public static final int ATTACK_MAX = 20;
     public static final int DEFENSE_STANCE_CHANCE = 15;
@@ -118,7 +118,7 @@ public final class BullyCatalog {
     }
 
     /**
-     * 各组队血量 150、攻击 17～20。salesCount 保留给开局调用方，不再分档。
+     * 各组队血量 180、攻击 17～20。salesCount 保留给开局调用方，不再分档。
      */
     public static Pressure pressureForSalesCount(int salesCount) {
         return new Pressure(HP, HP, ATTACK_MIN, ATTACK_MAX);
