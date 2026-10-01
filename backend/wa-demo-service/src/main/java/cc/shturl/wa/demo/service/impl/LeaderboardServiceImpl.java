@@ -21,8 +21,11 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,40 +48,35 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             if (profile.getUserId() == null) {
                 continue;
             }
-            if (winRateBoard && totalMatches(profile) < MIN_WINRATE_MATCHES) {
+            if (winRateBoard) {
+                if (totalMatches(profile) < MIN_WINRATE_MATCHES) {
+                    continue;
+                }
+            } else if (!hasMonthlyStats(profile)) {
                 continue;
             }
             eligible.add(profile);
         }
-        if (winRateBoard) {
-            eligible.sort(Comparator
-                    .comparingDouble((UserProfile profile) -> exactWinRate(profile)).reversed()
-                    .thenComparing(profile -> profile.getWinCount() == null ? 0 : profile.getWinCount(),
-                            Comparator.reverseOrder())
-                    .thenComparing(UserProfile::getUserId, Comparator.nullsLast(Comparator.naturalOrder())));
-        } else {
-            eligible.sort(Comparator
-                    .comparing((UserProfile profile) -> profile.getMoney() == null ? 0L : profile.getMoney(),
-                            Comparator.reverseOrder())
-                    .thenComparingDouble((UserProfile profile) -> exactWinRate(profile)).reversed()
-                    .thenComparing(UserProfile::getUserId, Comparator.nullsLast(Comparator.naturalOrder())));
-        }
-        int displayRank = 1;
-        List<LeaderboardResp> withRank = new ArrayList<>();
-        for (UserProfile profile : eligible) {
-            withRank.add(toResp(displayRank++, profile));
-        }
+        sortEligible(eligible, winRateBoard);
 
-        if (size <= 0) {
-            return withRank;
+        int fromIndex = 0;
+        int toIndex = eligible.size();
+        if (size > 0) {
+            int safePage = Math.max(page, 1);
+            fromIndex = (safePage - 1) * size;
+            if (fromIndex >= eligible.size()) {
+                return List.of();
+            }
+            toIndex = Math.min(fromIndex + size, eligible.size());
         }
-        int safePage = Math.max(page, 1);
-        int fromIndex = (safePage - 1) * size;
-        if (fromIndex >= withRank.size()) {
-            return List.of();
+        List<UserProfile> pageProfiles = eligible.subList(fromIndex, toIndex);
+        Map<Long, User> users = loadUsers(pageProfiles);
+        int displayRank = fromIndex + 1;
+        List<LeaderboardResp> withRank = new ArrayList<>(pageProfiles.size());
+        for (UserProfile profile : pageProfiles) {
+            withRank.add(toResp(displayRank++, profile, users.get(profile.getUserId())));
         }
-        int toIndex = Math.min(fromIndex + size, withRank.size());
-        return withRank.subList(fromIndex, toIndex);
+        return withRank;
     }
 
     @Override
@@ -206,10 +204,46 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return "weekly".equalsIgnoreCase(normalized) || "winrate".equalsIgnoreCase(normalized);
     }
 
+    private void sortEligible(List<UserProfile> eligible, boolean winRateBoard) {
+        Comparator<UserProfile> byUserId = Comparator.comparing(
+                UserProfile::getUserId, Comparator.nullsLast(Comparator.naturalOrder()));
+        if (winRateBoard) {
+            eligible.sort(Comparator
+                    .comparingDouble(this::exactWinRate).reversed()
+                    .thenComparing(this::safeWinCount, Comparator.reverseOrder())
+                    .thenComparing(byUserId));
+        } else {
+            eligible.sort(Comparator
+                    .comparingLong(this::safeMoney).reversed()
+                    .thenComparing(Comparator.comparingDouble(this::exactWinRate).reversed())
+                    .thenComparing(byUserId));
+        }
+    }
+
+    private Map<Long, User> loadUsers(List<UserProfile> profiles) {
+        Set<Long> ids = profiles.stream()
+                .map(UserProfile::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, User> users = new HashMap<>();
+        for (User user : userMapper.selectBatchIds(ids)) {
+            if (user != null && user.getId() != null) {
+                users.put(user.getId(), user);
+            }
+        }
+        return users;
+    }
+
     private LeaderboardResp toResp(int rank, UserProfile profile) {
-        User user = userMapper.selectById(profile.getUserId());
-        long money = profile.getMoney() == null ? 0L : profile.getMoney();
-        int wins = profile.getWinCount() == null ? 0 : profile.getWinCount();
+        return toResp(rank, profile, userMapper.selectById(profile.getUserId()));
+    }
+
+    private LeaderboardResp toResp(int rank, UserProfile profile, User user) {
+        long money = safeMoney(profile);
+        int wins = safeWinCount(profile);
         int losses = profile.getLoseCount() == null ? 0 : profile.getLoseCount();
         return new LeaderboardResp(
                 rank,
@@ -223,8 +257,20 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 losses);
     }
 
+    private boolean hasMonthlyStats(UserProfile profile) {
+        return safeMoney(profile) > 0 || totalMatches(profile) > 0;
+    }
+
+    private long safeMoney(UserProfile profile) {
+        return profile.getMoney() == null ? 0L : profile.getMoney();
+    }
+
+    private int safeWinCount(UserProfile profile) {
+        return profile.getWinCount() == null ? 0 : profile.getWinCount();
+    }
+
     private int totalMatches(UserProfile profile) {
-        int wins = profile.getWinCount() == null ? 0 : profile.getWinCount();
+        int wins = safeWinCount(profile);
         int losses = profile.getLoseCount() == null ? 0 : profile.getLoseCount();
         int draws = profile.getDrawCount() == null ? 0 : profile.getDrawCount();
         return wins + losses + draws;
