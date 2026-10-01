@@ -278,6 +278,7 @@ h1 {
   padding: 0 8px 0;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
 }
 h2 {
   margin: 0;
@@ -295,7 +296,7 @@ h2 {
   white-space: nowrap;
 }
 .customer-desc, .highlight-desc {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   margin: 0 0 6px;
   color: #5c3d2e;
   font-size: 15px;
