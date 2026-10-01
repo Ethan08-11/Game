@@ -14,6 +14,7 @@ import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.mapper.UserTaskMapper;
 import cc.shturl.wa.demo.service.LeaderboardService;
+import cc.shturl.wa.demo.service.QuestPeriod;
 import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.WorkDayQuota;
 import cc.shturl.wa.demo.service.WorkDayService;
@@ -26,12 +27,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DayOfWeek;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -593,26 +590,24 @@ public class TaskServiceImpl implements TaskService {
     private String periodKeyFor(Tasks task) {
         String reset = task.getResetType() == null ? "" : task.getResetType();
         String scope = task.getPeriodScope() == null ? "" : task.getPeriodScope();
-        LocalDate now = LocalDate.now(ZONE);
         if ("DAILY".equalsIgnoreCase(reset) || "DAY".equalsIgnoreCase(scope)) {
-            return now.toString();
+            return QuestPeriod.currentDailyDate().toString();
         }
         if ("WEEKLY".equalsIgnoreCase(reset) || "WEEK".equalsIgnoreCase(scope)) {
-            return now.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toString();
+            return QuestPeriod.currentWeeklyStart().toString();
         }
+        LocalDate now = LocalDate.now(ZONE);
         if ("MONTHLY".equalsIgnoreCase(reset) || "MONTH".equalsIgnoreCase(scope)) {
             return YearMonth.from(now).toString();
         }
         if ("ALL".equalsIgnoreCase(scope) || "NONE".equalsIgnoreCase(reset)) {
             return "ALL";
         }
-        return now.toString();
+        return QuestPeriod.currentDailyDate().toString();
     }
 
     private long secondsUntilDailyReset() {
-        ZonedDateTime now = ZonedDateTime.now(ZONE);
-        ZonedDateTime next = now.toLocalDate().plusDays(1).atStartOfDay(ZONE);
-        return Math.max(Duration.between(now, next).getSeconds(), 0L);
+        return QuestPeriod.secondsUntilDailyReset();
     }
 
     private int rewardAmount(String rewardValue) {

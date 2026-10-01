@@ -15,15 +15,18 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Ethan 当天一局都没打时，日终自动记 3 场胜利、领完每日对局金币。这 3 场胜率按 100% 计入。
+ * Ethan 当日 20:00 前一局都没打时，自动记 3 场胜利、领完每日对局金币，
+ * 并按这 3 局推进每周「10 位不同同事」进度。日界与周界均为 20:00。
  */
 @Component
 @Order(21)
@@ -33,6 +36,7 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
     private static final LocalDate FIRST_DAY = LocalDate.of(2026, 10, 1);
     private static final int AUTO_WINS = 3;
     private static final int WIN_EXP = 100;
+    private static final String WEEKLY_TEAM_CODE = "T-WEEKLY-TEAM-10";
     private static final List<String> DAILY_CODES = List.of(
             "T-DAILY-SLOT",
             "T-DAILY-MATCH-1", "T-DAILY-WIN-1",
@@ -49,21 +53,19 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        LocalDate today = LocalDate.now(WorkDayQuota.ZONE);
-        fillIfIdle(today.minusDays(1));
-        if (!LocalDateTime.now(WorkDayQuota.ZONE).toLocalTime().isBefore(LocalTime.of(23, 55))) {
-            fillIfIdle(today);
-        }
+        LocalDate ended = QuestPeriod.endedDailyDate(QuestPeriod.now());
+        fillIfIdle(ended.minusDays(1));
+        fillIfIdle(ended);
     }
 
-    @Scheduled(cron = "0 55 23 * * *", zone = "Asia/Shanghai")
-    public void fillTodayAtDayEnd() {
-        fillIfIdle(LocalDate.now(WorkDayQuota.ZONE));
+    @Scheduled(cron = "0 0 20 * * *", zone = "Asia/Shanghai")
+    public void fillEndedDayAtEightPm() {
+        fillIfIdle(QuestPeriod.endedDailyDate(QuestPeriod.now()));
     }
 
-    @Scheduled(cron = "0 10 0 * * *", zone = "Asia/Shanghai")
-    public void fillYesterdayIfMissed() {
-        fillIfIdle(LocalDate.now(WorkDayQuota.ZONE).minusDays(1));
+    @Scheduled(cron = "0 10 20 * * *", zone = "Asia/Shanghai")
+    public void fillEndedDayIfMissed() {
+        fillIfIdle(QuestPeriod.endedDailyDate(QuestPeriod.now()));
     }
 
     public void fillIfIdle(LocalDate day) {
@@ -100,10 +102,12 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         ensureProfile(userId);
         leaderboardService.ensureCurrentMonth();
         long gold = completeAndClaimDaily(userId, day);
+        gold += bumpWeeklyTeam(userId, day, created);
         int exp = created * WIN_EXP;
         userProfileMapper.applyMatchSettlement(userId, created, 0, 0, exp, gold);
         markPatch(patchId);
-        log.warn("Ethan idle auto-fill {}: +{} wins, +{} gold, +{} exp.", day, created, gold, exp);
+        log.warn("Ethan idle auto-fill {}: +{} wins, +{} gold, +{} exp, weekly +{}.",
+                day, created, gold, exp, created);
     }
 
     private int countedMatches(Long userId, LocalDate day) {
@@ -116,8 +120,8 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
                   AND m.winner_type IN (1, 2)
                   AND COALESCE(m.started_at, m.created_at) >= ?
                   AND COALESCE(m.started_at, m.created_at) < ?
-                """, Integer.class, userId, Timestamp.valueOf(day.atStartOfDay()),
-                Timestamp.valueOf(day.plusDays(1).atStartOfDay()));
+                """, Integer.class, userId, Timestamp.valueOf(QuestPeriod.windowStart(day)),
+                Timestamp.valueOf(QuestPeriod.windowEnd(day)));
         return count == null ? 0 : count;
     }
 
@@ -137,7 +141,7 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
             if (exists != null && exists > 0) {
                 continue;
             }
-            LocalDateTime start = day.atTime(23, 49).plusMinutes(slot);
+            LocalDateTime start = QuestPeriod.windowEnd(day).minusMinutes(11L - slot);
             LocalDateTime end = start.plusMinutes(1);
             jdbcTemplate.update("""
                     INSERT INTO matches (
@@ -177,7 +181,7 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         String period = day.toString();
         boolean payGold = workDayService.allowGold(userId, day);
         long gold = 0L;
-        LocalDateTime now = LocalDateTime.now(WorkDayQuota.ZONE);
+        LocalDateTime now = QuestPeriod.now();
         for (String code : DAILY_CODES) {
             Map<String, Object> task = queryTask(code);
             if (task == null) {
@@ -218,6 +222,120 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
             gold += reward;
         }
         return gold;
+    }
+
+    private long bumpWeeklyTeam(Long userId, LocalDate day, int added) {
+        Map<String, Object> task = queryTask(WEEKLY_TEAM_CODE);
+        if (task == null) {
+            return 0L;
+        }
+        long taskId = ((Number) task.get("id")).longValue();
+        int target = Math.max(intVal(task.get("target_count"), 10), 1);
+        String period = QuestPeriod.weeklyStartForDaily(day).toString();
+        jdbcTemplate.update("""
+                INSERT INTO user_tasks (
+                  user_id, task_id, period_key, progress_value, target_value,
+                  extra_data, status, completed_at, claimed_at
+                ) VALUES (?, ?, ?, 0, ?, CAST('[]' AS JSON), 0, NULL, NULL)
+                ON DUPLICATE KEY UPDATE id = id
+                """, userId, taskId, period, target);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT extra_data, status FROM user_tasks
+                WHERE user_id = ? AND task_id = ? AND period_key = ?
+                LIMIT 1
+                """, userId, taskId, period);
+        if (rows.isEmpty()) {
+            return 0L;
+        }
+        int status = intVal(rows.get(0).get("status"), 0);
+        if (status >= 3) {
+            return 0L;
+        }
+        Set<Long> ids = parseIdSet(extraDataString(rows.get(0).get("extra_data")));
+        if (status < 2 && added > 0) {
+            List<Long> candidates = jdbcTemplate.query(
+                    "SELECT id FROM users WHERE id <> ? ORDER BY id",
+                    (rs, i) -> rs.getLong(1), userId);
+            int slot = 1;
+            while (ids.size() < target && slot <= added) {
+                Long next = nextTeammateId(ids, candidates, day, slot);
+                if (next != null) {
+                    ids.add(next);
+                }
+                slot++;
+            }
+        }
+        int progress = Math.min(ids.size(), target);
+        int nextStatus = progress >= target ? 3 : Math.max(status, progress > 0 ? 1 : 0);
+        LocalDateTime now = QuestPeriod.now();
+        long gold = 0L;
+        if (nextStatus >= 3 && status < 3
+                && workDayService.allowGold(userId, day)
+                && "money".equalsIgnoreCase(String.valueOf(task.get("reward_type")))) {
+            gold = rewardAmount(String.valueOf(task.get("reward_value")));
+        }
+        jdbcTemplate.update("""
+                UPDATE user_tasks
+                SET progress_value = ?,
+                    target_value = ?,
+                    extra_data = CAST(? AS JSON),
+                    status = ?,
+                    completed_at = CASE WHEN ? >= 2 THEN IFNULL(completed_at, ?) ELSE completed_at END,
+                    claimed_at = CASE WHEN ? >= 3 THEN ? ELSE claimed_at END
+                WHERE user_id = ? AND task_id = ? AND period_key = ?
+                """, progress, target, writeIdSet(ids), nextStatus, nextStatus, now, nextStatus, now,
+                userId, taskId, period);
+        return gold;
+    }
+
+    private Long nextTeammateId(Set<Long> used, List<Long> candidates, LocalDate day, int slot) {
+        for (Long candidate : candidates) {
+            if (candidate != null && used.add(candidate)) {
+                return candidate;
+            }
+        }
+        long synthetic = -(day.toEpochDay() * 10L + slot);
+        return used.contains(synthetic) ? null : synthetic;
+    }
+
+    private String extraDataString(Object value) {
+        if (value == null) {
+            return "[]";
+        }
+        if (value instanceof byte[] bytes) {
+            return new String(bytes, StandardCharsets.UTF_8);
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() || "null".equalsIgnoreCase(text) ? "[]" : text;
+    }
+
+    private Set<Long> parseIdSet(String json) {
+        Set<Long> ids = new LinkedHashSet<>();
+        if (json == null || json.isBlank() || "null".equalsIgnoreCase(json)) {
+            return ids;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(json);
+            if (node == null || !node.isArray()) {
+                return ids;
+            }
+            for (JsonNode item : node) {
+                if (item.isNumber()) {
+                    ids.add(item.longValue());
+                }
+            }
+        } catch (Exception ignored) {
+            return ids;
+        }
+        return ids;
+    }
+
+    private String writeIdSet(Set<Long> ids) {
+        try {
+            return objectMapper.writeValueAsString(ids);
+        } catch (Exception e) {
+            return "[]";
+        }
     }
 
     private int slotProgress(String code) {
