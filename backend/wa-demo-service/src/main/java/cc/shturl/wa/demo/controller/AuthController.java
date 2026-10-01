@@ -3,6 +3,7 @@ package cc.shturl.wa.demo.controller;
 import cc.shturl.wa.common.result.Result;
 import cc.shturl.wa.demo.dto.req.ChangePasswordReq;
 import cc.shturl.wa.demo.dto.req.LoginReq;
+import cc.shturl.wa.demo.dto.req.PublicChangePasswordReq;
 import cc.shturl.wa.demo.dto.req.RefreshTokenReq;
 import cc.shturl.wa.demo.dto.req.RegisterReq;
 import cc.shturl.wa.demo.dto.resp.AuthResp;
@@ -53,7 +54,14 @@ public class AuthController {
         return Result.ok(authService.me(authTokenSupport.extractBearerToken(authorization)));
     }
 
-    /** 修改密码（需验证原密码）。 */
+    /** 登录页修改密码：校验原密码，并确认两次新密码。无需登录态。 */
+    @PostMapping("/change-password")
+    public Result<Void> changePasswordByCredentials(@Valid @RequestBody PublicChangePasswordReq request) {
+        authService.changePasswordByCredentials(request);
+        return Result.ok();
+    }
+
+    /** 已登录修改密码（需验证原密码）。 */
     @PutMapping("/password")
     public Result<Void> changePassword(@RequestHeader("Authorization") String authorization,
                                        @Valid @RequestBody ChangePasswordReq request) {

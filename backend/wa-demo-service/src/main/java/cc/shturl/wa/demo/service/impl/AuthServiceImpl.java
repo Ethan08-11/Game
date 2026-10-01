@@ -4,6 +4,7 @@ import cc.shturl.wa.common.exception.BusinessException;
 import cc.shturl.wa.common.result.ResultCode;
 import cc.shturl.wa.demo.dto.req.ChangePasswordReq;
 import cc.shturl.wa.demo.dto.req.LoginReq;
+import cc.shturl.wa.demo.dto.req.PublicChangePasswordReq;
 import cc.shturl.wa.demo.dto.req.RegisterReq;
 import cc.shturl.wa.demo.dto.resp.AuthResp;
 import cc.shturl.wa.demo.dto.resp.UserMeResp;
@@ -23,6 +24,7 @@ import cc.shturl.wa.demo.support.ClientIps;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,7 @@ public class AuthServiceImpl implements AuthService {
     private final TaskService taskService;
     private final RoomWebSocketSessionService roomWebSocketSessionService;
     private final ClientNetworkService clientNetworkService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional
@@ -157,17 +160,99 @@ public class AuthServiceImpl implements AuthService {
     public void changePassword(Long userId, ChangePasswordReq request) {
         User user = userMapper.selectById(userId);
         if (user == null) {
+            writePasswordChangeLog(null, "", false, "user_missing");
             throw new BusinessException("用户不存在");
         }
-        if (user.getPasswordHash() == null
-                || !passwordEncoder.matches(request.oldPassword(), user.getPasswordHash())) {
-            throw new BusinessException("原密码错误");
+        applyPasswordChange(user, request.oldPassword(), request.newPassword(), request.newPassword(), false);
+    }
+
+    @Override
+    @Transactional
+    public void changePasswordByCredentials(PublicChangePasswordReq request) {
+        String username = normalizeUsername(request.username());
+        if (username.isBlank()) {
+            writePasswordChangeLog(null, request.username(), false, "blank_username");
+            throw new BusinessException("请输入用户名");
         }
-        if (request.oldPassword().equals(request.newPassword())) {
+        User user = findUserByUsername(username, request.username());
+        if (user == null) {
+            writePasswordChangeLog(null, username, false, "user_or_password");
+            throw new BusinessException("用户名或原密码错误");
+        }
+        applyPasswordChange(user, request.oldPassword(), request.newPassword(), request.confirmPassword(), true);
+    }
+
+    private void applyPasswordChange(User user, String oldPassword, String newPassword, String confirmPassword,
+                                     boolean hideIdentity) {
+        String username = user.getUsername() == null ? "" : user.getUsername();
+        if (confirmPassword == null || !confirmPassword.equals(newPassword)) {
+            writePasswordChangeLog(user.getId(), username, false, "confirm_mismatch");
+            throw new BusinessException("两次新密码不一致");
+        }
+        if (user.getPasswordHash() == null || !passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+            writePasswordChangeLog(user.getId(), username, false, "old_password");
+            throw new BusinessException(hideIdentity ? "用户名或原密码错误" : "原密码错误");
+        }
+        if (user.getStatus() != null && !Integer.valueOf(1).equals(user.getStatus())) {
+            writePasswordChangeLog(user.getId(), username, false, "disabled");
+            throw new BusinessException("账号已被禁用");
+        }
+        if (oldPassword.equals(newPassword)) {
+            writePasswordChangeLog(user.getId(), username, false, "same_password");
             throw new BusinessException("新密码不能与原密码相同");
         }
-        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
         userMapper.updateById(user);
+        stampPasswordChangedAt(user.getId());
+        writePasswordChangeLog(user.getId(), username, true, "ok");
+    }
+
+    private User findUserByUsername(String normalized, String raw) {
+        User user = userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getUsername, normalized));
+        if (user == null && raw != null && !normalized.equals(raw.trim())) {
+            user = userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getUsername, raw.trim()));
+        }
+        return user;
+    }
+
+    private void stampPasswordChangedAt(Long userId) {
+        if (jdbcTemplate == null || userId == null) {
+            return;
+        }
+        try {
+            jdbcTemplate.update(
+                    "UPDATE users SET password_changed_at = NOW() WHERE id = ?",
+                    userId);
+        } catch (Exception ignored) {
+            // 列尚未建好时不影响改密成功
+        }
+    }
+
+    private void writePasswordChangeLog(Long userId, String username, boolean success, String reason) {
+        if (jdbcTemplate == null) {
+            return;
+        }
+        try {
+            jdbcTemplate.update("""
+                    INSERT INTO password_change_logs (user_id, username, success, reason, client_ip, created_at)
+                    VALUES (?, ?, ?, ?, ?, NOW())
+                    """,
+                    userId,
+                    username == null ? "" : username,
+                    success ? 1 : 0,
+                    reason,
+                    currentClientIp());
+        } catch (Exception ignored) {
+            // 审计表未就绪时不影响改密
+        }
+    }
+
+    private String currentClientIp() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return null;
+        }
+        return ClientIps.fromRequest(attributes.getRequest());
     }
 
     private AuthResp response(User user, UserProfile profile) {

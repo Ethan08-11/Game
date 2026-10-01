@@ -8,8 +8,8 @@
 export { BASE_URL } from './client'
 
 // auth
-export { login, register, refreshAuth, logout, getMe } from './auth'
-export type { LoginParams, RegisterParams, AuthResult, UserInfo, MeInfo } from './auth'
+export { login, register, refreshAuth, logout, getMe, changePassword } from './auth'
+export type { LoginParams, RegisterParams, AuthResult, UserInfo, MeInfo, ChangePasswordParams } from './auth'
 
 // user
 export {
