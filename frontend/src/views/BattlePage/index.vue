@@ -355,17 +355,19 @@
               class="teammate-mini-slot"
               :style="{ zIndex: index + 1 }"
             >
-              <CardItem
-                :name="card.name"
-                :dept="card.dept"
-                :cost="card.cost"
-                :type="card.type"
-                :description="card.description"
-                :damage="card.damage || 0"
-                :shield="card.shield || 0"
-                :image-url="card.imageUrl"
-                disabled
-              />
+              <div class="teammate-mini-scale">
+                <CardItem
+                  :name="card.name"
+                  :dept="card.dept"
+                  :cost="card.cost"
+                  :type="card.type"
+                  :description="card.description"
+                  :damage="card.damage || 0"
+                  :shield="card.shield || 0"
+                  :image-url="card.imageUrl"
+                  disabled
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -400,17 +402,19 @@
               class="teammate-mini-slot"
               :style="{ zIndex: index + 1 }"
             >
-              <CardItem
-                :name="card.name"
-                :dept="card.dept"
-                :cost="card.cost"
-                :type="card.type"
-                :description="card.description"
-                :damage="card.damage || 0"
-                :shield="card.shield || 0"
-                :image-url="card.imageUrl"
-                disabled
-              />
+              <div class="teammate-mini-scale">
+                <CardItem
+                  :name="card.name"
+                  :dept="card.dept"
+                  :cost="card.cost"
+                  :type="card.type"
+                  :description="card.description"
+                  :damage="card.damage || 0"
+                  :shield="card.shield || 0"
+                  :image-url="card.imageUrl"
+                  disabled
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -3594,26 +3598,35 @@ onUnmounted(() => {
   pointer-events: none;
 }
 .teammate-mini-hand {
+  --card-width: 150px;
+  --mini-scale: 0.52;
   display: flex;
   justify-content: center;
   align-items: flex-start;
   gap: 6px;
   background: transparent;
   pointer-events: none;
-  --card-width: 78px;
 }
 .teammate-mini-slot {
-  width: 78px;
+  width: calc(var(--card-width) * var(--mini-scale));
+  height: calc(var(--card-width) * 1023 / 640 * var(--mini-scale));
   flex: 0 0 auto;
   position: relative;
+  overflow: hidden;
 }
-.teammate-mini-slot :deep(.card-item) {
-  width: 78px;
+.teammate-mini-scale {
+  width: var(--card-width);
+  transform: scale(var(--mini-scale));
+  transform-origin: top left;
+  pointer-events: none;
+}
+.teammate-mini-scale :deep(.card-item) {
+  width: var(--card-width);
   pointer-events: none;
   opacity: 0.78;
   box-shadow: none;
 }
-.teammate-mini-slot :deep(.card-item.disabled) {
+.teammate-mini-scale :deep(.card-item.disabled) {
   opacity: 0.78;
   cursor: default;
 }
