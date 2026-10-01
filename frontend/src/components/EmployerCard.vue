@@ -40,7 +40,7 @@ const effectText = computed(() => {
   const value = trait.effectValue ?? 0
   if (trait.effectType === 'player_harsh') {
     const amount = Math.abs(value)
-    return `一名玩家调用机会-${amount}且失血${amount}`
+    return `一名玩家调用机会-1且失血${amount}`
   }
   const target = trait.effectType === 'player_hp'
     ? '我方血值'

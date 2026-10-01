@@ -42,7 +42,7 @@ function getEffectText(customer: EmployerTrait) {
   const value = customer.effectValue ?? 0
   if (customer.effectType === 'player_harsh') {
     const amount = Math.abs(value)
-    return `一名玩家调用机会-${amount}且失血${amount}`
+    return `一名玩家调用机会-1且失血${amount}`
   }
   const target = customer.effectType === 'player_hp'
     ? '我方血值'

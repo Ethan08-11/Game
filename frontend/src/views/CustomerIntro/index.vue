@@ -119,7 +119,7 @@ function formatEffectValue(effectType?: string, value?: number) {
   const prefix = num >= 0 ? '+' : ''
   if (effectType === 'player_action_hp_down' || /action_hp|harsh/i.test(effectType || '')) {
     const amount = Math.abs(num)
-    return `调用机会-${amount}且失血${amount}`
+    return `调用机会-1且失血${amount}`
   }
   if (effectType === 'player_action_up' || /action/i.test(effectType || '')) {
     return `调用机会${prefix}${num}`
