@@ -274,7 +274,10 @@ h1 {
   top: 176px;
   transform: translateX(-50%);
   width: 268px;
-  padding: 0 8px;
+  height: 158px;
+  padding: 0 8px 0;
+  display: flex;
+  flex-direction: column;
 }
 h2 {
   margin: 0;
@@ -292,26 +295,25 @@ h2 {
   white-space: nowrap;
 }
 .customer-desc, .highlight-desc {
-  margin: 2px 0 6px;
+  flex: 1 1 auto;
+  margin: 0 0 6px;
   color: #5c3d2e;
-  font-size: 12px;
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: justify;
   overflow: hidden;
 }
 .customer-meta {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
-  padding: 1px 0;
+  padding: 3px 0;
   border-top: 1px solid rgba(139, 105, 20, 0.2);
   color: #5c3d2e;
-  font-size: 12px;
-  line-height: 1.3;
+  font-size: 13px;
+  line-height: 1.35;
 }
 .customer-meta span {
   flex: 0 0 auto;
