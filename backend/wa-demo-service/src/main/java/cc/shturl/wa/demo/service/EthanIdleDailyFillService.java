@@ -56,16 +56,19 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         LocalDate ended = QuestPeriod.endedDailyDate(QuestPeriod.now());
         fillIfIdle(ended.minusDays(1));
         fillIfIdle(ended);
+        syncVisibleDailyBoard();
     }
 
     @Scheduled(cron = "0 0 20 * * *", zone = "Asia/Shanghai")
     public void fillEndedDayAtEightPm() {
         fillIfIdle(QuestPeriod.endedDailyDate(QuestPeriod.now()));
+        syncVisibleDailyBoard();
     }
 
     @Scheduled(cron = "0 10 20 * * *", zone = "Asia/Shanghai")
     public void fillEndedDayIfMissed() {
         fillIfIdle(QuestPeriod.endedDailyDate(QuestPeriod.now()));
+        syncVisibleDailyBoard();
     }
 
     public void fillIfIdle(LocalDate day) {
@@ -101,7 +104,8 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         int created = insertAutoWins(userId, day);
         ensureProfile(userId);
         leaderboardService.ensureCurrentMonth();
-        long gold = completeAndClaimDaily(userId, day);
+        long gold = completeAndClaimDaily(userId, day, true);
+        gold += completeAndClaimDaily(userId, QuestPeriod.currentDailyDate(), false);
         gold += bumpWeeklyTeam(userId, day, created);
         int exp = created * WIN_EXP;
         userProfileMapper.applyMatchSettlement(userId, created, 0, 0, exp, gold);
@@ -177,9 +181,31 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         return created;
     }
 
-    private long completeAndClaimDaily(Long userId, LocalDate day) {
+    /** 20:00 后列表已切到新 period，补记日的已领状态要同步到当前可见每日任务。 */
+    private void syncVisibleDailyBoard() {
+        if (!tableExists("users") || !tableExists("tasks") || !tableExists("user_tasks")) {
+            return;
+        }
+        ensurePatchTable();
+        Long userId = findEthanId();
+        if (userId == null) {
+            return;
+        }
+        LocalDate current = QuestPeriod.currentDailyDate();
+        LocalDate ended = QuestPeriod.endedDailyDate(QuestPeriod.now());
+        if (current.equals(ended) || !patchApplied(patchId(ended))) {
+            return;
+        }
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.executeWithoutResult(status -> completeAndClaimDaily(userId, current, false));
+    }
+
+    private long completeAndClaimDaily(Long userId, LocalDate day, boolean payGold) {
+        if (day == null) {
+            return 0L;
+        }
         String period = day.toString();
-        boolean payGold = workDayService.allowGold(userId, day);
+        boolean pay = payGold && workDayService.allowGold(userId, day);
         long gold = 0L;
         LocalDateTime now = QuestPeriod.now();
         for (String code : DAILY_CODES) {
@@ -207,7 +233,7 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
                 continue;
             }
             long reward = 0L;
-            if (nextStatus == 3 && payGold && "money".equalsIgnoreCase(String.valueOf(task.get("reward_type")))) {
+            if (nextStatus == 3 && pay && "money".equalsIgnoreCase(String.valueOf(task.get("reward_type")))) {
                 reward = rewardAmount(String.valueOf(task.get("reward_value")));
             }
             jdbcTemplate.update("""
