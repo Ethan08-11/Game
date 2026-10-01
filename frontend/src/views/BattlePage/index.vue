@@ -55,29 +55,31 @@
       </div>
     </div>
 
-    <div v-if="showTeammateHand" class="teammate-hand-overlay" @click.self="showTeammateHand = false">
-      <div class="teammate-hand-panel">
-        <h2>{{ teammateHandTitle }}</h2>
-        <p>仅查看，不能替队友出牌</p>
-        <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
-        <div v-else class="teammate-hand-grid" style="--card-width: 148px">
-          <CardItem
-            v-for="card in teammateHand"
-            :key="card.id"
-            :name="card.name"
-            :dept="card.dept"
-            :cost="card.cost"
-            :type="card.type"
-            :description="card.description"
-            :damage="card.damage || 0"
-            :shield="card.shield || 0"
-            :image-url="card.imageUrl"
-            disabled
-          />
+    <Teleport to="body">
+      <div v-if="showTeammateHand" class="teammate-hand-overlay" @click.self="showTeammateHand = false">
+        <div class="teammate-hand-panel">
+          <h2>{{ teammateHandTitle }}</h2>
+          <p>仅查看，不能替队友出牌</p>
+          <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
+          <div v-else class="teammate-hand-grid" style="--card-width: 148px">
+            <CardItem
+              v-for="card in teammateHand"
+              :key="card.id"
+              :name="card.name"
+              :dept="card.dept"
+              :cost="card.cost"
+              :type="card.type"
+              :description="card.description"
+              :damage="card.damage || 0"
+              :shield="card.shield || 0"
+              :image-url="card.imageUrl"
+              disabled
+            />
+          </div>
+          <el-button type="primary" @click="showTeammateHand = false">关闭</el-button>
         </div>
-        <el-button type="primary" @click="showTeammateHand = false">关闭</el-button>
       </div>
-    </div>
+    </Teleport>
 
     <div v-if="peekDrawCards.length" class="peek-draw-overlay" @click.self="peekDrawCards = []">
       <div class="peek-draw-card">
@@ -374,7 +376,12 @@
             :defense="players[0].defense"
           />
         </div>
-        <div v-if="isTeammateSeat(0)" class="teammate-hand-hint">查看手牌</div>
+        <button
+          v-if="isTeammateSeat(0)"
+          type="button"
+          class="teammate-hand-hint"
+          @click.stop="openTeammateHandFromSeat(0)"
+        >查看手牌</button>
         <div v-if="isPlayer1Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
@@ -400,7 +407,12 @@
             :defense="players[1].defense"
           />
         </div>
-        <div v-if="isTeammateSeat(1)" class="teammate-hand-hint">查看手牌</div>
+        <button
+          v-if="isTeammateSeat(1)"
+          type="button"
+          class="teammate-hand-hint"
+          @click.stop="openTeammateHandFromSeat(1)"
+        >查看手牌</button>
         <div v-if="isPlayer2Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
@@ -829,7 +841,6 @@ function isTeammateSeat(seat: number) {
   return Boolean(player?.userId && !sameBattleUserId(player.userId, selfUserId()))
 }
 function openTeammateHand() {
-  if (showTargetDialog.value) return
   showTeammateHand.value = true
 }
 function openTeammateHandFromSeat(seat: number) {
@@ -3627,21 +3638,28 @@ onUnmounted(() => {
 .pos-rect-player1.is-peekable,
 .pos-rect-player2.is-peekable {
   cursor: pointer;
+  pointer-events: auto;
+  z-index: 5;
 }
 .teammate-hand-hint {
   position: absolute;
   left: 50%;
   bottom: -6px;
   transform: translate(-50%, 100%);
-  z-index: 4;
+  z-index: 6;
   padding: 2px 10px;
-  border-radius: 999px;
   border: 1px solid rgba(196, 169, 98, 0.55);
+  border-radius: 999px;
   background: rgba(11, 19, 27, 0.88);
   color: #f3e0a8;
   font-size: 12px;
+  line-height: 1.4;
   white-space: nowrap;
-  pointer-events: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.teammate-hand-hint:hover {
+  background: rgba(28, 36, 44, 0.96);
 }
 .first-player-card {
   position: relative;
