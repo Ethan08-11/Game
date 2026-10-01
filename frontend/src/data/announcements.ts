@@ -1,3 +1,5 @@
+import { LEADERBOARD_PRIZE_NOTICE_BODY, LEADERBOARD_PRIZE_NOTICE_TITLE } from './prizePool'
+
 export interface Announcement {
   id: string
   title: string
@@ -9,16 +11,16 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-leaderboard-prize-202610',
+    title: LEADERBOARD_PRIZE_NOTICE_TITLE,
+    date: '2026-10-01',
+    content: LEADERBOARD_PRIZE_NOTICE_BODY,
+  },
+  {
     id: 'topic-bully-hp-180',
     title: '难度调整：霸凌者血量改为 180',
     date: '2026-10-01',
     content: '硬扛恶霸开局血量改为各组队都是 180（含双销售、双采购、混组）。出手仍为 17～20。约一成五回合自己 +14 盾且攻击减半。',
-  },
-  {
-    id: 'topic-leaderboard-reward-202609',
-    title: '定榜：9月30日 17:00，按总榜名次发奖励',
-    date: '2026-09-28',
-    content: '本月排行榜现金奖励按「参与人数」结算。每位参与玩家扣 20 元入场费，总奖金 = 20 × 参与人数 × 2。只奖前五名，第六名及以后为 0 元。\n\n分配比例：第 1 名 70%，第 2 名 12%，第 3 名 8%，第 4 名 6%，第 5 名 4%。\n\n以 12 人为例，总奖金 20×12×2 = 480 元：\n第 1 名：480×70% = 336 元\n第 2 名：480×12% = 57.6 元\n第 3 名：480×8% = 38.4 元\n第 4 名：480×6% = 28.8 元\n第 5 名：480×4% = 19.2 元\n第 6～12 名：0 元\n\n本月定榜时间为 9 月 30 日 17:00，以当时总榜名次为准。参与人数以实际报名/入场人数计算，奖金随人数同比增减。',
   },
   {
     id: 'topic-monthly-workdays-202609',

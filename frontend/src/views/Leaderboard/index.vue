@@ -7,6 +7,10 @@
       <button :class="{ active: tab === 'winrate' }" @click="tab = 'winrate'">胜率榜</button>
     </div>
     <p class="week-hint">{{ tab === 'total' ? '本月金币 · 每月 1 日清零' : '本月胜率 · 满 20 场起算 · 每月 1 日清零' }}</p>
+    <div v-if="tab === 'total'" class="prize-notice">
+      <p class="prize-title">{{ LEADERBOARD_PRIZE_NOTICE_TITLE }}</p>
+      <p class="prize-body">{{ LEADERBOARD_PRIZE_NOTICE_BODY }}</p>
+    </div>
     <div ref="listRef" class="list" :key="tab">
       <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${Math.min(idx * 0.03, 0.4)}s` }">
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
@@ -39,6 +43,7 @@ import rowBg from '@/assets/row-bg-leaderboard.webp'
 import pageBg from '@/assets/beijing0.webp'
 import hallDay from '@/assets/hall-bg2.webp'
 import hallNight from '@/assets/hall-bg.webp'
+import { LEADERBOARD_PRIZE_NOTICE_BODY, LEADERBOARD_PRIZE_NOTICE_TITLE } from '@/data/prizePool'
 
 const tab = ref<'total' | 'winrate'>('total')
 const list = ref<LeaderboardEntry[]>([])
@@ -111,9 +116,26 @@ watch(tab, loadLeaderboard)
 }
 .tabs { display: flex; gap: var(--space-2); justify-content: center; margin-bottom: var(--space-3); }
 .week-hint {
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-2);
   color: #6a5338;
   font-size: var(--text-sm);
+}
+.prize-notice {
+  max-width: 520px;
+  margin: 0 auto var(--space-4);
+  padding: 8px 12px;
+  color: #8a6230;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  text-align: center;
+}
+.prize-title {
+  margin: 0 0 4px;
+  font-weight: var(--weight-semibold);
+}
+.prize-body {
+  margin: 0;
+  white-space: pre-wrap;
 }
 .tabs button {
   padding: var(--space-1) var(--space-5);
