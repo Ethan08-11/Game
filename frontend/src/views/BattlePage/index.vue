@@ -39,8 +39,7 @@
     <div v-if="isSelectingFirstPlayer" class="first-player-overlay">
       <div class="first-player-card">
         <h2>{{ room.isHost ? '选择本局先手' : '等待房主选择先手' }}</h2>
-        <p>双方查看手牌后，由房主决定谁先出牌。</p>
-        <p class="teammate-hand-hover-tip" @mouseenter="openTeammateHand" @mouseleave="scheduleHideTeammateHand">悬停此处查看队友手牌</p>
+        <p>双方查看手牌后，由房主决定谁先出牌。也可悬停队友血条下的按钮查看手牌。</p>
         <div class="first-player-actions">
           <el-button
             v-for="player in players"
@@ -54,35 +53,6 @@
         </div>
       </div>
     </div>
-
-    <Teleport to="body">
-      <div
-        v-if="showTeammateHand"
-        class="teammate-hand-popover"
-        :style="teammateHandStyle"
-        @mouseenter="keepTeammateHand"
-        @mouseleave="scheduleHideTeammateHand"
-      >
-        <h2>{{ teammateHandTitle }}</h2>
-        <p>悬停查看，不能替队友出牌</p>
-        <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
-        <div v-else class="teammate-hand-grid" style="--card-width: 108px">
-          <CardItem
-            v-for="card in teammateHand"
-            :key="card.id"
-            :name="card.name"
-            :dept="card.dept"
-            :cost="card.cost"
-            :type="card.type"
-            :description="card.description"
-            :damage="card.damage || 0"
-            :shield="card.shield || 0"
-            :image-url="card.imageUrl"
-            disabled
-          />
-        </div>
-      </div>
-    </Teleport>
 
     <div v-if="peekDrawCards.length" class="peek-draw-overlay" @click.self="peekDrawCards = []">
       <div class="peek-draw-card">
@@ -354,18 +324,15 @@
       </div>
     </Teleport>
 
-    <div class="position-rects" :class="{ 'is-impact': bullyImpact }">
+    <div class="position-rects" :class="{ 'is-impact': bullyImpact, 'is-peeking': showTeammateHand }">
       <div class="pos-rect pos-rect-customer" :style="{ width: '188px', height: '289px', left: '50%', top: '58%' }">
         <img :src="customerImage" alt="顾客" />
       </div>
       <div
         class="pos-rect pos-rect-player1"
         ref="player1RectRef"
-        :class="[playerRectClass(0), { 'is-peekable': isTeammateSeat(0) }]"
+        :class="playerRectClass(0)"
         :style="{ width: p1RectW + 'px', height: p1RectH + 'px', left: p1RectLeft + '%', top: p1RectTop + '%' }"
-        :title="isTeammateSeat(0) ? '悬停查看队友手牌' : undefined"
-        @mouseenter="openTeammateHandFromSeat(0)"
-        @mouseleave="scheduleHideTeammateHand"
       >
         <img class="player-img" :src="player1Img" alt="玩家1" />
         <div v-if="(players[0]?.defense || 0) > 0" class="player-shield-veil" aria-hidden="true" />
@@ -380,7 +347,35 @@
             :defense="players[0].defense"
           />
         </div>
-        <div v-if="isTeammateSeat(0)" class="teammate-hand-hint">悬停查看手牌</div>
+        <div
+          v-if="isTeammateSeat(0)"
+          class="teammate-hand-dock"
+          @mouseenter="openTeammateHandFromSeat(0)"
+          @mouseleave="scheduleHideTeammateHand"
+        >
+          <div class="teammate-hand-hint">悬停查看手牌</div>
+          <div v-if="showTeammateHand" class="teammate-mini-hand" style="--card-width: 72px">
+            <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
+            <div
+              v-for="(card, index) in teammateHand"
+              :key="card.id"
+              class="teammate-mini-slot"
+              :style="{ zIndex: index + 1 }"
+            >
+              <CardItem
+                :name="card.name"
+                :dept="card.dept"
+                :cost="card.cost"
+                :type="card.type"
+                :description="card.description"
+                :damage="card.damage || 0"
+                :shield="card.shield || 0"
+                :image-url="card.imageUrl"
+                disabled
+              />
+            </div>
+          </div>
+        </div>
         <div v-if="isPlayer1Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
@@ -388,11 +383,8 @@
       <div
         class="pos-rect pos-rect-player2"
         ref="player2RectRef"
-        :class="[playerRectClass(1), { 'is-peekable': isTeammateSeat(1) }]"
+        :class="playerRectClass(1)"
         :style="{ width: p2RectW + 'px', height: p2RectH + 'px', left: p2RectLeft + '%', top: p2RectTop + '%' }"
-        :title="isTeammateSeat(1) ? '悬停查看队友手牌' : undefined"
-        @mouseenter="openTeammateHandFromSeat(1)"
-        @mouseleave="scheduleHideTeammateHand"
       >
         <img class="player-img" :src="player2Img" alt="玩家2" />
         <div v-if="(players[1]?.defense || 0) > 0" class="player-shield-veil" aria-hidden="true" />
@@ -407,7 +399,35 @@
             :defense="players[1].defense"
           />
         </div>
-        <div v-if="isTeammateSeat(1)" class="teammate-hand-hint">悬停查看手牌</div>
+        <div
+          v-if="isTeammateSeat(1)"
+          class="teammate-hand-dock"
+          @mouseenter="openTeammateHandFromSeat(1)"
+          @mouseleave="scheduleHideTeammateHand"
+        >
+          <div class="teammate-hand-hint">悬停查看手牌</div>
+          <div v-if="showTeammateHand" class="teammate-mini-hand" style="--card-width: 72px">
+            <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
+            <div
+              v-for="(card, index) in teammateHand"
+              :key="card.id"
+              class="teammate-mini-slot"
+              :style="{ zIndex: index + 1 }"
+            >
+              <CardItem
+                :name="card.name"
+                :dept="card.dept"
+                :cost="card.cost"
+                :type="card.type"
+                :description="card.description"
+                :damage="card.damage || 0"
+                :shield="card.shield || 0"
+                :image-url="card.imageUrl"
+                disabled
+              />
+            </div>
+          </div>
+        </div>
         <div v-if="isPlayer2Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
         </div>
@@ -821,7 +841,6 @@ const teammateId = computed(() => {
   return teammate?.userId || ''
 })
 const showTeammateHand = ref(false)
-const teammateHandStyle = ref<Record<string, string>>({})
 let teammateHandHideTimer: ReturnType<typeof setTimeout> | null = null
 const teammatePlayer = computed(() =>
   players.value.find((player) => player.userId && !sameBattleUserId(player.userId, selfUserId())) || null,
@@ -829,10 +848,6 @@ const teammatePlayer = computed(() =>
 const teammateHand = computed(() =>
   (teammatePlayer.value?.hand || []).filter((card) => card.zone !== 'DECK'),
 )
-const teammateHandTitle = computed(() => {
-  const name = resolvePlayerName(teammatePlayer.value?.userId) || teammatePlayer.value?.dept || '队友'
-  return `${name} 的手牌`
-})
 function isTeammateSeat(seat: number) {
   const player = players.value[seat]
   return Boolean(player?.userId && !sameBattleUserId(player.userId, selfUserId()))
@@ -848,36 +863,11 @@ function scheduleHideTeammateHand() {
   teammateHandHideTimer = setTimeout(() => {
     showTeammateHand.value = false
     teammateHandHideTimer = null
-  }, 180)
-}
-function positionTeammateHandPopover(seat?: number) {
-  const targetSeat = seat ?? players.value.findIndex((_, index) => isTeammateSeat(index))
-  const el = playerRectBySeat(targetSeat < 0 ? 0 : targetSeat)
-  const box = el?.getBoundingClientRect()
-  if (!box) {
-    teammateHandStyle.value = { left: '50%', top: '16%', transform: 'translateX(-50%)' }
-    return
-  }
-  const popW = 420
-  const gap = 12
-  const placeRight = box.left + box.width / 2 < window.innerWidth / 2
-  const left = placeRight
-    ? Math.min(window.innerWidth - popW - 12, box.right + gap)
-    : Math.max(12, box.left - popW - gap)
-  teammateHandStyle.value = {
-    left: `${Math.max(12, left)}px`,
-    top: `${Math.max(12, box.top)}px`,
-  }
-}
-function openTeammateHand() {
-  keepTeammateHand()
-  positionTeammateHandPopover()
-  showTeammateHand.value = true
+  }, 160)
 }
 function openTeammateHandFromSeat(seat: number) {
   if (!isTeammateSeat(seat)) return
   keepTeammateHand()
-  positionTeammateHandPopover(seat)
   showTeammateHand.value = true
 }
 const finishBtnStyle = computed(() => ({
@@ -3628,56 +3618,20 @@ onUnmounted(() => {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
 }
-.teammate-hand-popover {
-  position: fixed;
-  z-index: 100020;
-  width: min(420px, 92vw);
-  max-height: min(72vh, 640px);
-  overflow: auto;
-  padding: 14px 16px 16px;
-  border: 1px solid rgba(196, 169, 98, 0.45);
-  border-radius: var(--radius-xl);
-  background: rgba(11, 19, 27, 0.96);
-  color: #fff;
-  text-align: center;
-  box-shadow: var(--shadow-lg);
-  pointer-events: auto;
-}
-.teammate-hand-popover h2 {
-  margin: 0 0 6px;
-  font-size: 18px;
-}
-.teammate-hand-popover p {
-  margin: 0 0 12px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
-}
-.teammate-hand-empty {
-  margin: 16px 0;
-  color: rgba(255, 255, 255, 0.7);
-}
-.teammate-hand-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
-  gap: 10px;
-  justify-items: center;
-}
-.teammate-hand-grid :deep(.card-item) {
-  pointer-events: none;
-  transform: none;
-}
-.pos-rect-player1.is-peekable,
-.pos-rect-player2.is-peekable {
-  cursor: pointer;
-  pointer-events: auto;
-  z-index: 5;
-}
-.teammate-hand-hint {
+.teammate-hand-dock {
   position: absolute;
   left: 50%;
-  top: 6px;
-  transform: translate(-50%, -100%);
-  z-index: 6;
+  bottom: 0;
+  transform: translate(-50%, calc(100% + 4px));
+  z-index: 8;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: max-content;
+  max-width: 280px;
+}
+.teammate-hand-hint {
   padding: 2px 10px;
   border: 1px solid rgba(196, 169, 98, 0.55);
   border-radius: 999px;
@@ -3686,12 +3640,39 @@ onUnmounted(() => {
   font-size: 12px;
   line-height: 1.4;
   white-space: nowrap;
+  cursor: pointer;
+}
+.teammate-mini-hand {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  margin-top: 6px;
+  background: transparent;
   pointer-events: none;
 }
-.teammate-hand-hover-tip {
-  margin: 0 0 12px;
-  color: #f3e0a8 !important;
-  cursor: pointer;
+.teammate-mini-slot {
+  width: 40px;
+  flex: 0 0 auto;
+  position: relative;
+}
+.teammate-mini-slot + .teammate-mini-slot {
+  margin-left: -14px;
+}
+.teammate-mini-slot :deep(.card-item) {
+  width: 72px;
+  pointer-events: none;
+  opacity: 0.7;
+  box-shadow: none;
+}
+.teammate-mini-slot :deep(.card-item.disabled) {
+  opacity: 0.7;
+  cursor: default;
+}
+.teammate-hand-empty {
+  margin: 6px 0 0;
+  color: rgba(255, 248, 230, 0.88);
+  font-size: 12px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 .first-player-card {
   position: relative;
@@ -4061,6 +4042,10 @@ onUnmounted(() => {
   z-index: 3;
   overflow: hidden;
   clip-path: inset(0 0 240px 0);
+}
+.position-rects.is-peeking {
+  overflow: visible;
+  clip-path: inset(0 0 80px 0);
 }
 .customer-intro-anchor {
   position: absolute;
