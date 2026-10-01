@@ -17,6 +17,12 @@ export const announcements: Announcement[] = [
     content: LEADERBOARD_PRIZE_NOTICE_BODY,
   },
   {
+    id: 'topic-timid-anxious-retune',
+    title: '难度：胆小怕事加血改为 +4，焦虑难安加攻改为 +3',
+    date: '2026-10-01',
+    content: '「胆小怕事」效果触发时，霸凌者血量由 +2 改为 +4（上限同步提高）。「焦虑难安」效果触发时，本回合霸凌者攻击由 +2 改为 +3。登场权重和触发概率不变。与今日总榜前五组队时仍只抽这两人。',
+  },
+  {
     id: 'topic-harsh-customer',
     title: '顾客图鉴：刻薄尖客戴着眼镜进铺',
     date: '2026-10-01',
