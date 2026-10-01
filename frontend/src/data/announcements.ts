@@ -17,6 +17,12 @@ export const announcements: Announcement[] = [
     content: LEADERBOARD_PRIZE_NOTICE_BODY,
   },
   {
+    id: 'topic-wealthy-customer',
+    title: '顾客图鉴：阔绰金客带着余钱进铺',
+    date: '2026-10-01',
+    content: '图鉴新增「阔绰金客」：出手极阔的金主，登场权重与闲逛双客相近，因此不算常见。若抽到他，约四成回合会随机给一名存活护卫本回合调用机会 +1。不会因此复活已倒下的人。\n\n保护顾客、将霸凌者血值打到 0 即可获胜。所有顾客共用硬扛恶霸。',
+  },
+  {
     id: 'topic-bully-hp-180',
     title: '难度调整：霸凌者血量改为 180',
     date: '2026-10-01',
@@ -32,7 +38,7 @@ export const announcements: Announcement[] = [
     id: 'topic-daily-top5-customer-pool',
     title: '难度：与今日总榜前五组队，只会遇到加攻/加血顾客',
     date: '2026-09-20',
-    content: '每天 0 点按总榜金币锁定前五名。房间里有今日前五时，本局顾客只从「焦虑难安」（约七成）和「胆小怕事」（约三成）里抽，抽到后本局不变。两个都不在前五则仍从四名顾客里按原权重抽。',
+    content: '每天 0 点按总榜金币锁定前五名。房间里有今日前五时，本局顾客只从「焦虑难安」（约七成）和「胆小怕事」（约三成）里抽，抽到后本局不变。两个都不在前五则仍从五名顾客里按原权重抽。',
   },
   {
     id: 'topic-team-revive-once',

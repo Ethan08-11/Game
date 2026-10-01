@@ -2530,11 +2530,23 @@ public class MatchServiceImpl implements MatchService {
                 }
             }
         }
+        MatchPlayers actionBonusTarget = null;
+        int actionBonus = 0;
+        if (triggered && customer != null && "player_action_up".equals(customer.getEffectType())) {
+            actionBonus = Math.max(value(customer.getEffectValue()), 0);
+            actionBonusTarget = pickLivingPlayer(players);
+        }
         match.setCurrentRound(nextRoundNo);
         match.setPhase(PLAYER_ACTION);
         match.setBossCurrentAttack(attack);
         for (MatchPlayers player : players) {
-            player.setActionPoints(value(player.getBaseActionPoints()));
+            int actionPoints = value(player.getBaseActionPoints());
+            if (actionBonusTarget != null && actionBonus > 0
+                    && actionBonusTarget.getUserId() != null
+                    && actionBonusTarget.getUserId().equals(player.getUserId())) {
+                actionPoints += actionBonus;
+            }
+            player.setActionPoints(actionPoints);
             player.setEndedTurn(0);
             player.setShield(0);
             if (value(player.getCurrentHp()) > 0) {
@@ -2573,6 +2585,18 @@ public class MatchServiceImpl implements MatchService {
             nextRound.setChosenByUserId(currentRound.getChosenByUserId());
         }
         matchRoundsMapper.insert(nextRound);
+        if (actionBonusTarget != null && actionBonus > 0) {
+            MatchActions grant = new MatchActions();
+            grant.setMatchId(match.getId());
+            grant.setRoundId(nextRound.getId());
+            grant.setActorType("customer");
+            grant.setActionType("customer_grant_ap");
+            grant.setTargetUserId(actionBonusTarget.getUserId());
+            grant.setBeforeValue(value(actionBonusTarget.getBaseActionPoints()));
+            grant.setAfterValue(value(actionBonusTarget.getActionPoints()));
+            grant.setDeltaValue(actionBonus);
+            matchActionsMapper.insert(grant);
+        }
     }
 
     private void resolvePendingEffects(Matches match, int roundNo) {
@@ -3432,7 +3456,66 @@ public class MatchServiceImpl implements MatchService {
                 player.setCurrentHp(Math.max(1, value(player.getCurrentHp()) - heal));
                 matchPlayersMapper.updateById(player);
             }
+            return;
         }
+        if ("player_action_up".equals(type)) {
+            revertCustomerActionBonus(match, round, players, Math.max(val, 0));
+        }
+    }
+
+    private void revertCustomerActionBonus(Matches match, MatchRounds round, List<MatchPlayers> players, int bonus) {
+        if (bonus <= 0 || players == null || players.isEmpty()) {
+            return;
+        }
+        Long targetId = null;
+        if (round != null && round.getId() != null) {
+            MatchActions grant = matchActionsMapper.selectOne(Wrappers.<MatchActions>lambdaQuery()
+                    .eq(MatchActions::getMatchId, match.getId())
+                    .eq(MatchActions::getRoundId, round.getId())
+                    .eq(MatchActions::getActionType, "customer_grant_ap")
+                    .last("LIMIT 1"));
+            if (grant != null) {
+                targetId = grant.getTargetUserId();
+            }
+        }
+        MatchPlayers target = null;
+        if (targetId != null) {
+            for (MatchPlayers player : players) {
+                if (targetId.equals(player.getUserId())) {
+                    target = player;
+                    break;
+                }
+            }
+        }
+        if (target == null) {
+            for (MatchPlayers player : players) {
+                if (value(player.getCurrentHp()) <= 0) {
+                    continue;
+                }
+                if (target == null || value(player.getActionPoints()) > value(target.getActionPoints())) {
+                    target = player;
+                }
+            }
+        }
+        if (target == null) {
+            return;
+        }
+        int next = Math.max(value(target.getBaseActionPoints()), value(target.getActionPoints()) - bonus);
+        target.setActionPoints(next);
+        matchPlayersMapper.updateById(target);
+    }
+
+    private MatchPlayers pickLivingPlayer(List<MatchPlayers> players) {
+        if (players == null || players.isEmpty()) {
+            return null;
+        }
+        List<MatchPlayers> living = players.stream()
+                .filter(player -> player != null && value(player.getCurrentHp()) > 0)
+                .toList();
+        if (living.isEmpty()) {
+            return null;
+        }
+        return living.get(ThreadLocalRandom.current().nextInt(living.size()));
     }
 
     private void expireRoundBoundHooks(Long matchId) {

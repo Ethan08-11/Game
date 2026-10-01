@@ -39,7 +39,13 @@ function formatRate(value?: number) {
 }
 
 function getEffectText(customer: EmployerTrait) {
-  const target = customer.effectType === 'hp' ? '霸凌者血量' : '霸凌者基础攻击'
+  const target = customer.effectType === 'player_hp'
+    ? '我方血值'
+    : customer.effectType === 'player_action'
+      ? '一名玩家调用机会'
+      : customer.effectType === 'hp'
+        ? '霸凌者血量'
+        : '霸凌者基础攻击'
   const value = customer.effectValue ?? 0
   return `${target}${value >= 0 ? '+' : ''}${value}`
 }
