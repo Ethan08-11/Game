@@ -1534,9 +1534,13 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private MatchPlayerStateResp toPlayerState(MatchPlayers player, List<MatchCards> cards) {
+        List<MatchCards> handCards = cards.stream()
+                .filter(card -> "HAND".equals(card.getZone()))
+                .toList();
         return new MatchPlayerStateResp(player.getUserId(), player.getSeatNo(), player.getDeptType(), player.getMaxHp(),
                 player.getCurrentHp(), player.getShield(), player.getActionPoints(), player.getEndedTurn(),
-                player.getPlayerStatus(), countZone(cards, "HAND"), countZone(cards, "DECK"), countZone(cards, "DISCARD"));
+                player.getPlayerStatus(), handCards.size(), countZone(cards, "DECK"), countZone(cards, "DISCARD"),
+                toCardResponses(handCards));
     }
 
     private int countZone(List<MatchCards> cards, String zone) {

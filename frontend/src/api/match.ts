@@ -13,6 +13,7 @@ export interface MatchPlayerResp {
   handCount?: number
   deckCount?: number
   discardCount?: number
+  hand?: MatchHandCardResp[]
 }
 
 export interface MatchCustomerResp {

@@ -1,5 +1,7 @@
 package cc.shturl.wa.demo.dto.resp;
 
+import java.util.List;
+
 public record MatchPlayerStateResp(
         Long userId,
         Integer seatNo,
@@ -12,6 +14,7 @@ public record MatchPlayerStateResp(
         String playerStatus,
         Integer handCount,
         Integer deckCount,
-        Integer discardCount
+        Integer discardCount,
+        List<MatchCardResp> hand
 ) {
 }
