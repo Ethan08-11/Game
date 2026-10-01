@@ -54,6 +54,36 @@
       </div>
     </div>
 
+    <Teleport to="body">
+      <div
+        v-if="showTeammateHand"
+        class="teammate-mini-hand"
+        :style="teammateMiniStyle"
+        @mouseenter="keepTeammateHand"
+        @mouseleave="scheduleHideTeammateHand"
+      >
+        <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
+        <div
+          v-for="(card, index) in teammateHand"
+          :key="card.id"
+          class="teammate-mini-slot"
+          :style="{ zIndex: index + 1 }"
+        >
+          <CardItem
+            :name="card.name"
+            :dept="card.dept"
+            :cost="card.cost"
+            :type="card.type"
+            :description="card.description"
+            :damage="card.damage || 0"
+            :shield="card.shield || 0"
+            :image-url="card.imageUrl"
+            disabled
+          />
+        </div>
+      </div>
+    </Teleport>
+
     <div v-if="peekDrawCards.length" class="peek-draw-overlay" @click.self="peekDrawCards = []">
       <div class="peek-draw-card">
         <h2>下回合将抽到</h2>
@@ -324,7 +354,7 @@
       </div>
     </Teleport>
 
-    <div class="position-rects" :class="{ 'is-impact': bullyImpact, 'is-peeking': showTeammateHand }">
+    <div class="position-rects" :class="{ 'is-impact': bullyImpact }">
       <div class="pos-rect pos-rect-customer" :style="{ width: '188px', height: '289px', left: '50%', top: '58%' }">
         <img :src="customerImage" alt="顾客" />
       </div>
@@ -349,32 +379,12 @@
         </div>
         <div
           v-if="isTeammateSeat(0)"
+          ref="teammateHintRef"
           class="teammate-hand-dock"
           @mouseenter="openTeammateHandFromSeat(0)"
           @mouseleave="scheduleHideTeammateHand"
         >
           <div class="teammate-hand-hint">悬停查看手牌</div>
-          <div v-if="showTeammateHand" class="teammate-mini-hand" style="--card-width: 72px">
-            <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
-            <div
-              v-for="(card, index) in teammateHand"
-              :key="card.id"
-              class="teammate-mini-slot"
-              :style="{ zIndex: index + 1 }"
-            >
-              <CardItem
-                :name="card.name"
-                :dept="card.dept"
-                :cost="card.cost"
-                :type="card.type"
-                :description="card.description"
-                :damage="card.damage || 0"
-                :shield="card.shield || 0"
-                :image-url="card.imageUrl"
-                disabled
-              />
-            </div>
-          </div>
         </div>
         <div v-if="isPlayer1Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
@@ -401,32 +411,12 @@
         </div>
         <div
           v-if="isTeammateSeat(1)"
+          ref="teammateHintRef"
           class="teammate-hand-dock"
           @mouseenter="openTeammateHandFromSeat(1)"
           @mouseleave="scheduleHideTeammateHand"
         >
           <div class="teammate-hand-hint">悬停查看手牌</div>
-          <div v-if="showTeammateHand" class="teammate-mini-hand" style="--card-width: 72px">
-            <div v-if="teammateHand.length === 0" class="teammate-hand-empty">暂无手牌</div>
-            <div
-              v-for="(card, index) in teammateHand"
-              :key="card.id"
-              class="teammate-mini-slot"
-              :style="{ zIndex: index + 1 }"
-            >
-              <CardItem
-                :name="card.name"
-                :dept="card.dept"
-                :cost="card.cost"
-                :type="card.type"
-                :description="card.description"
-                :damage="card.damage || 0"
-                :shield="card.shield || 0"
-                :image-url="card.imageUrl"
-                disabled
-              />
-            </div>
-          </div>
         </div>
         <div v-if="isPlayer2Turn" class="turn-fireflies">
           <span v-for="f in fireflies" :key="f.i" class="firefly" :style="f.style" />
@@ -840,7 +830,9 @@ const teammateId = computed(() => {
   const teammate = players.value.find(p => p.userId !== selfId)
   return teammate?.userId || ''
 })
+const teammateHintRef = ref<HTMLElement | null>(null)
 const showTeammateHand = ref(false)
+const teammateMiniStyle = ref<Record<string, string>>({})
 let teammateHandHideTimer: ReturnType<typeof setTimeout> | null = null
 const teammatePlayer = computed(() =>
   players.value.find((player) => player.userId && !sameBattleUserId(player.userId, selfUserId())) || null,
@@ -863,12 +855,26 @@ function scheduleHideTeammateHand() {
   teammateHandHideTimer = setTimeout(() => {
     showTeammateHand.value = false
     teammateHandHideTimer = null
-  }, 160)
+  }, 220)
+}
+function positionTeammateMiniHand() {
+  const box = teammateHintRef.value?.getBoundingClientRect()
+  if (!box) {
+    teammateMiniStyle.value = { left: '50%', top: '48%', transform: 'translateX(-50%)' }
+    return
+  }
+  teammateMiniStyle.value = {
+    left: `${box.left + box.width / 2}px`,
+    top: `${box.bottom + 8}px`,
+    transform: 'translateX(-50%)',
+  }
 }
 function openTeammateHandFromSeat(seat: number) {
   if (!isTeammateSeat(seat)) return
   keepTeammateHand()
+  positionTeammateMiniHand()
   showTeammateHand.value = true
+  nextTick(positionTeammateMiniHand)
 }
 const finishBtnStyle = computed(() => ({
   right: px(finishBtn.right),
@@ -3623,13 +3629,8 @@ onUnmounted(() => {
   left: 50%;
   bottom: 0;
   transform: translate(-50%, calc(100% + 4px));
-  z-index: 8;
+  z-index: 20;
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: max-content;
-  max-width: 280px;
 }
 .teammate-hand-hint {
   padding: 2px 10px;
@@ -3641,14 +3642,17 @@ onUnmounted(() => {
   line-height: 1.4;
   white-space: nowrap;
   cursor: pointer;
+  pointer-events: auto;
 }
 .teammate-mini-hand {
+  position: fixed;
+  z-index: 100040;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  margin-top: 6px;
   background: transparent;
-  pointer-events: none;
+  pointer-events: auto;
+  --card-width: 72px;
 }
 .teammate-mini-slot {
   width: 40px;
@@ -3661,16 +3665,16 @@ onUnmounted(() => {
 .teammate-mini-slot :deep(.card-item) {
   width: 72px;
   pointer-events: none;
-  opacity: 0.7;
+  opacity: 0.72;
   box-shadow: none;
 }
 .teammate-mini-slot :deep(.card-item.disabled) {
-  opacity: 0.7;
+  opacity: 0.72;
   cursor: default;
 }
 .teammate-hand-empty {
-  margin: 6px 0 0;
-  color: rgba(255, 248, 230, 0.88);
+  margin: 0;
+  color: rgba(255, 248, 230, 0.92);
   font-size: 12px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
@@ -4039,13 +4043,8 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 3;
-  overflow: hidden;
-  clip-path: inset(0 0 240px 0);
-}
-.position-rects.is-peeking {
+  z-index: 5;
   overflow: visible;
-  clip-path: inset(0 0 80px 0);
 }
 .customer-intro-anchor {
   position: absolute;
