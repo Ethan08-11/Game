@@ -53,7 +53,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         update("CUSTOMER_ANXIOUS", 2, 60, 30);
         update("CUSTOMER_WINDOW", 2, 20, 10);
         update("CUSTOMER_WEALTHY", 1, 40, 10);
-        update("CUSTOMER_HARSH", 1, 40, 10);
+        update("CUSTOMER_HARSH", 3, 40, 10);
         log.info("Customer catalog difficulty tuned.");
     }
 

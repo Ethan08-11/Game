@@ -2538,9 +2538,8 @@ public class MatchServiceImpl implements MatchService {
             actionDelta = Math.max(value(customer.getEffectValue()), 0);
             actionTarget = pickLivingPlayer(players);
         } else if (triggered && customer != null && "player_action_hp_down".equals(customer.getEffectType())) {
-            int amount = Math.max(value(customer.getEffectValue()), 0);
-            actionDelta = -amount;
-            playerHpLoss = amount;
+            actionDelta = -1;
+            playerHpLoss = Math.max(value(customer.getEffectValue()), 0);
             actionTarget = pickLivingPlayer(players);
             if (actionTarget != null) {
                 harshHpBefore = value(actionTarget.getCurrentHp());
@@ -3500,8 +3499,12 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
-    private void revertCustomerHarsh(Matches match, MatchRounds round, List<MatchPlayers> players, int amount) {
-        if (amount <= 0 || players == null || players.isEmpty()) {
+    private void revertCustomerHarsh(Matches match, MatchRounds round, List<MatchPlayers> players, int hpRestore) {
+        if (players == null || players.isEmpty()) {
+            return;
+        }
+        int apRestore = 1;
+        if (hpRestore <= 0 && apRestore <= 0) {
             return;
         }
         Long targetId = null;
@@ -3527,8 +3530,8 @@ public class MatchServiceImpl implements MatchService {
         if (target == null) {
             return;
         }
-        target.setActionPoints(value(target.getActionPoints()) + amount);
-        int hp = Math.min(value(target.getMaxHp()), value(target.getCurrentHp()) + amount);
+        target.setActionPoints(value(target.getActionPoints()) + apRestore);
+        int hp = Math.min(value(target.getMaxHp()), value(target.getCurrentHp()) + hpRestore);
         target.setCurrentHp(hp);
         if (hp > 0) {
             target.setPlayerStatus("ACTIVE");

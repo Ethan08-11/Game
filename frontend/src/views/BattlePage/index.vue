@@ -1052,7 +1052,7 @@ function effectLabel(effectType?: string) {
     bully_hp_up: '霸凌者血量提升',
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
-    player_action_hp_down: '一名玩家调用机会-1且失血1',
+    player_action_hp_down: '一名玩家调用机会-1且失血3',
     bully_defense_up: '霸凌者防御提升',
     ADD_BOSS_SHIELD: '霸凌者防御提升',
     REDUCE_BOSS_ATTACK: '霸凌者攻击降低',
