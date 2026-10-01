@@ -39,9 +39,11 @@ const effectText = computed(() => {
   if (!trait) return '加载中'
   const target = trait.effectType === 'player_hp'
     ? '我方血值'
-    : trait.effectType === 'hp'
-      ? '霸凌者血量'
-      : '霸凌者基础攻击'
+    : trait.effectType === 'player_action'
+      ? '一名玩家调用机会'
+      : trait.effectType === 'hp'
+        ? '霸凌者血量'
+        : '霸凌者基础攻击'
   const value = trait.effectValue ?? 0
   return `${target}${value >= 0 ? '+' : ''}${value}`
 })

@@ -1,3 +1,5 @@
+import { PRESET_AVATAR_SRC } from '@/data/avatars'
+
 function defaultHttpBase() {
   if (typeof window === 'undefined') return 'http://127.0.0.1:8080'
   return window.location.origin
@@ -17,10 +19,14 @@ export function getImageUrl(path: string | null | undefined): string | null {
   const webpPath = /\.(png|jpe?g)$/i.test(normalized)
     ? normalized.replace(/\.(png|jpe?g)$/i, '.webp')
     : normalized
+  const bundled = PRESET_AVATAR_SRC[webpPath] || PRESET_AVATAR_SRC[normalized]
+  if (bundled) {
+    return bundled
+  }
   const url = `${BACKEND_HTTP_BASE}${webpPath}`
   // 顾客立绘、卡面曾被长缓存；换 query 才能立刻拿到新图
   if (/\/images\/(customer|cards)\//i.test(webpPath)) {
-    return `${url}?v=20261001c`
+    return `${url}?v=20261001d`
   }
   return url
 }

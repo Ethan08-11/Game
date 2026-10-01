@@ -40,6 +40,7 @@ import tartPeace from '@/assets/avatars/tart-peace.webp'
 import customer1 from '@/assets/avatars/customer-1.webp'
 import customer2 from '@/assets/avatars/customer-2.webp'
 import customer3 from '@/assets/avatars/customer-3.webp'
+import customer5 from '@/assets/avatars/customer-5.webp'
 
 export interface AvatarPreset {
   id: string
@@ -92,6 +93,7 @@ export const PRESET_AVATAR_SRC: Record<string, string> = {
   '/images/customer/p1.webp': customer1,
   '/images/customer/p2.webp': customer2,
   '/images/customer/p3.webp': customer3,
+  '/images/customer/p5.webp': customer5,
 }
 
 export const PRESET_AVATARS: AvatarPreset[] = [
@@ -137,4 +139,5 @@ export const PRESET_AVATARS: AvatarPreset[] = [
   { id: 'customer-1', name: '暖心雇主', url: '/images/customer/p1.webp' },
   { id: 'customer-2', name: '眼镜行家', url: '/images/customer/p2.webp' },
   { id: 'customer-3', name: '红巾客官', url: '/images/customer/p3.webp' },
+  { id: 'customer-5', name: '阔绰金客', url: '/images/customer/p5.webp' },
 ]
