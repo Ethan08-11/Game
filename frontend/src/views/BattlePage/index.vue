@@ -347,7 +347,7 @@
             :defense="players[0].defense"
           />
         </div>
-        <div v-if="isTeammateSeat(0) && teammateHand.length" class="teammate-hand-dock">
+        <div v-if="isTeammateSeat(0) && canSeeTeammateHand" class="teammate-hand-dock">
           <div class="teammate-mini-hand">
             <div
               v-for="(card, index) in teammateHand"
@@ -392,7 +392,7 @@
             :defense="players[1].defense"
           />
         </div>
-        <div v-if="isTeammateSeat(1) && teammateHand.length" class="teammate-hand-dock">
+        <div v-if="isTeammateSeat(1) && canSeeTeammateHand" class="teammate-hand-dock">
           <div class="teammate-mini-hand">
             <div
               v-for="(card, index) in teammateHand"
@@ -986,6 +986,11 @@ const canRevealHand = computed(() => {
   if (isSelectingFirstPlayer.value) return true
   if (activePhase.value !== 'PLAYER_ACTION') return false
   return isCurrentUserActiveTurnPlayer.value && !isCurrentUserEnded.value
+})
+const canSeeTeammateHand = computed(() => {
+  if (!teammateHand.value.length || game.isGameOver) return false
+  if (isSelectingFirstPlayer.value) return true
+  return !isCurrentUserActiveTurnPlayer.value
 })
 const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 5))
 const handFlipped = ref(false)
@@ -3584,7 +3589,7 @@ onUnmounted(() => {
   position: absolute;
   left: 50%;
   bottom: 0;
-  transform: translate(-50%, calc(100% + 4px));
+  transform: translate(-50%, calc(100% + 8px));
   z-index: 20;
   pointer-events: none;
 }
@@ -3592,26 +3597,24 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  gap: 6px;
   background: transparent;
   pointer-events: none;
-  --card-width: 72px;
+  --card-width: 78px;
 }
 .teammate-mini-slot {
-  width: 40px;
+  width: 78px;
   flex: 0 0 auto;
   position: relative;
 }
-.teammate-mini-slot + .teammate-mini-slot {
-  margin-left: -14px;
-}
 .teammate-mini-slot :deep(.card-item) {
-  width: 72px;
+  width: 78px;
   pointer-events: none;
-  opacity: 0.72;
+  opacity: 0.78;
   box-shadow: none;
 }
 .teammate-mini-slot :deep(.card-item.disabled) {
-  opacity: 0.72;
+  opacity: 0.78;
   cursor: default;
 }
 .first-player-card {
@@ -3979,7 +3982,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 5;
+  z-index: 2;
   overflow: visible;
 }
 .customer-intro-anchor {
