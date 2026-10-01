@@ -324,7 +324,7 @@ function transformLeaderboardEntry(be: BackendLeaderboardEntry): LeaderboardEntr
 
 export async function getLeaderboard(type: LeaderboardType = 'total', page = 1, size = 10000): Promise<LeaderboardEntry[]> {
   const list = await apiCall<BackendLeaderboardEntry[]>(`/leaderboard?type=${type}&page=${page}&size=${size}`)
-  return list.map(transformLeaderboardEntry)
+  return (Array.isArray(list) ? list : []).map(transformLeaderboardEntry)
 }
 
 export async function getMyLeaderboardRank(type: LeaderboardType = 'total'): Promise<LeaderboardEntry> {
