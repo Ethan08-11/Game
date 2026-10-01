@@ -54,6 +54,17 @@
       </div>
     </div>
 
+    <div v-if="peekDrawCards.length" class="peek-draw-overlay" @click.self="peekDrawCards = []">
+      <div class="peek-draw-card">
+        <h2>下回合将抽到</h2>
+        <p>这些牌会在下回合开始时进入手牌，顺序不变。</p>
+        <ul class="peek-draw-list">
+          <li v-for="item in peekDrawCards" :key="item.instanceId || item.cardName">{{ item.cardName }}</li>
+        </ul>
+        <el-button type="primary" @click="peekDrawCards = []">知道了</el-button>
+      </div>
+    </div>
+
     <footer class="battle-footer">
       <div class="footer-row">
         <div ref="drawPileRef" class="draw-pile card-area-highlight" :class="{ 'is-pulse': pilePulse }" @click="showDeckModal = true">
@@ -577,6 +588,7 @@ const heroFxPlaying = ref(false)
 const fundsPulse = ref(false)
 const pilePulse = ref(false)
 const handMultPulse = ref(false)
+const peekDrawCards = ref<{ instanceId?: number; cardName: string }[]>([])
 const fxGlow = ref<Record<number, string>>({})
 const bullyHudRef = ref<HTMLElement | null>(null)
 const drawPileRef = ref<HTMLElement | null>(null)
@@ -1046,6 +1058,16 @@ function effectLabel(effectType?: string) {
     ADD_SHIELD: '增加防御',
     HEAL_PLAYER: '恢复血值',
     GUARD_ALLY: '替队友挡刀',
+    CHASE_ALLY_ATTACK: '追击队友伤害',
+    ON_BOSS_HP_LOSS: '掉血追加',
+    COUNTER_ON_HIT: '被打反击',
+    DODGE_NEXT_HIT: '躲避下次攻击',
+    CONVERT_SHIELD_TO_DAMAGE: '防御转化为伤害',
+    DAMAGE_PLAYER: '玩家失去生命',
+    DAMAGE_BOSS: '对霸凌者造成伤害',
+    SKIP_CUSTOMER_EFFECT: '顾客无法行动',
+    CLEAR_BOSS_SHIELD: '清空敌人防御',
+    SKIP_BULLY_ATTACK: '敌人无法行动',
   }
   return map[effectType || ''] || effectType || '未知效果'
 }
@@ -1543,7 +1565,18 @@ function isPierceEffect(payload: any, effect: any) {
 
 function isDelayedEffect(effect: any) {
   const type = fxType(effect)
-  if (type === 'GUARD_ALLY' || type === 'MULTIPLY_NEXT_CARD') return false
+  if (
+    type === 'GUARD_ALLY'
+    || type === 'MULTIPLY_NEXT_CARD'
+    || type === 'ADD_TURN_DAMAGE'
+    || type === 'MULTIPLY_TURN_DAMAGE'
+    || type === 'MULTIPLY_TURN_SHIELD'
+    || type === 'MULTIPLY_CURRENT_SHIELD'
+    || type === 'PEEK_NEXT_DRAW'
+    || type === 'SKIP_CUSTOMER_EFFECT'
+    || type === 'CLEAR_BOSS_SHIELD'
+    || type === 'SKIP_BULLY_ATTACK'
+  ) return false
   const timing = String(effect?.triggerTiming ?? effect?.trigger_timing ?? '').toUpperCase()
   return Boolean(effect?.scheduled) || timing.includes('ROUND')
 }
@@ -1917,10 +1950,73 @@ async function playEffectClip(effect: any, ctx: {
     }
     case 'MULTIPLY_NEXT_CARD': {
       const dest = handCardsRef.value || ctx.fromEl
+      const extra = parseEffectExtra(effect)
+      const types = extra.multiplyEffectTypes || extra.multiply_effect_types || []
       const times = Math.max(2, Math.round(actual || 2))
-      if (dest) spawnHeroMark(dest, `下一张 ×${times}`, 'tone-mult', 0.15)
+      const label = Array.isArray(types) && types.includes('ADD_SHIELD')
+        ? `下一张防御 ×${times}`
+        : Array.isArray(types) && types.includes('DAMAGE_BOSS')
+          ? `下一张伤害 ×${times}`
+          : `下一张 ×${times}`
+      if (dest) spawnHeroMark(dest, label, 'tone-mult', 0.15)
       pulseFlag(handMultPulse, 720)
       await waitFx(300)
+      return
+    }
+    case 'ADD_TURN_DAMAGE': {
+      const dest = ctx.fromEl
+      if (dest) spawnHeroMark(dest, `本回合攻击 +${Math.max(0, Math.round(actual || 2))}`, 'tone-mult', 0.12)
+      await waitFx(280)
+      return
+    }
+    case 'MULTIPLY_TURN_DAMAGE': {
+      const dest = ctx.fromEl
+      if (dest) spawnHeroMark(dest, `本回合攻击 ×${Math.max(2, Math.round(actual || 2))}`, 'tone-mult', 0.12)
+      await waitFx(280)
+      return
+    }
+    case 'MULTIPLY_TURN_SHIELD': {
+      const dest = ctx.fromEl
+      if (dest) spawnHeroMark(dest, `本回合防御 ×${Math.max(2, Math.round(actual || 2))}`, 'tone-mult', 0.12)
+      await waitFx(280)
+      return
+    }
+    case 'MULTIPLY_CURRENT_SHIELD': {
+      const dest = ctx.fromEl
+      if (dest) spawnHeroMark(dest, '当前防御 ×2', 'tone-mult', 0.12)
+      await waitFx(280)
+      return
+    }
+    case 'PEEK_NEXT_DRAW': {
+      const extra = parseEffectExtra(effect)
+      const cards = Array.isArray(extra.peekCards) ? extra.peekCards : []
+      if (sameBattleUserId(ctx.actorUserId, selfUserId()) && cards.length) {
+        peekDrawCards.value = cards.map((item: any) => ({
+          instanceId: item.instanceId ?? item.instance_id,
+          cardName: String(item.cardName ?? item.card_name ?? '未知'),
+        }))
+      }
+      const dest = handCardsRef.value || ctx.fromEl
+      if (dest) spawnHeroMark(dest, '预览下回合抽牌', 'tone-delay', 0.15)
+      await waitFx(300)
+      return
+    }
+    case 'SKIP_CUSTOMER_EFFECT': {
+      const dest = ctx.hudEl || ctx.bullyEl || ctx.fromEl
+      if (dest) spawnHeroMark(dest, '顾客无法行动', 'tone-delay', 0.12)
+      await waitFx(280)
+      return
+    }
+    case 'CLEAR_BOSS_SHIELD': {
+      const dest = ctx.hudEl || ctx.bullyEl || ctx.fromEl
+      if (dest) spawnHeroMark(dest, '护盾清除', 'tone-mult', 0.12)
+      await waitFx(280)
+      return
+    }
+    case 'SKIP_BULLY_ATTACK': {
+      const dest = ctx.bullyEl || ctx.hudEl || ctx.fromEl
+      if (dest) spawnHeroMark(dest, '敌人无法行动', 'tone-delay', 0.12)
+      await waitFx(280)
       return
     }
     default:
@@ -3372,6 +3468,37 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   background: rgba(4, 8, 12, 0.42);
+}
+.peek-draw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 12, 0.5);
+}
+.peek-draw-card {
+  width: min(420px, 88vw);
+  padding: var(--space-8);
+  border: 1px solid rgba(196, 169, 98, 0.45);
+  border-radius: var(--radius-xl);
+  background: rgba(11, 19, 27, 0.94);
+  color: #fff;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+.peek-draw-list {
+  margin: 12px 0 18px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+.peek-draw-list li {
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
 }
 .first-player-card {
   position: relative;

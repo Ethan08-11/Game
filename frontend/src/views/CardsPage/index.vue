@@ -197,6 +197,7 @@ function typeLabel(type: string | null | undefined): string {
     heal: '治疗',
     buff: '增益',
     support: '辅助',
+    skill: '技能',
   }
   return labels[type] || type
 }

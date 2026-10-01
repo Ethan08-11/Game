@@ -1,0 +1,24 @@
+-- 公共部行政部行政文职成员卡。可重复执行。不覆盖已有 采购_Harry / 人事部_Harry / 采购_Amy / 人事部_Amy / 采购_Kade / 人事部_Kade / 采购_Duane / 人事部_Duane 等卡面。
+-- id 261–264：接在 HR-07（260）之后。玩法部门为公共部；卡面文件名用「行政部_」前缀，图鉴显示行政部。
+-- 必须在 018、028、031、032、035、036、037、038 之后执行，否则会被 018 停用。
+INSERT INTO `cards` (`id`,`card_code`,`card_name`,`dept_id`,`dept_type`,`cost`,`card_type`,`description`,`image_url`,`combo_card_id`,`is_unique`,`require_unlock`,`status`,`created_at`,`updated_at`) SELECT 261, 'AD-01', 'Harry', 3, 'public', 0, 'buff', '本回合顾客无法行动', '/images/cards/行政部_Harry.webp', NULL, 0, 0, 1, NOW(), NOW() WHERE NOT EXISTS (SELECT 1 FROM `cards` WHERE `card_code` = 'AD-01');
+UPDATE `cards` SET `card_name` = 'Harry', `description` = '本回合顾客无法行动', `card_type` = 'buff', `cost` = 0, `dept_id` = 3, `dept_type` = 'public', `image_url` = '/images/cards/行政部_Harry.webp', `require_unlock` = 0, `status` = 1 WHERE `card_code` = 'AD-01';
+DELETE e FROM `card_effects` e INNER JOIN `cards` c ON c.id = e.card_id WHERE c.card_code = 'AD-01';
+INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) SELECT c.id, 1, 'BOSS', 'SKIP_CUSTOMER_EFFECT', 'IMMEDIATE', 0, 1, 'STACK', 1, 1, 'BOSS', NULL, NOW(), NOW() FROM `cards` c WHERE c.card_code = 'AD-01';
+
+INSERT INTO `cards` (`id`,`card_code`,`card_name`,`dept_id`,`dept_type`,`cost`,`card_type`,`description`,`image_url`,`combo_card_id`,`is_unique`,`require_unlock`,`status`,`created_at`,`updated_at`) SELECT 262, 'AD-02', 'Amy', 3, 'public', 1, 'buff', '立即将敌人防御清 0', '/images/cards/行政部_Amy.webp', NULL, 0, 0, 1, NOW(), NOW() WHERE NOT EXISTS (SELECT 1 FROM `cards` WHERE `card_code` = 'AD-02');
+UPDATE `cards` SET `card_name` = 'Amy', `description` = '立即将敌人防御清 0', `card_type` = 'buff', `cost` = 1, `dept_id` = 3, `dept_type` = 'public', `image_url` = '/images/cards/行政部_Amy.webp', `require_unlock` = 0, `status` = 1 WHERE `card_code` = 'AD-02';
+DELETE e FROM `card_effects` e INNER JOIN `cards` c ON c.id = e.card_id WHERE c.card_code = 'AD-02';
+INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) SELECT c.id, 1, 'BOSS', 'CLEAR_BOSS_SHIELD', 'IMMEDIATE', 0, 1, 'STACK', 0, 0, 'BOSS', NULL, NOW(), NOW() FROM `cards` c WHERE c.card_code = 'AD-02';
+
+INSERT INTO `cards` (`id`,`card_code`,`card_name`,`dept_id`,`dept_type`,`cost`,`card_type`,`description`,`image_url`,`combo_card_id`,`is_unique`,`require_unlock`,`status`,`created_at`,`updated_at`) SELECT 263, 'AD-03', 'Kade', 3, 'public', 2, 'buff', '顾客无法行动，持续 3 回合', '/images/cards/行政部_Kade.webp', NULL, 0, 0, 1, NOW(), NOW() WHERE NOT EXISTS (SELECT 1 FROM `cards` WHERE `card_code` = 'AD-03');
+UPDATE `cards` SET `card_name` = 'Kade', `description` = '顾客无法行动，持续 3 回合', `card_type` = 'buff', `cost` = 2, `dept_id` = 3, `dept_type` = 'public', `image_url` = '/images/cards/行政部_Kade.webp', `require_unlock` = 0, `status` = 1 WHERE `card_code` = 'AD-03';
+DELETE e FROM `card_effects` e INNER JOIN `cards` c ON c.id = e.card_id WHERE c.card_code = 'AD-03';
+INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) SELECT c.id, 1, 'BOSS', 'SKIP_CUSTOMER_EFFECT', 'IMMEDIATE', 0, 3, 'STACK', 3, 3, 'BOSS', NULL, NOW(), NOW() FROM `cards` c WHERE c.card_code = 'AD-03';
+
+INSERT INTO `cards` (`id`,`card_code`,`card_name`,`dept_id`,`dept_type`,`cost`,`card_type`,`description`,`image_url`,`combo_card_id`,`is_unique`,`require_unlock`,`status`,`created_at`,`updated_at`) SELECT 264, 'AD-04', 'Duane', 3, 'public', 3, 'buff', '敌人无法行动 1 回合', '/images/cards/行政部_Duane.webp', NULL, 0, 0, 1, NOW(), NOW() WHERE NOT EXISTS (SELECT 1 FROM `cards` WHERE `card_code` = 'AD-04');
+UPDATE `cards` SET `card_name` = 'Duane', `description` = '敌人无法行动 1 回合', `card_type` = 'buff', `cost` = 3, `dept_id` = 3, `dept_type` = 'public', `image_url` = '/images/cards/行政部_Duane.webp', `require_unlock` = 0, `status` = 1 WHERE `card_code` = 'AD-04';
+DELETE e FROM `card_effects` e INNER JOIN `cards` c ON c.id = e.card_id WHERE c.card_code = 'AD-04';
+INSERT INTO `card_effects` (`card_id`,`effect_order`,`effect_scope`,`effect_type`,`trigger_timing`,`trigger_delay`,`remaining_triggers`,`stack_rule`,`duration_rounds`,`value`,`target_rule`,`extra_data`,`created_at`,`updated_at`) SELECT c.id, 1, 'BOSS', 'SKIP_BULLY_ATTACK', 'IMMEDIATE', 0, 1, 'STACK', 1, 1, 'BOSS', NULL, NOW(), NOW() FROM `cards` c WHERE c.card_code = 'AD-04';
+
+ALTER TABLE `cards` AUTO_INCREMENT = 265;

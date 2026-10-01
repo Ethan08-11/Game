@@ -703,11 +703,16 @@ public class MatchServiceImpl implements MatchService {
             }
         }
         Bullies bully = requireBully(match.getBullyId());
-        boolean appliesNumericEffects = configuredEffects.stream()
-                .anyMatch(effect -> !"MULTIPLY_NEXT_CARD".equals(effect.getEffectType()));
-        MatchPendingEffects multiplierEffect = appliesNumericEffects
-                ? findNextCardMultiplier(matchId, currentUserId) : null;
-        int multiplier = multiplierEffect == null ? 1 : Math.max(value(multiplierEffect.getEffectValue()), 1);
+        MatchPendingEffects multiplierEffect = findNextCardMultiplier(matchId, currentUserId);
+        Set<String> multiplyTypes = parseMultiplyEffectTypes(
+                multiplierEffect == null ? null : multiplierEffect.getExtraData());
+        boolean consumeMultiplier = multiplierEffect != null && configuredEffects.stream().anyMatch(effect -> {
+            if ("MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
+                return false;
+            }
+            return multiplyTypes.isEmpty() || multiplyTypes.contains(effect.getEffectType());
+        });
+        int multiplier = consumeMultiplier ? Math.max(value(multiplierEffect.getEffectValue()), 1) : 1;
         requireSelfShieldCost(actor, configuredEffects, multiplier);
         List<CardEffectResp> effectResults = new ArrayList<>();
         int actionBeforeEffect = value(actor.getActionPoints());
@@ -717,11 +722,11 @@ public class MatchServiceImpl implements MatchService {
         actor.setCardsPlayedCount(value(actor.getCardsPlayedCount()) + 1);
         for (CardEffects effect : configuredEffects) {
             if ("IMMEDIATE".equals(effect.getTriggerTiming())) {
-                applyImmediateEffect(match, bully, actor, target, effect, multiplier, effectResults, instance);
+                applyImmediateEffect(match, bully, actor, target, effect, multiplier, multiplyTypes, effectResults, instance);
             }
         }
         schedulePendingEffects(match, actor, instance, target, configuredEffects, multiplier, effectResults);
-        if (multiplierEffect != null) {
+        if (consumeMultiplier) {
             multiplierEffect.setRemainingTriggers(0);
             multiplierEffect.setStatus("RESOLVED");
             matchPendingEffectsMapper.updateById(multiplierEffect);
@@ -893,7 +898,7 @@ public class MatchServiceImpl implements MatchService {
     }
 
     /**
-     * 本部门成员卡组牌：基础每种 2 张 + 本部门收藏各 1 张，再用公共部基础卡（雇佣兵、物流骑士、营销大力士）补位。中立卡仍停用。
+     * 本部门成员卡组牌：基础每种 2 张 + 本部门收藏各 1 张，再用公共部基础卡（雇佣兵、物流骑士、营销大力士、设计部文艺射手、技术部工兵、财务部补给牧师、人事部占卜家、行政部行政文职）补位。中立卡仍停用。
      * 采购基础卡更少时，多出的空位优先加本部门收藏。收藏名额优先给最近没上场过的已解锁卡。
      * 解锁不足时可以少于 30 张；够填满时必须正好 30 张。
      */
@@ -1640,20 +1645,18 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void applyImmediateEffect(Matches match, @SuppressWarnings("unused") Bullies bully, MatchPlayers actor, MatchPlayers target, CardEffects effect,
-                                      int multiplier, List<CardEffectResp> results, MatchCards instance) {
+                                      int multiplier, Set<String> multiplyTypes, List<CardEffectResp> results, MatchCards instance) {
         int rawValue = value(effect.getValue());
         int baseValue = "ADD_SHIELD".equals(effect.getEffectType()) ? rawValue : Math.max(rawValue, 0);
-        int actualValue = applyTriggerChance(effect.getExtraData(), baseValue * multiplier);
+        int typeMult = effectMultiplier(effect.getEffectType(), multiplier, multiplyTypes);
+        int actualValue = applyTriggerChance(effect.getExtraData(), baseValue * typeMult);
         switch (effect.getEffectType()) {
             case "DAMAGE_BOSS" -> {
+                actualValue = applyTurnDamageModifiers(match.getId(), actor.getUserId(), actualValue);
                 int hpBefore = value(match.getBossCurrentHp());
-                int shieldBefore = value(match.getBossCurrentShield());
-                int hpLoss = applyBossHpDamage(match, actualValue, parseIgnoreShield(effect.getExtraData()));
-                if (hpLoss > 0) {
-                    actor.setDamageDealt(value(actor.getDamageDealt()) + hpLoss);
-                }
-                int landed = hpLoss + shieldBefore - value(match.getBossCurrentShield());
-                results.add(effectResult(effect, "BOSS", null, baseValue, landed,
+                int hpLoss = dealBossHp(match, actor, actualValue, parseIgnoreShield(effect.getExtraData()),
+                        BossDmgKind.CARD, results);
+                results.add(effectResult(effect, "BOSS", null, baseValue, hpLoss,
                         hpBefore, value(match.getBossCurrentHp()), match.getCurrentRound()));
             }
             case "REDUCE_BOSS_ATTACK" -> {
@@ -1684,6 +1687,7 @@ public class MatchServiceImpl implements MatchService {
                 }
             }
             case "ADD_SHIELD" -> {
+                actualValue = applyTurnShieldModifiers(match.getId(), actor.getUserId(), actualValue);
                 for (MatchPlayers recipient : resolveEffectTargets(match.getId(), actor, target, effect)) {
                     int beforeValue = value(recipient.getShield());
                     int afterValue = Math.max(0, beforeValue + actualValue);
@@ -1754,6 +1758,68 @@ public class MatchServiceImpl implements MatchService {
                 results.add(new CardEffectResp("GUARD_ALLY", "IMMEDIATE", "PLAYER", ward.getUserId(),
                         1, 1, null, null, true, match.getCurrentRound(), pending.getId(), effect.getExtraData()));
             }
+            case "CHASE_ALLY_ATTACK", "ON_BOSS_HP_LOSS", "COUNTER_ON_HIT", "DODGE_NEXT_HIT",
+                 "ADD_TURN_DAMAGE", "MULTIPLY_TURN_DAMAGE", "MULTIPLY_TURN_SHIELD" -> {
+                MatchPendingEffects pending = insertHookPending(match, actor, instance, effect, multiplier);
+                results.add(new CardEffectResp(effect.getEffectType(), "IMMEDIATE",
+                        "SELF".equals(effect.getEffectScope()) ? "PLAYER" : "BOSS",
+                        actor.getUserId(), value(effect.getValue()), value(effect.getValue()) * multiplier,
+                        null, null, true, match.getCurrentRound(), pending.getId(), effect.getExtraData()));
+            }
+            case "MULTIPLY_CURRENT_SHIELD" -> {
+                int beforeValue = value(actor.getShield());
+                int afterValue = beforeValue <= 0 ? 0 : beforeValue * Math.max(actualValue, 1);
+                actor.setShield(afterValue);
+                results.add(effectResult(effect, "PLAYER", actor.getUserId(), beforeValue, afterValue - beforeValue,
+                        beforeValue, afterValue, match.getCurrentRound()));
+            }
+            case "PEEK_NEXT_DRAW" -> {
+                int count = Math.max(actualValue, 1);
+                String peekJson = pinNextDrawCards(match.getId(), actor.getUserId(), instance, effect, count);
+                results.add(new CardEffectResp("PEEK_NEXT_DRAW", "IMMEDIATE", "PLAYER", actor.getUserId(),
+                        count, count, null, null, true, match.getCurrentRound(), null, peekJson));
+            }
+            case "CLEAR_BOSS_SHIELD" -> {
+                int beforeValue = value(match.getBossCurrentShield());
+                match.setBossCurrentShield(0);
+                results.add(effectResult(effect, "BOSS", null, beforeValue, beforeValue,
+                        beforeValue, 0, match.getCurrentRound()));
+            }
+            case "SKIP_CUSTOMER_EFFECT" -> {
+                int remaining = Math.max(value(effect.getRemainingTriggers()), Math.max(actualValue, 1));
+                MatchRounds round = currentRound(match);
+                int beforeTriggered = round == null ? 0 : value(round.getCustomerTriggered());
+                if (round != null) {
+                    if (beforeTriggered == 1) {
+                        revertCustomerEffectThisRound(match, round, listPlayers(match.getId()));
+                        round.setCustomerTriggered(0);
+                        matchRoundsMapper.updateById(round);
+                    }
+                    remaining = Math.max(remaining - 1, 0);
+                }
+                MatchPendingEffects pending = remaining > 0
+                        ? insertSkipHook(match, actor, instance, "SKIP_CUSTOMER_EFFECT", remaining, effect.getExtraData())
+                        : null;
+                results.add(new CardEffectResp("SKIP_CUSTOMER_EFFECT", "IMMEDIATE", "BOSS", null,
+                        value(effect.getValue()), remaining, beforeTriggered, 0, pending != null,
+                        match.getCurrentRound(), pending == null ? null : pending.getId(), effect.getExtraData()));
+            }
+            case "SKIP_BULLY_ATTACK" -> {
+                int remaining = Math.max(value(effect.getRemainingTriggers()), Math.max(actualValue, 1));
+                MatchPendingEffects pending = insertSkipHook(match, actor, instance, "SKIP_BULLY_ATTACK", remaining,
+                        effect.getExtraData());
+                results.add(new CardEffectResp("SKIP_BULLY_ATTACK", "IMMEDIATE", "BOSS", null,
+                        remaining, remaining, 0, remaining, true, match.getCurrentRound(),
+                        pending.getId(), effect.getExtraData()));
+            }
+            case "CONVERT_SHIELD_TO_DAMAGE" -> {
+                int converted = value(actor.getShield());
+                actor.setShield(0);
+                int hpBefore = value(match.getBossCurrentHp());
+                int hpLoss = dealBossHp(match, actor, converted, false, BossDmgKind.CONVERT, results);
+                results.add(effectResult(effect, "BOSS", null, converted, hpLoss,
+                        hpBefore, value(match.getBossCurrentHp()), match.getCurrentRound()));
+            }
             default -> throw new BusinessException("不支持的立即效果类型：" + effect.getEffectType());
         }
     }
@@ -1792,6 +1858,158 @@ public class MatchServiceImpl implements MatchService {
                 .compile("\"ignoreShield\"\\s*:\\s*(true|false)", java.util.regex.Pattern.CASE_INSENSITIVE)
                 .matcher(extraData);
         return matcher.find() && "true".equalsIgnoreCase(matcher.group(1));
+    }
+
+    private int effectMultiplier(String effectType, int cardMultiplier, Set<String> multiplyTypes) {
+        if (cardMultiplier <= 1) {
+            return 1;
+        }
+        if (multiplyTypes == null || multiplyTypes.isEmpty() || multiplyTypes.contains(effectType)) {
+            return cardMultiplier;
+        }
+        return 1;
+    }
+
+    private Set<String> parseMultiplyEffectTypes(String extraData) {
+        Set<String> types = new LinkedHashSet<>();
+        if (extraData == null || extraData.isBlank()) {
+            return types;
+        }
+        java.util.regex.Matcher block = java.util.regex.Pattern
+                .compile("\"multiplyEffectTypes\"\\s*:\\s*\\[([^\\]]*)]")
+                .matcher(extraData);
+        if (!block.find()) {
+            return types;
+        }
+        java.util.regex.Matcher names = java.util.regex.Pattern.compile("\"([A-Z_]+)\"").matcher(block.group(1));
+        while (names.find()) {
+            types.add(names.group(1));
+        }
+        return types;
+    }
+
+    private int applyTurnDamageModifiers(Long matchId, Long userId, int amount) {
+        int damage = Math.max(amount, 0);
+        MatchPendingEffects add = findHookPending(matchId, userId, "ADD_TURN_DAMAGE");
+        if (add != null) {
+            damage += Math.max(value(add.getEffectValue()), 0);
+        }
+        MatchPendingEffects mul = findHookPending(matchId, userId, "MULTIPLY_TURN_DAMAGE");
+        if (mul != null) {
+            damage *= Math.max(value(mul.getEffectValue()), 1);
+        }
+        return damage;
+    }
+
+    private int applyTurnShieldModifiers(Long matchId, Long userId, int amount) {
+        int shield = amount;
+        MatchPendingEffects mul = findHookPending(matchId, userId, "MULTIPLY_TURN_SHIELD");
+        if (mul != null) {
+            shield *= Math.max(value(mul.getEffectValue()), 1);
+        }
+        return shield;
+    }
+
+    private String pinNextDrawCards(Long matchId, Long userId, MatchCards source, CardEffects effect, int count) {
+        List<MatchPendingEffects> old = matchPendingEffectsMapper.selectList(
+                Wrappers.<MatchPendingEffects>lambdaQuery()
+                        .eq(MatchPendingEffects::getMatchId, matchId)
+                        .eq(MatchPendingEffects::getSourceUserId, userId)
+                        .eq(MatchPendingEffects::getEffectType, "PEEK_NEXT_DRAW")
+                        .eq(MatchPendingEffects::getStatus, "PENDING"));
+        for (MatchPendingEffects pending : old) {
+            pending.setRemainingTriggers(0);
+            pending.setStatus("RESOLVED");
+            matchPendingEffectsMapper.updateById(pending);
+        }
+        List<MatchCards> pool = new ArrayList<>();
+        List<MatchCards> deck = matchCardsMapper.selectList(Wrappers.<MatchCards>lambdaQuery()
+                .eq(MatchCards::getMatchId, matchId)
+                .eq(MatchCards::getUserId, userId)
+                .eq(MatchCards::getZone, "DECK"));
+        Collections.shuffle(deck);
+        pool.addAll(deck);
+        int take = Math.min(count, pool.size());
+        List<MatchCards> picked = new ArrayList<>(pool.subList(0, take));
+        StringBuilder json = new StringBuilder("{\"peekCards\":[");
+        for (int i = 0; i < picked.size(); i++) {
+            MatchCards card = picked.get(i);
+            if (!"DECK".equals(card.getZone())) {
+                continue;
+            }
+            card.setDeckOrder(i + 1);
+            card.setVersion(value(card.getVersion()) + 1);
+            matchCardsMapper.updateById(card);
+            Cards def = cardsMapper.selectById(card.getCardId());
+            String name = def == null || def.getCardName() == null ? "?" : def.getCardName().replace("\"", "");
+            String image = def == null || def.getImageUrl() == null ? "" : def.getImageUrl().replace("\"", "");
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append("{\"instanceId\":").append(card.getId())
+                    .append(",\"cardId\":").append(card.getCardId())
+                    .append(",\"cardName\":\"").append(name).append('"')
+                    .append(",\"imageUrl\":\"").append(image).append("\"}");
+        }
+        json.append("]}");
+        MatchPendingEffects pending = new MatchPendingEffects();
+        pending.setMatchId(matchId);
+        pending.setMatchPlayerId(source == null ? null : source.getMatchPlayerId());
+        pending.setSourceUserId(userId);
+        pending.setSourceCardInstanceId(source == null ? null : source.getId());
+        pending.setEffectType("PEEK_NEXT_DRAW");
+        pending.setTargetType("PLAYER");
+        pending.setTargetUserId(userId);
+        pending.setEffectValue(take);
+        pending.setTriggerRound(0);
+        pending.setRemainingTriggers(1);
+        pending.setStatus("PENDING");
+        pending.setExtraData(json.toString());
+        matchPendingEffectsMapper.insert(pending);
+        return json.toString();
+    }
+
+    private List<Long> parsePeekInstanceIds(String extraData) {
+        List<Long> ids = new ArrayList<>();
+        if (extraData == null || extraData.isBlank()) {
+            return ids;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\"instanceId\"\\s*:\\s*(\\d+)").matcher(extraData);
+        while (matcher.find()) {
+            ids.add(Long.parseLong(matcher.group(1)));
+        }
+        return ids;
+    }
+
+    private int drawReservedPeekCards(Long matchId, Long userId, int roundNo, int count) {
+        MatchPendingEffects peek = findHookPending(matchId, userId, "PEEK_NEXT_DRAW");
+        if (peek == null || count <= 0) {
+            return 0;
+        }
+        List<Long> ids = parsePeekInstanceIds(peek.getExtraData());
+        int drawn = 0;
+        for (Long id : ids) {
+            if (drawn >= count) {
+                break;
+            }
+            MatchCards card = matchCardsMapper.selectById(id);
+            if (card == null || !matchId.equals(card.getMatchId()) || !userId.equals(card.getUserId())) {
+                continue;
+            }
+            if (!"DECK".equals(card.getZone()) && !"DISCARD".equals(card.getZone())) {
+                continue;
+            }
+            card.setZone("HAND");
+            card.setDeckOrder(null);
+            card.setDrawnRound(roundNo);
+            card.setVersion(value(card.getVersion()) + 1);
+            matchCardsMapper.updateById(card);
+            drawn++;
+        }
+        peek.setRemainingTriggers(0);
+        peek.setStatus("RESOLVED");
+        matchPendingEffectsMapper.updateById(peek);
+        return drawn;
     }
 
     private void requireSelfShieldCost(MatchPlayers actor, List<CardEffects> effects, int multiplier) {
@@ -1932,7 +2150,7 @@ public class MatchServiceImpl implements MatchService {
     private void schedulePendingEffects(Matches match, MatchPlayers actor, MatchCards instance, MatchPlayers target,
                                         List<CardEffects> effects, int multiplier, List<CardEffectResp> results) {
         for (CardEffects effect : effects) {
-            if ("IMMEDIATE".equals(effect.getTriggerTiming()) || "GUARD_ALLY".equals(effect.getEffectType())) {
+            if ("IMMEDIATE".equals(effect.getTriggerTiming()) || isPersistentHook(effect.getEffectType())) {
                 continue;
             }
             int triggerRound;
@@ -2230,6 +2448,15 @@ public class MatchServiceImpl implements MatchService {
 
     private BossAttackTargetResp applyBossHit(Matches match, MatchRounds round, MatchPlayers player,
                                               int attack, int pierce) {
+        MatchPendingEffects dodge = findHookPending(match.getId(), player.getUserId(), "DODGE_NEXT_HIT");
+        if (dodge != null) {
+            consumePendingGuard(dodge);
+            int hp = value(player.getCurrentHp());
+            insertBossAttackAction(match, round, player, hp, hp,
+                    "{\"attack\":" + attack + ",\"dodged\":true,\"absorbedDamage\":0}");
+            return new BossAttackTargetResp(player.getUserId(), attack, value(player.getShield()),
+                    0, hp, 0, hp, false);
+        }
         int shieldBefore = value(player.getShield());
         int absorbed = Math.min(shieldBefore, attack);
         int overflow = Math.max(attack - shieldBefore, 0);
@@ -2249,6 +2476,9 @@ public class MatchServiceImpl implements MatchService {
         insertBossAttackAction(match, round, player, hpBefore, hpAfter,
                 "{\"attack\":" + attack + ",\"shieldBefore\":" + shieldBefore
                         + ",\"absorbedDamage\":" + absorbed + "}");
+        if (absorbed > 0 || hpDamage > 0) {
+            resolveCounterOnHit(match, player);
+        }
         return new BossAttackTargetResp(player.getUserId(), attack, shieldBefore, absorbed, hpBefore,
                 hpBefore - hpAfter, hpAfter, hpAfter <= 0);
     }
@@ -2275,9 +2505,12 @@ public class MatchServiceImpl implements MatchService {
             currentRound.setEndedAt(LocalDateTime.now());
             matchRoundsMapper.updateById(currentRound);
         }
+        expireRoundBoundHooks(match.getId());
         int nextRoundNo = match.getCurrentRound() + 1;
         CustomerTypes customer = customerTypesMapper.selectById(match.getCustomerTypeId());
-        boolean triggered = customer != null && ThreadLocalRandom.current().nextInt(100) < value(customer.getTriggerChance());
+        boolean skipCustomer = consumeMatchHookCharge(match.getId(), "SKIP_CUSTOMER_EFFECT");
+        boolean triggered = !skipCustomer && customer != null
+                && ThreadLocalRandom.current().nextInt(100) < value(customer.getTriggerChance());
         int attack = value(match.getBossBaseAttack());
         if (triggered && customer != null) {
             if ("bully_attack_down".equals(customer.getEffectType()) || "bully_attack_up".equals(customer.getEffectType())) {
@@ -2316,7 +2549,11 @@ public class MatchServiceImpl implements MatchService {
             return;
         }
         for (MatchPlayers player : players) {
-            drawCards(match.getId(), player.getUserId(), nextRoundNo, INITIAL_HAND_SIZE);
+            int reserved = drawReservedPeekCards(match.getId(), player.getUserId(), nextRoundNo, INITIAL_HAND_SIZE);
+            int need = INITIAL_HAND_SIZE - reserved;
+            if (need > 0) {
+                drawCards(match.getId(), player.getUserId(), nextRoundNo, need);
+            }
         }
         MatchRounds nextRound = new MatchRounds();
         nextRound.setMatchId(match.getId());
@@ -2343,21 +2580,19 @@ public class MatchServiceImpl implements MatchService {
                 Wrappers.<MatchPendingEffects>lambdaQuery().eq(MatchPendingEffects::getMatchId, match.getId())
                         .eq(MatchPendingEffects::getTriggerRound, roundNo).eq(MatchPendingEffects::getStatus, "PENDING"));
         for (MatchPendingEffects pending : pendingEffects) {
-            if ("MULTIPLY_NEXT_CARD".equals(pending.getEffectType()) || "GUARD_ALLY".equals(pending.getEffectType())) {
+            if (isPersistentHook(pending.getEffectType())) {
                 continue;
             }
             if ("DAMAGE_BOSS".equals(pending.getEffectType())) {
                 int rolled = applyTriggerChance(pending.getExtraData(), value(pending.getEffectValue()));
-                int hpLoss = applyBossHpDamage(match, rolled, parseIgnoreShield(pending.getExtraData()));
+                MatchPlayers source = pending.getSourceUserId() == null ? null : matchPlayersMapper.selectOne(
+                        Wrappers.<MatchPlayers>lambdaQuery()
+                                .eq(MatchPlayers::getMatchId, match.getId())
+                                .eq(MatchPlayers::getUserId, pending.getSourceUserId())
+                                .last("LIMIT 1"));
+                int hpLoss = dealBossHp(match, source, rolled, parseIgnoreShield(pending.getExtraData()),
+                        BossDmgKind.CARD, null);
                 if (hpLoss > 0 && pending.getSourceUserId() != null) {
-                    MatchPlayers source = matchPlayersMapper.selectOne(Wrappers.<MatchPlayers>lambdaQuery()
-                            .eq(MatchPlayers::getMatchId, match.getId())
-                            .eq(MatchPlayers::getUserId, pending.getSourceUserId())
-                            .last("LIMIT 1"));
-                    if (source != null) {
-                        source.setDamageDealt(value(source.getDamageDealt()) + hpLoss);
-                        matchPlayersMapper.updateById(source);
-                    }
                     try {
                         taskService.recordBattleAction(pending.getSourceUserId(), null, 0, hpLoss);
                     } catch (Exception e) {
@@ -2419,6 +2654,8 @@ public class MatchServiceImpl implements MatchService {
      */
     private int drawCards(Long matchId, Long userId, int roundNo, int count) {
         int drawn = 0;
+        MatchPendingEffects peek = findHookPending(matchId, userId, "PEEK_NEXT_DRAW");
+        Set<Long> reserved = new HashSet<>(parsePeekInstanceIds(peek == null ? null : peek.getExtraData()));
         while (drawn < count) {
             int deckCount = countCards(matchId, userId, "DECK");
             if (deckCount <= 0) {
@@ -2433,6 +2670,10 @@ public class MatchServiceImpl implements MatchService {
                     .eq(MatchCards::getMatchId, matchId)
                     .eq(MatchCards::getUserId, userId)
                     .eq(MatchCards::getZone, "DECK"));
+            deck.removeIf(card -> reserved.contains(card.getId()));
+            if (deck.isEmpty()) {
+                break;
+            }
             Collections.shuffle(deck);
             // 本轮最多抽完当前牌库，不够的等牌库空了再洗弃牌
             int need = Math.min(count - drawn, deck.size());
@@ -2969,6 +3210,11 @@ public class MatchServiceImpl implements MatchService {
             finishMatch(match, 1);
             return new RoundSettleResult(false, true, List.of());
         }
+        if (consumeMatchHookCharge(match.getId(), "SKIP_BULLY_ATTACK")) {
+            finishRoundAndStartNext(match, round, players);
+            boolean skippedMatchEnded = value(match.getStatus()) == 2 && value(match.getWinnerType()) != 0;
+            return new RoundSettleResult(false, skippedMatchEnded, List.of());
+        }
         match.setPhase("BOSS_ACTION");
         if (round != null) {
             round.setPhase("BOSS_ACTION");
@@ -3062,6 +3308,226 @@ public class MatchServiceImpl implements MatchService {
             notificationService.notifyUser(player.getUserId(), payload);
             userPresenceService.broadcastPresence(player.getUserId());
         }
+    }
+
+    private enum BossDmgKind {
+        CARD, CHASE, HP_LOSS_EXTRA, COUNTER, CONVERT
+    }
+
+    private boolean isPersistentHook(String effectType) {
+        return "GUARD_ALLY".equals(effectType)
+                || "CHASE_ALLY_ATTACK".equals(effectType)
+                || "ON_BOSS_HP_LOSS".equals(effectType)
+                || "COUNTER_ON_HIT".equals(effectType)
+                || "DODGE_NEXT_HIT".equals(effectType)
+                || "ADD_TURN_DAMAGE".equals(effectType)
+                || "MULTIPLY_TURN_DAMAGE".equals(effectType)
+                || "MULTIPLY_TURN_SHIELD".equals(effectType)
+                || "PEEK_NEXT_DRAW".equals(effectType)
+                || "SKIP_CUSTOMER_EFFECT".equals(effectType)
+                || "SKIP_BULLY_ATTACK".equals(effectType);
+    }
+
+    private MatchPendingEffects insertHookPending(Matches match, MatchPlayers actor, MatchCards instance,
+                                                  CardEffects effect, int multiplier) {
+        MatchPendingEffects pending = new MatchPendingEffects();
+        pending.setMatchId(match.getId());
+        pending.setMatchPlayerId(actor.getId());
+        pending.setSourceUserId(actor.getUserId());
+        pending.setSourceCardInstanceId(instance == null ? null : instance.getId());
+        pending.setEffectType(effect.getEffectType());
+        pending.setTargetType("SELF".equals(effect.getEffectScope()) ? "PLAYER" : "BOSS");
+        pending.setTargetUserId(actor.getUserId());
+        pending.setEffectValue(value(effect.getValue()) * Math.max(multiplier, 1));
+        pending.setTriggerRound(match.getCurrentRound());
+        pending.setRemainingTriggers(Math.max(value(effect.getRemainingTriggers()), 1));
+        pending.setStatus("PENDING");
+        pending.setExtraData(effect.getExtraData());
+        matchPendingEffectsMapper.insert(pending);
+        return pending;
+    }
+
+    private MatchPendingEffects findHookPending(Long matchId, Long userId, String effectType) {
+        return matchPendingEffectsMapper.selectOne(Wrappers.<MatchPendingEffects>lambdaQuery()
+                .eq(MatchPendingEffects::getMatchId, matchId)
+                .eq(MatchPendingEffects::getEffectType, effectType)
+                .eq(MatchPendingEffects::getStatus, "PENDING")
+                .eq(MatchPendingEffects::getTargetUserId, userId)
+                .orderByAsc(MatchPendingEffects::getId)
+                .last("LIMIT 1"));
+    }
+
+    private List<MatchPendingEffects> listHookPendings(Long matchId, String effectType) {
+        return matchPendingEffectsMapper.selectList(Wrappers.<MatchPendingEffects>lambdaQuery()
+                .eq(MatchPendingEffects::getMatchId, matchId)
+                .eq(MatchPendingEffects::getEffectType, effectType)
+                .eq(MatchPendingEffects::getStatus, "PENDING")
+                .orderByAsc(MatchPendingEffects::getId));
+    }
+
+    private MatchPendingEffects insertSkipHook(Matches match, MatchPlayers actor, MatchCards instance,
+                                               String effectType, int remaining, String extraData) {
+        MatchPendingEffects pending = new MatchPendingEffects();
+        pending.setMatchId(match.getId());
+        pending.setMatchPlayerId(actor.getId());
+        pending.setSourceUserId(actor.getUserId());
+        pending.setSourceCardInstanceId(instance == null ? null : instance.getId());
+        pending.setEffectType(effectType);
+        pending.setTargetType("BOSS");
+        pending.setTargetUserId(null);
+        pending.setEffectValue(Math.max(remaining, 1));
+        pending.setTriggerRound(match.getCurrentRound());
+        pending.setRemainingTriggers(Math.max(remaining, 1));
+        pending.setStatus("PENDING");
+        pending.setExtraData(extraData);
+        matchPendingEffectsMapper.insert(pending);
+        return pending;
+    }
+
+    private MatchPendingEffects findMatchHookPending(Long matchId, String effectType) {
+        return matchPendingEffectsMapper.selectOne(Wrappers.<MatchPendingEffects>lambdaQuery()
+                .eq(MatchPendingEffects::getMatchId, matchId)
+                .eq(MatchPendingEffects::getEffectType, effectType)
+                .eq(MatchPendingEffects::getStatus, "PENDING")
+                .orderByAsc(MatchPendingEffects::getId)
+                .last("LIMIT 1"));
+    }
+
+    private boolean consumeMatchHookCharge(Long matchId, String effectType) {
+        MatchPendingEffects skip = findMatchHookPending(matchId, effectType);
+        if (skip == null) {
+            return false;
+        }
+        int remaining = value(skip.getRemainingTriggers());
+        if (remaining <= 1) {
+            skip.setRemainingTriggers(0);
+            skip.setStatus("RESOLVED");
+        } else {
+            skip.setRemainingTriggers(remaining - 1);
+        }
+        matchPendingEffectsMapper.updateById(skip);
+        return true;
+    }
+
+    private void revertCustomerEffectThisRound(Matches match, MatchRounds round, List<MatchPlayers> players) {
+        String type = round.getCustomerEffectType();
+        int val = value(round.getCustomerEffectValue());
+        if ("bully_attack_down".equals(type) || "bully_attack_up".equals(type)) {
+            match.setBossCurrentAttack(Math.max(0, value(match.getBossCurrentAttack()) - val));
+            return;
+        }
+        if ("bully_hp_up".equals(type)) {
+            int hpGain = Math.max(val, 0);
+            int hpAfter = Math.max(1, value(match.getBossCurrentHp()) - hpGain);
+            match.setBossCurrentHp(hpAfter);
+            match.setBossMaxHp(Math.max(hpAfter, value(match.getBossMaxHp()) - hpGain));
+            return;
+        }
+        if ("player_hp_up".equals(type)) {
+            int heal = Math.max(val, 0);
+            for (MatchPlayers player : players) {
+                if (value(player.getCurrentHp()) <= 0) {
+                    continue;
+                }
+                player.setCurrentHp(Math.max(1, value(player.getCurrentHp()) - heal));
+                matchPlayersMapper.updateById(player);
+            }
+        }
+    }
+
+    private void expireRoundBoundHooks(Long matchId) {
+        List<MatchPendingEffects> hooks = matchPendingEffectsMapper.selectList(
+                Wrappers.<MatchPendingEffects>lambdaQuery()
+                        .eq(MatchPendingEffects::getMatchId, matchId)
+                        .eq(MatchPendingEffects::getStatus, "PENDING")
+                        .in(MatchPendingEffects::getEffectType, List.of(
+                                "CHASE_ALLY_ATTACK", "ON_BOSS_HP_LOSS",
+                                "ADD_TURN_DAMAGE", "MULTIPLY_TURN_DAMAGE", "MULTIPLY_TURN_SHIELD",
+                                "SKIP_BULLY_ATTACK")));
+        for (MatchPendingEffects hook : hooks) {
+            hook.setRemainingTriggers(0);
+            hook.setStatus("RESOLVED");
+            matchPendingEffectsMapper.updateById(hook);
+        }
+    }
+
+    private int dealBossHp(Matches match, MatchPlayers credited, int amount, boolean ignoreShield,
+                           BossDmgKind kind, List<CardEffectResp> results) {
+        int damage = Math.max(amount, 0);
+        if (damage <= 0) {
+            return 0;
+        }
+        int hpLoss = applyBossHpDamage(match, damage, ignoreShield);
+        if (hpLoss > 0 && credited != null) {
+            credited.setDamageDealt(value(credited.getDamageDealt()) + hpLoss);
+            persistHookPlayer(credited);
+        }
+        if (kind != BossDmgKind.CHASE && kind != BossDmgKind.HP_LOSS_EXTRA && credited != null) {
+            resolveChaseAllyAttack(match, credited, results);
+        }
+        if (kind != BossDmgKind.HP_LOSS_EXTRA && hpLoss > 0) {
+            resolveBossHpLossExtras(match, results);
+        }
+        return hpLoss;
+    }
+
+    private void persistHookPlayer(MatchPlayers player) {
+        if (player != null && player.getId() != null) {
+            matchPlayersMapper.updateById(player);
+        }
+    }
+
+    private void resolveChaseAllyAttack(Matches match, MatchPlayers striker, List<CardEffectResp> results) {
+        for (MatchPendingEffects hook : listHookPendings(match.getId(), "CHASE_ALLY_ATTACK")) {
+            if (striker.getUserId() != null && striker.getUserId().equals(hook.getSourceUserId())) {
+                continue;
+            }
+            MatchPlayers owner = matchPlayersMapper.selectOne(Wrappers.<MatchPlayers>lambdaQuery()
+                    .eq(MatchPlayers::getMatchId, match.getId())
+                    .eq(MatchPlayers::getUserId, hook.getSourceUserId())
+                    .last("LIMIT 1"));
+            if (owner == null || value(owner.getCurrentHp()) <= 0) {
+                continue;
+            }
+            int extra = Math.max(value(hook.getEffectValue()), 0);
+            int hpBefore = value(match.getBossCurrentHp());
+            int hpLoss = dealBossHp(match, owner, extra, false, BossDmgKind.CHASE, results);
+            if (results != null && hpLoss > 0) {
+                results.add(new CardEffectResp("CHASE_ALLY_ATTACK", "IMMEDIATE", "BOSS", null,
+                        extra, hpLoss, hpBefore, value(match.getBossCurrentHp()), false,
+                        match.getCurrentRound(), hook.getId(), hook.getExtraData()));
+            }
+        }
+    }
+
+    private void resolveBossHpLossExtras(Matches match, List<CardEffectResp> results) {
+        for (MatchPendingEffects hook : listHookPendings(match.getId(), "ON_BOSS_HP_LOSS")) {
+            MatchPlayers owner = matchPlayersMapper.selectOne(Wrappers.<MatchPlayers>lambdaQuery()
+                    .eq(MatchPlayers::getMatchId, match.getId())
+                    .eq(MatchPlayers::getUserId, hook.getSourceUserId())
+                    .last("LIMIT 1"));
+            if (owner == null || value(owner.getCurrentHp()) <= 0) {
+                continue;
+            }
+            int extra = Math.max(value(hook.getEffectValue()), 1);
+            int hpBefore = value(match.getBossCurrentHp());
+            int hpLoss = dealBossHp(match, owner, extra, true, BossDmgKind.HP_LOSS_EXTRA, results);
+            if (results != null && hpLoss > 0) {
+                results.add(new CardEffectResp("ON_BOSS_HP_LOSS", "IMMEDIATE", "BOSS", null,
+                        extra, hpLoss, hpBefore, value(match.getBossCurrentHp()), false,
+                        match.getCurrentRound(), hook.getId(), hook.getExtraData()));
+            }
+        }
+    }
+
+    private void resolveCounterOnHit(Matches match, MatchPlayers player) {
+        MatchPendingEffects counter = findHookPending(match.getId(), player.getUserId(), "COUNTER_ON_HIT");
+        if (counter == null) {
+            return;
+        }
+        consumePendingGuard(counter);
+        int extra = Math.max(value(counter.getEffectValue()), 0);
+        dealBossHp(match, player, extra, false, BossDmgKind.COUNTER, null);
     }
 
     private int applyBossHpDamage(Matches match, int rawDamage) {
