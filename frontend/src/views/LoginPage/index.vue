@@ -1,5 +1,5 @@
 <template>
-  <div class="login-page" :style="{ '--login-bg': `url(${bgImage})` }">
+  <div class="login-page" :class="{ 'is-password-tab': activeTab === 'password' }" :style="{ '--login-bg': `url(${bgImage})` }">
     <div class="parchment-layer" :style="{ '--parchment': `url(${parchmentBg})` }"></div>
     <h1 class="logo">这单我们护了！！！！</h1>
     <div class="login-card" @keydown.enter="onEnterKey">
@@ -180,9 +180,12 @@ async function handleChangePassword() {
   justify-content: flex-start;
   height: 100%;
   padding: var(--space-4);
-  padding-bottom: 108px;
+  padding-bottom: 180px;
   padding-left: 160px;
   isolation: isolate;
+}
+.login-page.is-password-tab {
+  padding-bottom: 108px;
 }
 .login-page::before {
   content: '';
@@ -225,22 +228,25 @@ async function handleChangePassword() {
   pointer-events: none;
 }
 
-.login-card :deep(.el-tabs__header) {
-  margin-bottom: 16px;
-}
-.login-card :deep(.el-tabs__nav-wrap::after) {
-  display: none;
-}
-.login-card :deep(.el-tabs__nav-scroll) {
-  display: flex;
-  justify-content: center;
-}
-.login-card :deep(.el-tabs__nav) {
-  float: none;
-}
 .login-card :deep(.el-tabs__item) {
   color: #5c3d2e;
   font-size: 16px;
+  padding: 0 14px;
+}
+.login-page.is-password-tab .login-card :deep(.el-tabs__header) {
+  margin-bottom: 16px;
+}
+.login-page.is-password-tab .login-card :deep(.el-tabs__nav-wrap::after) {
+  display: none;
+}
+.login-page.is-password-tab .login-card :deep(.el-tabs__nav-scroll) {
+  display: flex;
+  justify-content: center;
+}
+.login-page.is-password-tab .login-card :deep(.el-tabs__nav) {
+  float: none;
+}
+.login-page.is-password-tab .login-card :deep(.el-tabs__item) {
   padding: 0 18px;
 }
 .login-card :deep(.el-tabs__item.is-active) {
