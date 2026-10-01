@@ -48,6 +48,7 @@ import cc.shturl.wa.demo.mapper.MatchesMapper;
 import cc.shturl.wa.demo.mapper.RoomMembersMapper;
 import cc.shturl.wa.demo.mapper.UserCardPoolsMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
+import cc.shturl.wa.demo.service.AchievementService;
 import cc.shturl.wa.demo.service.CardCollectionService;
 import cc.shturl.wa.demo.service.ClientNetworkService;
 import cc.shturl.wa.demo.service.LeaderboardService;
@@ -148,6 +149,7 @@ public class MatchServiceImpl implements MatchService {
     private final PlatformTransactionManager transactionManager;
     private final LeaderboardService leaderboardService;
     private final ClientNetworkService clientNetworkService;
+    private final AchievementService achievementService;
 
     @Override
     @Transactional
@@ -824,6 +826,7 @@ public class MatchServiceImpl implements MatchService {
         player.setDeptType(member.getDeptType());
         player.setMaxHp(maxHp);
         player.setCurrentHp(maxHp);
+        player.setMinHp(maxHp);
         player.setShield(0);
         player.setBaseActionPoints(3);
         player.setActionPoints(3);
@@ -1884,11 +1887,33 @@ public class MatchServiceImpl implements MatchService {
         int after = Math.max(0, before - Math.max(amount, 0));
         player.setCurrentHp(after);
         player.setDamageTaken(value(player.getDamageTaken()) + before - after);
+        noteMinHp(player);
         if (after <= 0) {
             player.setPlayerStatus("DEAD");
             player.setReviveStatus(1);
         }
         return after;
+    }
+
+    private void noteMinHp(MatchPlayers player) {
+        int hp = value(player.getCurrentHp());
+        Integer recorded = player.getMinHp();
+        if (recorded == null || hp < recorded) {
+            player.setMinHp(hp);
+        }
+    }
+
+    private boolean bothPlayersHitDangerHp(List<MatchPlayers> players) {
+        if (players == null || players.size() < 2) {
+            return false;
+        }
+        for (MatchPlayers player : players) {
+            int lowest = player.getMinHp() != null ? player.getMinHp() : value(player.getCurrentHp());
+            if (lowest > 5) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean allPlayersDown(Long matchId) {
@@ -2215,6 +2240,7 @@ public class MatchServiceImpl implements MatchService {
         player.setShield(shieldBefore - absorbed);
         player.setCurrentHp(hpAfter);
         player.setDamageTaken(value(player.getDamageTaken()) + hpBefore - hpAfter);
+        noteMinHp(player);
         if (hpAfter <= 0) {
             player.setPlayerStatus("DEAD");
             player.setReviveStatus(1);
@@ -2741,6 +2767,20 @@ public class MatchServiceImpl implements MatchService {
                     taskService.consumeDailyMatchSlot(player.getUserId());
                 } catch (Exception e) {
                     logger.warn("Skip match slot consume userId={} matchId={}: {}",
+                            player.getUserId(), match.getId(), e.getMessage());
+                }
+            }
+        }
+        if (kind != MatchEndKind.VOID) {
+            boolean bothLowHp = grantRewards && winnerType == 1 && bothPlayersHitDangerHp(settledPlayers);
+            for (MatchPlayers player : settledPlayers) {
+                try {
+                    if (bothLowHp) {
+                        achievementService.bump(player.getUserId(), "both_low_hp_win", 1);
+                    }
+                    achievementService.refreshProgress(player.getUserId());
+                } catch (Exception e) {
+                    logger.warn("Skip achievement progress userId={} matchId={}: {}",
                             player.getUserId(), match.getId(), e.getMessage());
                 }
             }
