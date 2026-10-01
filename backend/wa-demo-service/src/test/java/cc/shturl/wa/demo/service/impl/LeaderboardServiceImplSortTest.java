@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,6 +62,21 @@ class LeaderboardServiceImplSortTest {
 
         assertThat(list).hasSize(1);
         assertThat(list.get(0).winRate()).isCloseTo(78.95, within(0.001));
+    }
+
+    @Test
+    @DisplayName("总榜：金币胜场都相同时，先攒到该金币的靠前")
+    void firstToReachGoldRanksHigher() {
+        UserProfile laterSmallerId = profile(1L, 100L, 8, 2, 0);
+        laterSmallerId.setMoneyReachedAt(LocalDateTime.of(2026, 10, 1, 12, 0));
+        UserProfile earlierLargerId = profile(9L, 100L, 8, 2, 0);
+        earlierLargerId.setMoneyReachedAt(LocalDateTime.of(2026, 10, 1, 9, 0));
+        when(userProfileMapper.selectList(any())).thenReturn(List.of(laterSmallerId, earlierLargerId));
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of());
+
+        List<LeaderboardResp> list = service.listLeaderboard(null, "total", 1, 0);
+
+        assertThat(list).extracting(LeaderboardResp::userId).containsExactly(9L, 1L);
     }
 
     private static UserProfile profile(long userId, long money, int wins, int losses, int draws) {

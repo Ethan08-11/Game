@@ -34,6 +34,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
             return;
         }
         ensureWeeklyMoneyColumn();
+        ensureMoneyReachedAtColumn();
         ensureWeekStateTable();
         ensureAlignedFlagColumn();
         ensureDailyTopTable();
@@ -53,6 +54,28 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
                 """);
         log.info("Added user_profiles.weekly_money column.");
         return true;
+    }
+
+    private void ensureMoneyReachedAtColumn() {
+        if (!columnExists("user_profiles", "money_reached_at")) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE `user_profiles`
+                    ADD COLUMN `money_reached_at` datetime NULL
+                    COMMENT '当前金币数额最近一次增加时间，总榜同金币时先到者靠前'
+                    AFTER `weekly_money`
+                    """);
+            log.info("Added user_profiles.money_reached_at.");
+        }
+        int backfilled = jdbcTemplate.update("""
+                UPDATE user_profiles
+                SET money_reached_at = updated_at
+                WHERE money_reached_at IS NULL
+                  AND IFNULL(money, 0) > 0
+                  AND updated_at IS NOT NULL
+                """);
+        if (backfilled > 0) {
+            log.info("Backfilled money_reached_at for {} profiles from updated_at.", backfilled);
+        }
     }
 
     private void ensureWeekStateTable() {
