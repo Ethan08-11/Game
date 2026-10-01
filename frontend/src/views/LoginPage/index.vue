@@ -180,7 +180,7 @@ async function handleChangePassword() {
   justify-content: flex-start;
   height: 100%;
   padding: var(--space-4);
-  padding-bottom: 180px;
+  padding-bottom: 108px;
   padding-left: 160px;
   isolation: isolate;
 }
@@ -225,10 +225,23 @@ async function handleChangePassword() {
   pointer-events: none;
 }
 
+.login-card :deep(.el-tabs__header) {
+  margin-bottom: 16px;
+}
+.login-card :deep(.el-tabs__nav-wrap::after) {
+  display: none;
+}
+.login-card :deep(.el-tabs__nav-scroll) {
+  display: flex;
+  justify-content: center;
+}
+.login-card :deep(.el-tabs__nav) {
+  float: none;
+}
 .login-card :deep(.el-tabs__item) {
   color: #5c3d2e;
   font-size: 16px;
-  padding: 0 14px;
+  padding: 0 18px;
 }
 .login-card :deep(.el-tabs__item.is-active) {
   color: #3e2a14;
