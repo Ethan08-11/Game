@@ -92,6 +92,7 @@ function effectLabel(effectType?: string) {
     bully_attack_up: '霸凌者攻击提升',
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
+    player_action_hp_down: '一名玩家调用机会减少并失血',
     bully_defense_up: '霸凌者防御提升',
     hp: '血量变化',
     attack: '攻击变化',
@@ -116,6 +117,10 @@ function effectLabel(effectType?: string) {
 function formatEffectValue(effectType?: string, value?: number) {
   const num = value ?? 0
   const prefix = num >= 0 ? '+' : ''
+  if (effectType === 'player_action_hp_down' || /action_hp|harsh/i.test(effectType || '')) {
+    const amount = Math.abs(num)
+    return `调用机会-${amount}且失血${amount}`
+  }
   if (effectType === 'player_action_up' || /action/i.test(effectType || '')) {
     return `调用机会${prefix}${num}`
   }

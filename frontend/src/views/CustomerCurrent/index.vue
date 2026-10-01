@@ -81,6 +81,11 @@ const customerReady = computed(() => {
 const customerAvatar = computed(() => getImageUrl(trait.value?.imageUrl) || '')
 const effectText = computed(() => {
   if (!trait.value) return ''
+  const value = trait.value.effectValue ?? 0
+  if (trait.value.effectType === 'player_harsh') {
+    const amount = Math.abs(value)
+    return `一名玩家调用机会-${amount}且失血${amount}`
+  }
   const target = trait.value.effectType === 'player_hp'
     ? '我方血值'
     : trait.value.effectType === 'player_action'
@@ -88,7 +93,6 @@ const effectText = computed(() => {
       : trait.value.effectType === 'hp'
         ? '霸凌者血量'
         : '霸凌者基础攻击'
-  const value = trait.value.effectValue ?? 0
   return `${target}${value >= 0 ? '+' : ''}${value}`
 })
 const bullyChanceText = computed(() => {

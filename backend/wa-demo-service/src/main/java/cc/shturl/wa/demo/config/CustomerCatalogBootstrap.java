@@ -39,6 +39,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         ensureBullyRoundDataColumn();
         runScript("db/015_window_couple_customer.sql");
         runScript("db/041_wealthy_customer.sql");
+        runScript("db/042_harsh_customer.sql");
         runScript("db/019_customer_bound_bullies.sql");
         runScript("db/023_bully_focus_no_pierce.sql");
         runScript("db/024_all_customers_hard_shield.sql");
@@ -52,6 +53,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         update("CUSTOMER_ANXIOUS", 2, 60, 30);
         update("CUSTOMER_WINDOW", 2, 20, 10);
         update("CUSTOMER_WEALTHY", 1, 40, 10);
+        update("CUSTOMER_HARSH", 1, 40, 10);
         log.info("Customer catalog difficulty tuned.");
     }
 
