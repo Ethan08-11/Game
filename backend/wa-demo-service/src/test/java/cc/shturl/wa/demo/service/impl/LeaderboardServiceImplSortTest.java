@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -96,10 +95,10 @@ class LeaderboardServiceImplSortTest {
                 profile(4L, 120L, 1, 0, 0),
                 profile(5L, 110L, 1, 0, 0),
                 profile(6L, 100L, 1, 0, 0)));
-        when(userMapper.selectBatchIds(any())).thenReturn(List.of());
 
         assertThat(service.teamTouchesDailyTop(List.of(5L, 99L))).isTrue();
         assertThat(service.teamTouchesDailyTop(List.of(6L, 99L))).isFalse();
+        assertThat(service.highPressureRoster()).hasSize(5).containsExactly(1L, 2L, 3L, 4L, 5L);
     }
 
     @Test
@@ -119,13 +118,14 @@ class LeaderboardServiceImplSortTest {
     }
 
     @Test
-    @DisplayName("高压：已完成未领的每日金币会计入潜在前五")
+    @DisplayName("高压：已完成未领的每日金币会计入前五，名单仍最多 5 人")
     void unclaimedCompletedDailyGoldCanTriggerHighPressure() {
         stubSixPlayerBoard();
-        when(jdbcTemplate.queryForList(anyString(), any(), any())).thenReturn(List.of(taskRow(
-                "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
+        when(jdbcTemplate.queryForList(anyString(), any())).thenReturn(List.of(taskRow(
+                6L, "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
 
         assertThat(service.teamTouchesDailyTop(List.of(6L))).isTrue();
+        assertThat(service.highPressureRoster()).hasSize(5).contains(6L).doesNotContain(5L);
     }
 
     @Test
@@ -133,8 +133,8 @@ class LeaderboardServiceImplSortTest {
     void restDayPendingGoldDoesNotTriggerHighPressure() {
         stubSixPlayerBoard();
         when(workDayService.snapshot(6L)).thenReturn(new WorkDayService.Snapshot(24, 24, true, false));
-        lenient().when(jdbcTemplate.queryForList(anyString(), any(), any())).thenReturn(List.of(taskRow(
-                "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
+        when(jdbcTemplate.queryForList(anyString(), any())).thenReturn(List.of(taskRow(
+                6L, "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
 
         assertThat(service.teamTouchesDailyTop(List.of(6L))).isFalse();
     }
@@ -147,11 +147,11 @@ class LeaderboardServiceImplSortTest {
                 profile(4L, 120L, 1, 0, 0),
                 profile(5L, 110L, 1, 0, 0),
                 profile(6L, 100L, 1, 0, 0)));
-        when(userMapper.selectBatchIds(any())).thenReturn(List.of());
     }
 
-    private static Map<String, Object> taskRow(String code, String rewardValue, int status) {
+    private static Map<String, Object> taskRow(long userId, String code, String rewardValue, int status) {
         Map<String, Object> row = new HashMap<>();
+        row.put("user_id", userId);
         row.put("task_code", code);
         row.put("reward_value", rewardValue);
         row.put("status", status);
