@@ -66,7 +66,7 @@ public class AchievementCatalogBootstrap implements ApplicationRunner {
         upsert("ACH-004", "社交先锋", "social", "累计添加 5 位好友", "friend_count", "{\"count\":5}",
                 "title", "{\"name\":\"社交先锋\"}", 4, 2, 1);
         upsert("ACH-005", "隐藏彩蛋", "hidden", "成功解锁全部成就", "all_unlocked", "{\"count\":0}",
-                "title", "{\"name\":\"彩蛋发现者\"}", 407, 4, 1);
+                "title", "{\"name\":\"彩蛋发现者\"}", 414, 4, 1);
 
         upsert("ACH-012", "稳定输出", "battle", "累计打完 20 局（输赢都算，作废不计）", "match_count", "{\"count\":20}",
                 "title", "{\"name\":\"稳定输出\"}", 201, 2, 1);
@@ -114,6 +114,18 @@ public class AchievementCatalogBootstrap implements ApplicationRunner {
                 "title", "{\"name\":\"绝境翻盘\"}", 405, 4, 1);
         upsert("ACH-035", "隐藏 · 完美一日", "hidden", "同一自然日完成并赢得当日第 1、2、3 局", "daily_three_wins", "{\"count\":1}",
                 "title", "{\"name\":\"完美一日\"}", 406, 4, 1);
+        upsert("ACH-036", "隐藏 · 高压三连", "hidden", "与当日潜在前五组队连续获胜 3 局。失败或放弃打断，作废不打断，普通胜局也打断", "hp_win_streak", "{\"count\":3}",
+                "title", "{\"name\":\"高压三连\"}", 408, 4, 1);
+        upsert("ACH-037", "隐藏 · 三客碾压", "hidden", "在胆小怕事、焦虑难安、刻薄尖客局里各无复活获胜 1 局", "three_harsh_no_revive", "{\"count\":3}",
+                "title", "{\"name\":\"三客碾压\"}", 409, 4, 1);
+        upsert("ACH-038", "隐藏 · 残血不复活", "hidden", "双方最低血都曾 ≤5，全程无人复活，最后仍获胜", "low_hp_no_revive", "{\"count\":1,\"hp\":5}",
+                "title", "{\"name\":\"残血不复活\"}", 410, 4, 1);
+        upsert("ACH-039", "隐藏 · 双职无伤", "hidden", "销售无复活获胜 10 局，且采购无复活获胜 10 局", "dept_no_revive", "{\"sales\":10,\"purchase\":10}",
+                "title", "{\"name\":\"双职无伤\"}", 411, 4, 1);
+        upsert("ACH-040", "隐藏 · 速战", "hidden", "8 回合内无人复活获胜，累计 3 局", "fast_clear", "{\"count\":3,\"rounds\":8}",
+                "title", "{\"name\":\"速战\"}", 412, 4, 1);
+        upsert("ACH-041", "隐藏 · 完美一周", "hidden", "同一自然周里有 5 天都完成并赢得当日第 1、2、3 局", "perfect_week", "{\"count\":5}",
+                "title", "{\"name\":\"完美一周\"}", 413, 4, 1);
     }
 
     private void upsert(String code, String name, String category, String description, String conditionType,

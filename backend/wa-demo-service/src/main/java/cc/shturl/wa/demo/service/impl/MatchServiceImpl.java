@@ -208,6 +208,7 @@ public class MatchServiceImpl implements MatchService {
             createDeck(match.getId(), player);
         }
         createFirstRound(match, customer);
+        noteHighPressure(match.getId(), members);
         bindRoomToMatch(room, match.getId());
         notifyMatchStarted(match, members);
         for (RoomMembers member : members) {
@@ -2146,6 +2147,26 @@ public class MatchServiceImpl implements MatchService {
         if (recorded == null || hp < recorded) {
             player.setMinHp(hp);
         }
+    }
+
+    private void noteHighPressure(Long matchId, List<RoomMembers> members) {
+        if (matchId == null || members == null || members.isEmpty()) {
+            return;
+        }
+        if (!leaderboardService.teamTouchesDailyTop(members.stream().map(RoomMembers::getUserId).toList())) {
+            return;
+        }
+        Long existing = matchActionsMapper.selectCount(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, matchId)
+                .eq(MatchActions::getActionType, "high_pressure"));
+        if (existing != null && existing > 0) {
+            return;
+        }
+        MatchActions action = new MatchActions();
+        action.setMatchId(matchId);
+        action.setActorType("system");
+        action.setActionType("high_pressure");
+        matchActionsMapper.insert(action);
     }
 
     private boolean bothPlayersHitDangerHp(List<MatchPlayers> players) {

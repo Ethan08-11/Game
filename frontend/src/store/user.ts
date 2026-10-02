@@ -171,7 +171,13 @@ export const useUserStore = defineStore('user', () => {
       { id: 'ACH-033', name: '图鉴大师', description: '当前可解锁的收藏卡全部集齐', unlockedAt: null, icon: 'medal', difficulty: 4, progressValue: 0, targetCount: 1, category: 'growth', hidden: false, sortNo: 404 },
       { id: 'ACH-034', name: '隐藏 · 绝境翻盘', description: '双方都曾掉到危险血（≤5）后仍获胜', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 1, category: 'hidden', hidden: true, conditionType: 'both_low_hp_win', sortNo: 405 },
       { id: 'ACH-035', name: '隐藏 · 完美一日', description: '同一自然日完成并赢得当日第 1、2、3 局', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 1, category: 'hidden', hidden: true, conditionType: 'daily_three_wins', sortNo: 406 },
-      { id: 'ACH-005', name: '隐藏彩蛋', description: '成功解锁全部成就', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 1, category: 'hidden', hidden: true, conditionType: 'all_unlocked', sortNo: 407 },
+      { id: 'ACH-036', name: '隐藏 · 高压三连', description: '与当日潜在前五组队连续获胜 3 局。失败或放弃打断，作废不打断，普通胜局也打断', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 3, category: 'hidden', hidden: true, conditionType: 'hp_win_streak', sortNo: 408 },
+      { id: 'ACH-037', name: '隐藏 · 三客碾压', description: '在胆小怕事、焦虑难安、刻薄尖客局里各无复活获胜 1 局', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 3, category: 'hidden', hidden: true, conditionType: 'three_harsh_no_revive', sortNo: 409 },
+      { id: 'ACH-038', name: '隐藏 · 残血不复活', description: '双方最低血都曾 ≤5，全程无人复活，最后仍获胜', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 1, category: 'hidden', hidden: true, conditionType: 'low_hp_no_revive', sortNo: 410 },
+      { id: 'ACH-039', name: '隐藏 · 双职无伤', description: '销售无复活获胜 10 局，且采购无复活获胜 10 局', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 10, category: 'hidden', hidden: true, conditionType: 'dept_no_revive', sortNo: 411 },
+      { id: 'ACH-040', name: '隐藏 · 速战', description: '8 回合内无人复活获胜，累计 3 局', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 3, category: 'hidden', hidden: true, conditionType: 'fast_clear', sortNo: 412 },
+      { id: 'ACH-041', name: '隐藏 · 完美一周', description: '同一自然周里有 5 天都完成并赢得当日第 1、2、3 局', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 5, category: 'hidden', hidden: true, conditionType: 'perfect_week', sortNo: 413 },
+      { id: 'ACH-005', name: '隐藏彩蛋', description: '成功解锁全部成就', unlockedAt: null, icon: 'question', difficulty: 4, progressValue: 0, targetCount: 1, category: 'hidden', hidden: true, conditionType: 'all_unlocked', sortNo: 414 },
     ]
   }
 
