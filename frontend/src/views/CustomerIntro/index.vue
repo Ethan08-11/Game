@@ -26,7 +26,7 @@
               </div>
               <div class="customer-meta">
                 <span>效果数值</span>
-                <strong>{{ formatEffectValue(customer.effectType, customer.effectValue) }}</strong>
+                <strong>{{ formatEffectValue(customer) }}</strong>
               </div>
             </div>
 
@@ -56,6 +56,7 @@ import bg2 from '@/assets/hall-bg2.webp'
 import cardBg from '@/assets/customer-card-bg.webp'
 import avatarImg from '@/assets/customer-avatar-intro.webp'
 import { getImageUrl } from '@/utils/imageUrl'
+import { rangedCustomerEffectText } from '@/utils/customerEffectText'
 
 const bgDay = bg2
 const bgNight = bg1
@@ -97,8 +98,14 @@ function effectLabel(effectType?: string) {
   return map[effectType || ''] || effectType || '未知'
 }
 
-function formatEffectValue(effectType?: string, value?: number) {
-  const num = value ?? 0
+function formatEffectValue(customer: CustomerApiItem) {
+  const ranged = rangedCustomerEffectText({
+    id: customer.customerCode,
+    name: customer.customerName,
+  })
+  if (ranged) return ranged
+  const effectType = customer.effectType
+  const num = customer.effectValue ?? 0
   const prefix = num >= 0 ? '+' : ''
   if (effectType === 'player_action_hp_down' || /action_hp|harsh/i.test(effectType || '')) {
     const amount = Math.abs(num)

@@ -7,19 +7,19 @@ INSERT INTO `customer_types` (
 ) SELECT
   'CUSTOMER_WINDOW',
   '闲逛双客',
-  '结伴闲逛却从不落单，偶尔会给两名护卫恢复血值。',
+  '结伴闲逛却从不落单。效果触发时，给两名存活护卫各恢复 1 点血值。',
   '/images/customer/p4.webp',
   'player_hp_up',
-  2, 20, 10, 1, 4
+  1, 20, 10, 1, 4
 WHERE NOT EXISTS (SELECT 1 FROM `customer_types` WHERE `customer_code` = 'CUSTOMER_WINDOW');
 
 UPDATE `customer_types`
 SET
   `customer_name` = '闲逛双客',
-  `description` = '结伴闲逛却从不落单，偶尔会给两名护卫恢复血值。',
+  `description` = '结伴闲逛却从不落单。效果触发时，给两名存活护卫各恢复 1 点血值。',
   `image_url` = '/images/customer/p4.webp',
   `effect_type` = 'player_hp_up',
-  `effect_value` = 2,
+  `effect_value` = 1,
   `trigger_chance` = 20,
   `selection_weight` = 10,
   `status` = 1,

@@ -31,12 +31,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGameStore } from '@/store/game'
+import { rangedCustomerEffectText } from '@/utils/customerEffectText'
 
 const game = useGameStore()
 
 const effectText = computed(() => {
   const trait = game.employerTrait
   if (!trait) return '加载中'
+  const ranged = rangedCustomerEffectText({ id: trait.id, name: trait.name })
+  if (ranged) return ranged
   const value = trait.effectValue ?? 0
   if (trait.effectType === 'player_harsh') {
     const amount = Math.abs(value)
