@@ -54,7 +54,22 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         update("CUSTOMER_KIND", -1, 50, 10);
         update("CUSTOMER_TIMID", 3, 50, 10);
         update("CUSTOMER_ANXIOUS", 2, 50, 10);
-        update("CUSTOMER_WINDOW", 2, 50, 10);
+        jdbcTemplate.update("""
+                UPDATE customer_types
+                SET description = ?
+                WHERE customer_code = 'CUSTOMER_TIMID'
+                """, "容易紧张。效果触发时，霸凌者血量随机 +3～4（上限同步提高）。");
+        jdbcTemplate.update("""
+                UPDATE customer_types
+                SET description = ?
+                WHERE customer_code = 'CUSTOMER_ANXIOUS'
+                """, "情绪波动较大。效果触发时，本回合霸凌者攻击随机 +2～3。");
+        update("CUSTOMER_WINDOW", 1, 50, 10);
+        jdbcTemplate.update("""
+                UPDATE customer_types
+                SET description = ?
+                WHERE customer_code = 'CUSTOMER_WINDOW'
+                """, "结伴闲逛却从不落单。效果触发时，给两名存活护卫各恢复 1 点血值。");
         update("CUSTOMER_WEALTHY", 1, 50, 10);
         update("CUSTOMER_HARSH", 3, 50, 10);
         log.info("Customer catalog difficulty tuned.");

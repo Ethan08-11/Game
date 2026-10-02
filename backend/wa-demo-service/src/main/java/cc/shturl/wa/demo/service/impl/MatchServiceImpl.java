@@ -2539,15 +2539,16 @@ public class MatchServiceImpl implements MatchService {
         boolean triggered = !skipCustomer && customer != null
                 && ThreadLocalRandom.current().nextInt(100) < value(customer.getTriggerChance());
         int attack = value(match.getBossBaseAttack());
+        int rolledEffect = triggered && customer != null ? rollCustomerEffect(customer) : 0;
         if (triggered && customer != null) {
             if ("bully_attack_down".equals(customer.getEffectType()) || "bully_attack_up".equals(customer.getEffectType())) {
-                attack = Math.max(0, attack + value(customer.getEffectValue()));
+                attack = Math.max(0, attack + rolledEffect);
             } else if ("bully_hp_up".equals(customer.getEffectType())) {
-                int hpGain = Math.max(value(customer.getEffectValue()), 0);
+                int hpGain = Math.max(rolledEffect, 0);
                 match.setBossMaxHp(value(match.getBossMaxHp()) + hpGain);
                 match.setBossCurrentHp(value(match.getBossCurrentHp()) + hpGain);
             } else if ("player_hp_up".equals(customer.getEffectType())) {
-                int heal = Math.max(value(customer.getEffectValue()), 0);
+                int heal = Math.max(rolledEffect, 0);
                 for (MatchPlayers player : players) {
                     if (value(player.getCurrentHp()) <= 0) {
                         continue;
@@ -2562,11 +2563,11 @@ public class MatchServiceImpl implements MatchService {
         int playerHpLoss = 0;
         int harshHpBefore = 0;
         if (triggered && customer != null && "player_action_up".equals(customer.getEffectType())) {
-            actionDelta = Math.max(value(customer.getEffectValue()), 0);
+            actionDelta = Math.max(rolledEffect, 0);
             actionTarget = pickLivingPlayer(players);
         } else if (triggered && customer != null && "player_action_hp_down".equals(customer.getEffectType())) {
             actionDelta = -1;
-            playerHpLoss = Math.max(value(customer.getEffectValue()), 0);
+            playerHpLoss = Math.max(rolledEffect, 0);
             actionTarget = pickLivingPlayer(players);
             if (actionTarget != null) {
                 harshHpBefore = value(actionTarget.getCurrentHp());
@@ -2621,7 +2622,7 @@ public class MatchServiceImpl implements MatchService {
         nextRound.setBossAttack(match.getBossCurrentAttack());
         nextRound.setCustomerTriggered(triggered ? 1 : 0);
         nextRound.setCustomerEffectType(customer == null ? null : customer.getEffectType());
-        nextRound.setCustomerEffectValue(customer == null ? 0 : value(customer.getEffectValue()));
+        nextRound.setCustomerEffectValue(triggered ? rolledEffect : (customer == null ? 0 : value(customer.getEffectValue())));
         nextRound.setBossRageValue(0);
         nextRound.setSatisfactionDelta(0);
         nextRound.setFundsPerPlayer(3);
@@ -2656,6 +2657,18 @@ public class MatchServiceImpl implements MatchService {
             harsh.setExtraData("{\"apDelta\":" + actionDelta + ",\"hpLoss\":" + playerHpLoss + "}");
             matchActionsMapper.insert(harsh);
         }
+    }
+
+    /** Timid rolls +3 or +4 HP. Anxious rolls +2 or +3 attack. */
+    private int rollCustomerEffect(CustomerTypes customer) {
+        String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
+        if (BullyCatalog.CUSTOMER_TIMID.equals(code)) {
+            return ThreadLocalRandom.current().nextInt(3, 5);
+        }
+        if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code)) {
+            return ThreadLocalRandom.current().nextInt(2, 4);
+        }
+        return value(customer.getEffectValue());
     }
 
     private void resolvePendingEffects(Matches match, int roundNo) {
