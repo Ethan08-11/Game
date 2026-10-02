@@ -1857,8 +1857,8 @@ async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLEl
         spawnHeroBurst(bullyEl, actorTone)
         spawnHeroFloat(bullyEl, `−${Math.round(base)}`, actorTone)
       } else {
-        spawnHeroBurst(bullyEl, 'tone-shield-break')
-        spawnHeroFloat(bullyEl, `盾 −${Math.round(base)}`, 'tone-shield-break', 0.22, 24)
+        spawnHeroBurst(bullyEl, 'tone-shield')
+        spawnHeroFloat(bullyEl, `−${Math.round(base)}`, 'tone-shield')
       }
       flashBullyHit(true)
       await waitFx(180)
@@ -1887,8 +1887,8 @@ async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLEl
   await waitFx(260)
   if (!heroFxAlive) return
   if (shieldHit > 0 && !bossDown) {
-    spawnHeroBurst(bullyEl, 'tone-shield-break')
-    spawnHeroFloat(bullyEl, `盾 −${shieldHit}`, 'tone-shield-break', 0.22, 24)
+    spawnHeroBurst(bullyEl, 'tone-shield')
+    spawnHeroFloat(bullyEl, `−${shieldHit}`, 'tone-shield', hpLoss > 0 ? 0.16 : 0.28)
     flashBullyHit(hpLoss <= 0)
     if (hpLoss > 0) await waitFx(140)
   }
@@ -1907,7 +1907,7 @@ async function playPlayerValueFx(
   text: string,
 ) {
   const seats = resolveTargetSeats(effect, actorUserId)
-  const tone = kind === 'heal' ? 'tone-heal' : kind === 'harm' ? 'tone-harm' : kind === 'break' ? 'tone-shield-break' : 'tone-shield'
+  const tone = kind === 'heal' ? 'tone-heal' : kind === 'harm' ? 'tone-harm' : 'tone-shield'
   const glow = kind === 'heal' ? 'heal' : kind === 'harm' ? 'harm' : kind === 'break' ? 'break' : 'shield'
   pulseGlow(seats, glow)
   if (kind === 'harm') {
@@ -1981,7 +1981,9 @@ async function playEffectClip(effect: any, ctx: {
         effect,
         actorUserId,
         actual < 0 ? 'break' : 'shield',
-        actual < 0 ? fxSignedText(actual, '盾 ') : fxSignedText(Math.abs(actual), '盾 '),
+        actual < 0
+          ? `−${Math.max(0, Math.round(Math.abs(actual)))}`
+          : `+${Math.max(0, Math.round(actual))}`,
       )
       return
     }
@@ -4222,82 +4224,82 @@ onUnmounted(() => {
   background: radial-gradient(circle at 35% 30%, #fff 0%, #e8d8ff 28%, #9b6cff 62%, transparent 78%);
   box-shadow: 0 0 10px 4px rgba(180, 140, 255, 0.95), 0 0 22px 8px rgba(120, 70, 255, 0.4);
 }
-.hero-bolt.tone-shield {
-  background: radial-gradient(circle at 35% 30%, #f4fbff 0%, #b8e0ff 30%, #6cb4ff 62%, #d4b06a 80%, transparent 88%);
-  box-shadow: 0 0 10px 4px rgba(120, 190, 255, 0.9), 0 0 18px 7px rgba(212, 176, 90, 0.35);
+.hero-bolt.tone-shield,
+.hero-bolt.tone-shield-break {
+  background: radial-gradient(circle at 35% 30%, #f4fbff 0%, #9ad4ff 32%, #4aa0ff 64%, transparent 82%);
+  box-shadow: 0 0 10px 4px rgba(110, 190, 255, 0.95), 0 0 20px 8px rgba(70, 150, 255, 0.4);
 }
 .hero-bolt.tone-draw {
-  background: radial-gradient(circle at 35% 30%, #fff8e6 0%, #f0d48a 36%, #c9a24a 68%, transparent 82%);
-  box-shadow: 0 0 8px 3px rgba(240, 210, 130, 0.85);
+  background: radial-gradient(circle at 35% 30%, #fffaf0 0%, #e8d2a4 36%, #b89258 68%, transparent 82%);
+  box-shadow: 0 0 8px 3px rgba(210, 180, 120, 0.8);
   width: 14px;
   height: 20px;
   margin: -10px 0 0 -7px;
   border-radius: 3px;
 }
 .hero-bolt.tone-miss {
-  background: radial-gradient(circle at 35% 30%, #f2f2f2 0%, #c8c8c8 40%, transparent 72%);
-  box-shadow: 0 0 8px 3px rgba(180, 180, 180, 0.45);
+  background: radial-gradient(circle at 35% 30%, #ececec 0%, #9a9aa2 42%, transparent 72%);
+  box-shadow: 0 0 8px 3px rgba(140, 140, 148, 0.4);
   opacity: 0.7;
 }
 .hero-burst.tone-pierce {
   background: radial-gradient(circle, #f4e9ff 0%, rgba(160, 110, 255, 0.55) 28%, rgba(90, 40, 180, 0.16) 54%, transparent 72%);
 }
 .hero-burst.tone-shield,
+.hero-burst.tone-shield-break,
 .hero-burst.tone-guard {
-  background: radial-gradient(circle, #eef8ff 0%, rgba(110, 180, 255, 0.5) 28%, rgba(212, 176, 90, 0.2) 54%, transparent 72%);
-}
-.hero-burst.tone-shield-break {
-  background: radial-gradient(circle, #ffe8d4 0%, rgba(255, 120, 70, 0.5) 28%, rgba(180, 40, 20, 0.16) 54%, transparent 72%);
+  background: radial-gradient(circle, #e8f6ff 0%, rgba(110, 190, 255, 0.55) 28%, rgba(40, 110, 200, 0.18) 54%, transparent 72%);
 }
 .hero-burst.tone-heal {
-  background: radial-gradient(circle, #eaffd8 0%, rgba(110, 210, 90, 0.5) 28%, rgba(40, 140, 60, 0.16) 54%, transparent 72%);
+  background: radial-gradient(circle, #eaffd8 0%, rgba(80, 210, 70, 0.55) 28%, rgba(20, 120, 40, 0.16) 54%, transparent 72%);
 }
 .hero-burst.tone-harm {
-  background: radial-gradient(circle, #ffd8d0 0%, rgba(210, 50, 40, 0.5) 28%, rgba(120, 10, 10, 0.16) 54%, transparent 72%);
+  background: radial-gradient(circle, #ffd4cc 0%, rgba(230, 40, 36, 0.55) 28%, rgba(110, 8, 8, 0.18) 54%, transparent 72%);
+}
+.hero-burst.tone-control {
+  background: radial-gradient(circle, #d8fff6 0%, rgba(40, 200, 170, 0.5) 28%, rgba(10, 90, 80, 0.16) 54%, transparent 72%);
 }
 .hero-float.tone-heal {
-  color: #b8ff9a;
-  -webkit-text-stroke: 1.2px #14320c;
-  text-shadow: 0 0 10px rgba(90, 210, 70, 0.9), 0 2px 0 #0c1a08;
+  color: #7dff6a;
+  -webkit-text-stroke: 1.2px #0c2a08;
+  text-shadow: 0 0 12px rgba(60, 220, 50, 0.95), 0 2px 0 #041808;
 }
-.hero-float.tone-shield {
-  color: #c8e8ff;
-  -webkit-text-stroke: 1.2px #123048;
-  text-shadow: 0 0 10px rgba(90, 170, 255, 0.85), 0 2px 0 #0c1824;
-}
+.hero-float.tone-shield,
 .hero-float.tone-shield-break {
-  color: #ffc8a8;
-  -webkit-text-stroke: 1.2px #4a1808;
-  text-shadow: 0 0 10px rgba(255, 120, 60, 0.85), 0 2px 0 #2a0c08;
+  color: #9ad4ff;
+  -webkit-text-stroke: 1.3px #082848;
+  text-shadow: 0 0 12px rgba(90, 180, 255, 0.95), 0 2px 0 #041828;
 }
 .hero-float.tone-harm {
-  color: #ff8a78;
-  -webkit-text-stroke: 1.2px #3a0808;
-  text-shadow: 0 0 10px rgba(220, 40, 30, 0.85), 0 2px 0 #1a0404;
+  color: #ff4d3c;
+  -webkit-text-stroke: 1.3px #3a0606;
+  text-shadow: 0 0 12px rgba(255, 48, 32, 0.9), 0 2px 0 #180202;
 }
 .hero-float.tone-pierce {
-  color: #f0e4ff;
-  -webkit-text-stroke: 1.2px #2a1450;
-  text-shadow: 0 0 10px rgba(170, 120, 255, 0.9), 0 2px 0 #140828;
+  color: #d4b8ff;
+  -webkit-text-stroke: 1.2px #2a0c58;
+  text-shadow: 0 0 12px rgba(160, 90, 255, 0.95), 0 2px 0 #120428;
 }
 .hero-float.tone-control {
-  color: #c8e8e0;
-  -webkit-text-stroke: 1.2px #143038;
-  text-shadow: 0 0 10px rgba(90, 180, 170, 0.8), 0 2px 0 #081418;
+  color: #3ee0c4;
+  -webkit-text-stroke: 1.2px #043830;
+  text-shadow: 0 0 10px rgba(40, 210, 180, 0.9), 0 2px 0 #021814;
 }
 .hero-float.tone-draw {
-  color: #ffe7b0;
-  -webkit-text-stroke: 1.1px #3a2808;
+  color: #efe0b8;
+  -webkit-text-stroke: 1.1px #3a2c10;
   font-size: 22px;
+  text-shadow: 0 0 8px rgba(200, 170, 100, 0.7), 0 2px 0 #1a1408;
 }
 .hero-float.tone-ap {
-  color: #ffd36a;
-  -webkit-text-stroke: 1.1px #3a2408;
+  color: #ff9a32;
+  -webkit-text-stroke: 1.1px #3a1800;
   font-size: 22px;
+  text-shadow: 0 0 10px rgba(255, 140, 30, 0.9), 0 2px 0 #1a0c00;
 }
 .hero-float.tone-miss {
-  color: #d0d0d0;
-  -webkit-text-stroke: 1px #303030;
+  color: #b8b8c0;
+  -webkit-text-stroke: 1px #2a2a30;
   font-size: 22px;
   text-shadow: none;
 }
@@ -4317,25 +4319,28 @@ onUnmounted(() => {
   animation: hero-mark-pop 0.98s ease-out forwards;
 }
 .hero-mark.tone-pierce {
-  color: #f4e8ff;
-  border-color: rgba(180, 140, 255, 0.7);
+  color: #e6d4ff;
+  border-color: rgba(170, 110, 255, 0.85);
 }
 .hero-mark.tone-guard {
-  color: #d8eeff;
-  border-color: rgba(110, 180, 255, 0.7);
+  color: #9ad4ff;
+  border-color: rgba(90, 180, 255, 0.85);
 }
 .hero-mark.tone-mult {
   color: #ffe08a;
   border-color: rgba(255, 200, 80, 0.8);
 }
 .hero-mark.tone-delay {
-  color: #dce8ff;
-  border-color: rgba(150, 180, 220, 0.65);
+  color: #c8b8ff;
+  border-color: rgba(150, 130, 230, 0.75);
 }
-.hero-mark.tone-miss,
+.hero-mark.tone-miss {
+  color: #c4c4cc;
+  border-color: rgba(150, 150, 160, 0.55);
+}
 .hero-mark.tone-control {
-  color: #d8e0e4;
-  border-color: rgba(160, 180, 180, 0.55);
+  color: #7af0d4;
+  border-color: rgba(50, 200, 170, 0.8);
 }
 @keyframes hero-mark-pop {
   0% { opacity: 0; transform: translate(-50%, -20%) scale(0.7); }
@@ -4416,10 +4421,10 @@ onUnmounted(() => {
   pointer-events: none;
   border-radius: 50% 50% 46% 46%;
   background:
-    radial-gradient(ellipse at 50% 38%, rgba(255, 228, 140, 0.22) 0%, rgba(255, 190, 70, 0.1) 42%, transparent 72%);
+    radial-gradient(ellipse at 50% 38%, rgba(154, 212, 255, 0.28) 0%, rgba(74, 160, 255, 0.12) 42%, transparent 72%);
   box-shadow:
-    inset 0 0 22px rgba(255, 214, 110, 0.32),
-    0 0 18px rgba(255, 196, 72, 0.28);
+    inset 0 0 22px rgba(110, 190, 255, 0.38),
+    0 0 18px rgba(90, 170, 255, 0.32);
   animation: player-shield-veil-pulse 1.8s ease-in-out infinite;
 }
 .player-shield-veil::before,
@@ -4434,12 +4439,12 @@ onUnmounted(() => {
   left: 18%;
   width: 10px;
   height: 10px;
-  background: radial-gradient(circle, #fff8d8 0%, #ffd24a 45%, transparent 72%);
+  background: radial-gradient(circle, #f4fbff 0%, #7ecbff 45%, transparent 72%);
   box-shadow:
-    0 0 10px 4px rgba(255, 214, 90, 0.7),
-    42px 18px 12px 3px rgba(255, 200, 70, 0.55),
-    88px 8px 10px 2px rgba(255, 220, 120, 0.5),
-    120px 28px 14px 4px rgba(255, 186, 48, 0.4);
+    0 0 10px 4px rgba(110, 190, 255, 0.7),
+    42px 18px 12px 3px rgba(90, 170, 255, 0.5),
+    88px 8px 10px 2px rgba(154, 212, 255, 0.45),
+    120px 28px 14px 4px rgba(74, 160, 255, 0.35);
   animation: player-shield-spark 2.2s ease-in-out infinite;
 }
 .player-shield-veil::after {
@@ -4447,11 +4452,11 @@ onUnmounted(() => {
   right: 16%;
   width: 7px;
   height: 7px;
-  background: radial-gradient(circle, #fffdf2 0%, #ffc14a 50%, transparent 74%);
+  background: radial-gradient(circle, #f8fcff 0%, #6cb8ff 50%, transparent 74%);
   box-shadow:
-    0 0 8px 3px rgba(255, 210, 80, 0.65),
-    -36px 24px 10px 2px rgba(255, 196, 64, 0.45),
-    -72px 6px 12px 3px rgba(255, 224, 130, 0.4);
+    0 0 8px 3px rgba(110, 190, 255, 0.65),
+    -36px 24px 10px 2px rgba(90, 170, 255, 0.4),
+    -72px 6px 12px 3px rgba(154, 212, 255, 0.38);
   animation: player-shield-spark 2.6s ease-in-out infinite reverse;
 }
 @keyframes player-shield-veil-pulse {
