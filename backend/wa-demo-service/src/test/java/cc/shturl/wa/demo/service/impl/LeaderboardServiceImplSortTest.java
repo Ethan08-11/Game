@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -96,8 +97,8 @@ class LeaderboardServiceImplSortTest {
                 profile(5L, 110L, 1, 0, 0),
                 profile(6L, 100L, 1, 0, 0)));
 
-        assertThat(service.teamTouchesDailyTop(List.of(5L, 99L))).isTrue();
-        assertThat(service.teamTouchesDailyTop(List.of(6L, 99L))).isFalse();
+        assertThat(service.teamTouchesDailyTop(List.of(5L, 99L), LocalDate.of(2026, 10, 8))).isTrue();
+        assertThat(service.teamTouchesDailyTop(List.of(6L, 99L), LocalDate.of(2026, 10, 8))).isFalse();
         assertThat(service.highPressureRoster()).hasSize(5).containsExactly(1L, 2L, 3L, 4L, 5L);
     }
 
@@ -124,7 +125,7 @@ class LeaderboardServiceImplSortTest {
         when(jdbcTemplate.queryForList(anyString(), any(Object.class))).thenReturn(List.of(taskRow(
                 6L, "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
 
-        assertThat(service.teamTouchesDailyTop(List.of(6L))).isTrue();
+        assertThat(service.teamTouchesDailyTop(List.of(6L), LocalDate.of(2026, 10, 8))).isTrue();
         assertThat(service.highPressureRoster()).hasSize(5).contains(6L).doesNotContain(5L);
     }
 
@@ -136,7 +137,19 @@ class LeaderboardServiceImplSortTest {
         when(jdbcTemplate.queryForList(anyString(), any(Object.class))).thenReturn(List.of(taskRow(
                 6L, "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
 
-        assertThat(service.teamTouchesDailyTop(List.of(6L))).isFalse();
+        assertThat(service.teamTouchesDailyTop(List.of(6L), LocalDate.of(2026, 10, 8))).isFalse();
+    }
+
+    @Test
+    @DisplayName("高压：每月 1 日至 7 日不针对潜在前五")
+    void firstWeekOfMonthDisablesHighPressure() {
+        stubSixPlayerBoard();
+
+        assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 1))).isFalse();
+        assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 7))).isFalse();
+        assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 8))).isTrue();
+        assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 2))).isFalse();
+        assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 8))).isTrue();
     }
 
     private void stubSixPlayerBoard() {
