@@ -157,7 +157,25 @@ const questBtnStyle = { left: '800px', bottom: '330px', width: '500px', height: 
 const customerBtnStyle = { left: '800px', bottom: '239px', width: '500px', height: '184px' }
 const startBtnStyle = { backgroundImage: `url(${startBtnImg})`, left: '703px', bottom: '-4px', width: '700px', height: '258px' }
 
-const modeText = '本周模式：双人模式'
+/** 每月按北京时间自然日分段，每段七个字，都从「暴风雨前的宁静」接下去。 */
+const MONTH_MODE_NAMES = [
+  '暴风雨前的宁静',
+  '暴雨点名前五人',
+  '雷霆压住前五名',
+  '狂风不放前五席',
+  '风暴收紧前五网',
+] as const
+
+function monthModeName(now = new Date()): string {
+  const day = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai',
+    day: 'numeric',
+  }).format(now))
+  const week = day <= 7 ? 0 : day <= 14 ? 1 : day <= 21 ? 2 : day <= 28 ? 3 : 4
+  return MONTH_MODE_NAMES[week]
+}
+
+const modeText = `本周模式：${monthModeName()}`
 
 const avatarDialogVisible = ref(false)
 const hallReady = ref(false)
@@ -413,10 +431,11 @@ async function handleLogout() {
 }
 .mode-tag {
   font-family: 'HuiWen MingChao', 'Songti SC', 'STSong', serif;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 400;
   line-height: 1;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
   color: #ffe9a6;
   text-shadow:
     0 0 1px #6a4a12,
