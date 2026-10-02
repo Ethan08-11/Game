@@ -218,11 +218,11 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         } else {
             eligible.sort(Comparator
                     .comparingLong(this::safeMoney).reversed()
+                    .thenComparing(UserProfile::getMoneyReachedAt,
+                            Comparator.nullsLast(Comparator.naturalOrder()))
                     .thenComparing(Comparator.comparingDouble(this::exactWinRate).reversed())
                     .thenComparing(this::safeWinCount, Comparator.reverseOrder())
                     .thenComparing(this::totalMatches, Comparator.reverseOrder())
-                    .thenComparing(UserProfile::getMoneyReachedAt,
-                            Comparator.nullsLast(Comparator.naturalOrder()))
                     .thenComparing(byUserId));
         }
     }
