@@ -23,7 +23,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -175,6 +177,12 @@ public class AchievementServiceImpl implements AchievementService {
             case "card_count", "card_half", "card_all" -> snapshot.cards;
             case "unique_teammate" -> snapshot.uniqueTeammates;
             case "daily_three_wins" -> snapshot.dailyPerfect;
+            case "hp_win_streak" -> snapshot.hpWinStreak;
+            case "three_harsh_no_revive" -> snapshot.harshCustomers;
+            case "low_hp_no_revive" -> snapshot.lowHpNoRevive;
+            case "dept_no_revive" -> snapshot.deptNoRevive;
+            case "fast_clear" -> snapshot.fastClears;
+            case "perfect_week" -> snapshot.perfectWeek;
             case "all_unlocked" -> snapshot.allOthersUnlocked;
             default -> 0;
         };
@@ -191,7 +199,7 @@ public class AchievementServiceImpl implements AchievementService {
         if ("work_day_half".equals(type)) {
             return Math.max(WorkDayQuota.days(YearMonth.now(WorkDayQuota.ZONE)) / 2, 1);
         }
-        if ("dept_win".equals(type)) {
+        if ("dept_win".equals(type) || "dept_no_revive".equals(type)) {
             return jsonInt(def.getConditionValue(), "sales");
         }
         int count = jsonInt(def.getConditionValue(), "count");
@@ -201,7 +209,7 @@ public class AchievementServiceImpl implements AchievementService {
     private Snapshot globalSnapshot() {
         int collectible = queryCount(
                 "SELECT COUNT(*) FROM cards WHERE status = 1 AND IFNULL(require_unlock, 0) = 1");
-        return new Snapshot(0, 0, 0, 0, 0, collectible, 0, 0, 0, 0, 0, 0);
+        return new Snapshot(0, 0, 0, 0, 0, collectible, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     private Snapshot snapshot(Long userId) {
@@ -246,8 +254,11 @@ public class AchievementServiceImpl implements AchievementService {
                   AND ut.status >= 2
                 """, userId, today.toString());
         int dailyPerfect = dailyDone >= 6 ? 1 : 0;
+        Hidden hidden = hiddenProgress(userId);
         return new Snapshot(wins, wins + losses, friends, tasksClaimed, cards, collectible,
-                workDaysMonth, workDaysWeek, workDaysOctober, uniqueTeammates, dailyPerfect, 0);
+                workDaysMonth, workDaysWeek, workDaysOctober, uniqueTeammates, dailyPerfect, 0,
+                hidden.hpWinStreak, hidden.harshCustomers, hidden.lowHpNoRevive,
+                hidden.deptNoRevive, hidden.fastClears, hidden.perfectWeek);
     }
 
     private int queryUniqueTeammates(Long userId, String weekKey) {
@@ -288,12 +299,180 @@ public class AchievementServiceImpl implements AchievementService {
         }
     }
 
+    private Hidden hiddenProgress(Long userId) {
+        return new Hidden(
+                hpWinStreak(userId),
+                harshCustomers(userId),
+                lowHpNoRevive(userId),
+                deptNoRevive(userId),
+                fastClears(userId),
+                perfectWeek(userId));
+    }
+
+    private int hpWinStreak(Long userId) {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT m.winner_type AS winner_type,
+                           (
+                             SELECT COUNT(*) FROM match_actions a
+                             WHERE a.match_id = m.id AND a.action_type = 'high_pressure'
+                           ) AS high_pressure
+                    FROM matches m
+                    INNER JOIN match_players mp ON mp.match_id = m.id
+                    WHERE mp.user_id = ? AND m.status = 2 AND IFNULL(m.winner_type, 0) IN (1, 2)
+                    ORDER BY m.id
+                    """, userId);
+            int streak = 0;
+            int best = 0;
+            for (Map<String, Object> row : rows) {
+                int winner = number(row.get("winner_type"));
+                boolean pressure = number(row.get("high_pressure")) > 0;
+                if (winner == 1 && pressure) {
+                    streak++;
+                    best = Math.max(best, streak);
+                } else {
+                    streak = 0;
+                }
+            }
+            return best;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private int harshCustomers(Long userId) {
+        return queryCount("""
+                SELECT COUNT(DISTINCT ct.customer_code)
+                FROM matches m
+                INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                INNER JOIN customer_types ct ON ct.id = m.customer_type_id
+                WHERE m.status = 2 AND m.winner_type = 1
+                  AND ct.customer_code IN ('CUSTOMER_TIMID', 'CUSTOMER_ANXIOUS', 'CUSTOMER_HARSH')
+                  AND NOT EXISTS (
+                    SELECT 1 FROM match_players mp
+                    WHERE mp.match_id = m.id AND IFNULL(mp.revive_count, 0) > 0
+                  )
+                """, userId);
+    }
+
+    private int lowHpNoRevive(Long userId) {
+        return queryCount("""
+                SELECT COUNT(*)
+                FROM matches m
+                INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                WHERE m.status = 2 AND m.winner_type = 1
+                  AND (SELECT COUNT(*) FROM match_players mp WHERE mp.match_id = m.id) >= 2
+                  AND NOT EXISTS (
+                    SELECT 1 FROM match_players mp
+                    WHERE mp.match_id = m.id AND IFNULL(mp.revive_count, 0) > 0
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM match_players mp
+                    WHERE mp.match_id = m.id AND (mp.min_hp IS NULL OR mp.min_hp > 5)
+                  )
+                """, userId);
+    }
+
+    private int deptNoRevive(Long userId) {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT me.dept_type AS dept_type, COUNT(*) AS wins
+                    FROM matches m
+                    INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                    WHERE m.status = 2 AND m.winner_type = 1
+                      AND me.dept_type IN ('sales', 'purchase')
+                      AND NOT EXISTS (
+                        SELECT 1 FROM match_players mp
+                        WHERE mp.match_id = m.id AND IFNULL(mp.revive_count, 0) > 0
+                      )
+                    GROUP BY me.dept_type
+                    """, userId);
+            int sales = 0;
+            int purchase = 0;
+            for (Map<String, Object> row : rows) {
+                int wins = number(row.get("wins"));
+                String dept = String.valueOf(row.get("dept_type"));
+                if ("sales".equals(dept)) {
+                    sales = wins;
+                } else if ("purchase".equals(dept)) {
+                    purchase = wins;
+                }
+            }
+            return Math.min(sales, purchase);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private int fastClears(Long userId) {
+        return queryCount("""
+                SELECT COUNT(*)
+                FROM matches m
+                INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                WHERE m.status = 2 AND m.winner_type = 1
+                  AND IFNULL(m.current_round, 99) <= 8
+                  AND NOT EXISTS (
+                    SELECT 1 FROM match_players mp
+                    WHERE mp.match_id = m.id AND IFNULL(mp.revive_count, 0) > 0
+                  )
+                """, userId);
+    }
+
+    private int perfectWeek(Long userId) {
+        try {
+            List<String> days = jdbcTemplate.queryForList("""
+                    SELECT ut.period_key
+                    FROM user_tasks ut
+                    INNER JOIN tasks t ON t.id = ut.task_id
+                    WHERE ut.user_id = ? AND ut.status >= 2
+                      AND t.task_code IN (
+                        'T-DAILY-MATCH-1','T-DAILY-MATCH-2','T-DAILY-MATCH-3',
+                        'T-DAILY-WIN-1','T-DAILY-WIN-2','T-DAILY-WIN-3')
+                    GROUP BY ut.period_key
+                    HAVING COUNT(DISTINCT t.task_code) = 6
+                    """, String.class, userId);
+            Map<LocalDate, Integer> weeks = new HashMap<>();
+            for (String day : days) {
+                if (day == null || day.isBlank()) {
+                    continue;
+                }
+                LocalDate date = LocalDate.parse(day);
+                LocalDate week = QuestPeriod.weeklyStartForDaily(date);
+                weeks.merge(week, 1, Integer::sum);
+            }
+            int best = 0;
+            for (int count : weeks.values()) {
+                best = Math.max(best, count);
+            }
+            return best;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private int number(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof Boolean flag) {
+            return flag ? 1 : 0;
+        }
+        return 0;
+    }
+
+    private record Hidden(int hpWinStreak, int harshCustomers, int lowHpNoRevive, int deptNoRevive,
+                          int fastClears, int perfectWeek) {
+    }
+
     private record Snapshot(int wins, int matches, int friends, int tasksClaimed, int cards, int collectibleTotal,
                             int workDaysMonth, int workDaysWeek, int workDaysOctober, int uniqueTeammates,
-                            int dailyPerfect, int allOthersUnlocked) {
+                            int dailyPerfect, int allOthersUnlocked,
+                            int hpWinStreak, int harshCustomers, int lowHpNoRevive, int deptNoRevive,
+                            int fastClears, int perfectWeek) {
         Snapshot withAllOthersUnlocked(int value) {
             return new Snapshot(wins, matches, friends, tasksClaimed, cards, collectibleTotal,
-                    workDaysMonth, workDaysWeek, workDaysOctober, uniqueTeammates, dailyPerfect, value);
+                    workDaysMonth, workDaysWeek, workDaysOctober, uniqueTeammates, dailyPerfect, value,
+                    hpWinStreak, harshCustomers, lowHpNoRevive, deptNoRevive, fastClears, perfectWeek);
         }
     }
 }
