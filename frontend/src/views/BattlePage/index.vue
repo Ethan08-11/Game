@@ -1844,7 +1844,26 @@ async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLEl
   const shieldHit = Math.max(0, landed - hpLoss)
   const pierce = isPierceEffect(payload, effect)
   const base = fxNum(effect, 'baseValue', 'base_value')
+  const extra = parseEffectExtra(effect)
+  const chance = Number(extra.chance)
+  const rollable = Number.isFinite(chance) && chance < 100
+  const bossDown = Number.isFinite(before) && before <= 0 && Number.isFinite(after) && after <= 0
   if (landed <= 0) {
+    if (!rollable && Number.isFinite(base) && base > 0) {
+      spawnHeroBolt(fromEl, bullyEl, actorTone, 260)
+      await waitFx(260)
+      if (!heroFxAlive) return
+      if (bossDown) {
+        spawnHeroBurst(bullyEl, actorTone)
+        spawnHeroFloat(bullyEl, `−${Math.round(base)}`, actorTone)
+      } else {
+        spawnHeroBurst(bullyEl, 'tone-shield-break')
+        spawnHeroFloat(bullyEl, `盾 −${Math.round(base)}`, 'tone-shield-break', 0.22, 24)
+      }
+      flashBullyHit(true)
+      await waitFx(180)
+      return
+    }
     spawnHeroBolt(fromEl, bullyEl, 'tone-miss', 240)
     await waitFx(240)
     if (!heroFxAlive) return
@@ -1867,16 +1886,16 @@ async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLEl
   spawnHeroBolt(fromEl, bullyEl, actorTone, 260)
   await waitFx(260)
   if (!heroFxAlive) return
-  if (shieldHit > 0) {
+  if (shieldHit > 0 && !bossDown) {
     spawnHeroBurst(bullyEl, 'tone-shield-break')
     spawnHeroFloat(bullyEl, `盾 −${shieldHit}`, 'tone-shield-break', 0.22, 24)
     flashBullyHit(hpLoss <= 0)
     if (hpLoss > 0) await waitFx(140)
   }
-  if (hpLoss > 0) {
+  if (hpLoss > 0 || (bossDown && landed > 0)) {
     spawnHeroBurst(bullyEl, actorTone)
     flashBullyHit(true)
-    spawnHeroFloat(bullyEl, `−${hpLoss}`, actorTone)
+    spawnHeroFloat(bullyEl, `−${hpLoss || landed}`, actorTone)
   }
   await waitFx(base > 1 ? 140 : 160)
 }
@@ -1946,6 +1965,8 @@ async function playEffectClip(effect: any, ctx: {
   }
   switch (type) {
     case 'DAMAGE_BOSS':
+    case 'CHASE_ALLY_ATTACK':
+    case 'ON_BOSS_HP_LOSS':
       await playDamageBossFx(effect, ctx)
       return
     case 'ADD_SHIELD': {
