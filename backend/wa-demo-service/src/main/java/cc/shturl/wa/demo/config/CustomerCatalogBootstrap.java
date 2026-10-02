@@ -49,9 +49,9 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         runScript("db/027_bully_hp_200.sql");
         runScript("db/029_bully_hp_after_mercenaries.sql");
         runScript("db/030_bully_hp_150_200.sql");
-        update("CUSTOMER_KIND", -1, 30, 32);
-        update("CUSTOMER_TIMID", 4, 65, 38);
-        update("CUSTOMER_ANXIOUS", 3, 60, 30);
+        update("CUSTOMER_KIND", -1, 30, 10);
+        update("CUSTOMER_TIMID", 4, 65, 10);
+        update("CUSTOMER_ANXIOUS", 3, 60, 10);
         update("CUSTOMER_WINDOW", 2, 20, 10);
         update("CUSTOMER_WEALTHY", 1, 40, 10);
         update("CUSTOMER_HARSH", 3, 40, 10);

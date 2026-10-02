@@ -1219,7 +1219,9 @@ public class MatchServiceImpl implements MatchService {
 
     private boolean isHighPressureNegativeCustomer(CustomerTypes customer) {
         String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
-        if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code) || BullyCatalog.CUSTOMER_TIMID.equals(code)) {
+        if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code)
+                || BullyCatalog.CUSTOMER_TIMID.equals(code)
+                || BullyCatalog.CUSTOMER_HARSH.equals(code)) {
             return true;
         }
         String type = customer.getEffectType() == null ? "" : customer.getEffectType().trim();
@@ -1231,11 +1233,10 @@ public class MatchServiceImpl implements MatchService {
             return Math.max(value(customer.getSelectionWeight()), 0);
         }
         String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
-        if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code)) {
-            return 70;
-        }
-        if (BullyCatalog.CUSTOMER_TIMID.equals(code)) {
-            return 30;
+        if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code)
+                || BullyCatalog.CUSTOMER_TIMID.equals(code)
+                || BullyCatalog.CUSTOMER_HARSH.equals(code)) {
+            return 1;
         }
         return 0;
     }
