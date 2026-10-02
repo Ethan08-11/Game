@@ -37,8 +37,8 @@ class ClientNetworkServiceImplTest {
     @DisplayName("生产环境双方 IP 相同则拒绝组队")
     void shouldRejectSameIp() {
         when(redisTemplate.opsForValue()).thenReturn(values);
-        when(values.get(RedisKeyConstants.USER_CLIENT_IP_PREFIX + 1L)).thenReturn("203.0.113.8");
-        when(values.get(RedisKeyConstants.USER_CLIENT_IP_PREFIX + 2L)).thenReturn("203.0.113.8");
+        when(values.get(RedisKeyConstants.CACHE_PREFIX + "presence:ip:" + 1L)).thenReturn("203.0.113.8");
+        when(values.get(RedisKeyConstants.CACHE_PREFIX + "presence:ip:" + 2L)).thenReturn("203.0.113.8");
         ClientNetworkServiceImpl service = new ClientNetworkServiceImpl(redisTemplate, userMapper, false);
 
         assertThatThrownBy(() -> service.requireDistinctNetwork(1L, 2L))
@@ -61,8 +61,8 @@ class ClientNetworkServiceImplTest {
     @DisplayName("缺少一侧 IP 时放行")
     void shouldAllowWhenIpMissing() {
         when(redisTemplate.opsForValue()).thenReturn(values);
-        when(values.get(RedisKeyConstants.USER_CLIENT_IP_PREFIX + 1L)).thenReturn("203.0.113.8");
-        when(values.get(RedisKeyConstants.USER_CLIENT_IP_PREFIX + 2L)).thenReturn(null);
+        when(values.get(RedisKeyConstants.CACHE_PREFIX + "presence:ip:" + 1L)).thenReturn("203.0.113.8");
+        when(values.get(RedisKeyConstants.CACHE_PREFIX + "presence:ip:" + 2L)).thenReturn(null);
         ClientNetworkServiceImpl service = new ClientNetworkServiceImpl(redisTemplate, userMapper, false);
 
         assertThatCode(() -> service.requireDistinctNetwork(1L, 2L)).doesNotThrowAnyException();

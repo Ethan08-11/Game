@@ -72,6 +72,6 @@ public class ClientNetworkServiceImpl implements ClientNetworkService {
     }
 
     private String key(Long userId) {
-        return RedisKeyConstants.USER_CLIENT_IP_PREFIX + userId;
+        return RedisKeyConstants.CACHE_PREFIX + "presence:ip:" + userId;
     }
 }

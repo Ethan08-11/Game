@@ -14,8 +14,8 @@ COPY backend/wa-common/ wa-common/
 COPY backend/wa-api/ wa-api/
 COPY backend/wa-demo-service/ wa-demo-service/
 
-RUN mvn clean package -DskipTests -B -pl wa-demo-service -am \
-  && JAR=$(ls wa-demo-service/target/wa-demo-service-*.jar | head -n 1) \
+RUN mvn -B -DskipTests clean package -am -pl wa-demo-service
+RUN JAR=$(ls wa-demo-service/target/wa-demo-service-*.jar | head -n 1) \
   && cp "$JAR" /build/app.jar
 
 FROM eclipse-temurin:17-jre-alpine
