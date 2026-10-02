@@ -1180,14 +1180,25 @@ public class MatchServiceImpl implements MatchService {
         }
         boolean highPressure = leaderboardService.teamTouchesDailyTop(
                 members.stream().map(RoomMembers::getUserId).toList());
-        int totalWeight = customers.stream()
+        List<CustomerTypes> pool = highPressure
+                ? customers.stream().filter(this::isHighPressureNegativeCustomer).toList()
+                : customers;
+        if (pool.isEmpty()) {
+            if (highPressure) {
+                logger.warn("High-pressure negative customer pool empty for users {}",
+                        members.stream().map(RoomMembers::getUserId).toList());
+                throw new BusinessException("高压顾客池不可用");
+            }
+            pool = customers;
+        }
+        int totalWeight = pool.stream()
                 .mapToInt(customer -> customerWeight(customer, highPressure))
                 .sum();
         if (totalWeight <= 0) {
-            return customers.get(0);
+            return pool.get(0);
         }
         int random = ThreadLocalRandom.current().nextInt(totalWeight);
-        for (CustomerTypes customer : customers) {
+        for (CustomerTypes customer : pool) {
             random -= customerWeight(customer, highPressure);
             if (random < 0) {
                 if (highPressure) {
@@ -1198,7 +1209,16 @@ public class MatchServiceImpl implements MatchService {
                 return customer;
             }
         }
-        return customers.get(0);
+        return pool.get(0);
+    }
+
+    private boolean isHighPressureNegativeCustomer(CustomerTypes customer) {
+        String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
+        if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code) || BullyCatalog.CUSTOMER_TIMID.equals(code)) {
+            return true;
+        }
+        String type = customer.getEffectType() == null ? "" : customer.getEffectType().trim();
+        return "bully_hp_up".equalsIgnoreCase(type) || "bully_attack_up".equalsIgnoreCase(type);
     }
 
     private int customerWeight(CustomerTypes customer, boolean highPressure) {
