@@ -9,11 +9,12 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAdjusters;
 
 /**
- * 每日 / 每周任务与 Ethan 未打补记均在 20:00（Asia/Shanghai）切换。
- * 每日 period 覆盖「前一天 20:00 至当天 20:00」；周常在周一 20:00 开启新的一周。
+ * 每日 / 每周任务按自然日 0 点（Asia/Shanghai）切换。
+ * Ethan 未打补记仍在当天 20:00 触发，补的是当天 0 点到次日 0 点这一档。
  */
 public final class QuestPeriod {
-    public static final LocalTime RESET_AT = LocalTime.of(20, 0);
+    public static final LocalTime RESET_AT = LocalTime.MIDNIGHT;
+    public static final LocalTime ETHAN_FILL_AT = LocalTime.of(20, 0);
 
     private QuestPeriod() {
     }
@@ -22,19 +23,16 @@ public final class QuestPeriod {
         return LocalDateTime.now(WorkDayQuota.ZONE);
     }
 
-    /** 当前进行中的每日 period_key 日期。20:00 起算下一天。 */
+    /** 当前进行中的每日 period_key 日期。0 点起算新的一天。 */
     public static LocalDate currentDailyDate() {
         return dailyDate(now());
     }
 
     public static LocalDate dailyDate(LocalDateTime at) {
-        if (at.toLocalTime().isBefore(RESET_AT)) {
-            return at.toLocalDate();
-        }
-        return at.toLocalDate().plusDays(1);
+        return at.toLocalDate();
     }
 
-    /** 20:00 触发时要补记的那一天（刚结束的每日）。 */
+    /** 刚结束的每日（昨天）。 */
     public static LocalDate endedDailyDate(LocalDateTime at) {
         return dailyDate(at).minusDays(1);
     }
@@ -43,35 +41,29 @@ public final class QuestPeriod {
         return weeklyStart(now());
     }
 
-    /** 周常 period_key：周一 20:00 开启新的一周。 */
+    /** 周常 period_key：周一 0 点开启新的一周。 */
     public static LocalDate weeklyStart(LocalDateTime at) {
-        return at.minusHours(RESET_AT.getHour())
-                .minusMinutes(RESET_AT.getMinute())
-                .toLocalDate()
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        return at.toLocalDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     }
 
     public static LocalDate weeklyStartForDaily(LocalDate dailyDate) {
         if (dailyDate == null) {
             return currentWeeklyStart();
         }
-        return weeklyStart(dailyDate.atTime(RESET_AT).minusSeconds(1));
+        return weeklyStart(dailyDate.atStartOfDay());
     }
 
     public static LocalDateTime windowStart(LocalDate dailyDate) {
-        return dailyDate.minusDays(1).atTime(RESET_AT);
+        return dailyDate.atStartOfDay();
     }
 
     public static LocalDateTime windowEnd(LocalDate dailyDate) {
-        return dailyDate.atTime(RESET_AT);
+        return dailyDate.plusDays(1).atStartOfDay();
     }
 
     public static long secondsUntilDailyReset() {
         ZonedDateTime now = ZonedDateTime.now(WorkDayQuota.ZONE);
-        ZonedDateTime next = now.with(RESET_AT).withSecond(0).withNano(0);
-        if (!now.toLocalTime().isBefore(RESET_AT)) {
-            next = next.plusDays(1);
-        }
+        ZonedDateTime next = now.toLocalDate().plusDays(1).atTime(RESET_AT).atZone(WorkDayQuota.ZONE);
         return Math.max(Duration.between(now, next).getSeconds(), 0L);
     }
 }
