@@ -13,7 +13,7 @@ COPY wa-common/ wa-common/
 COPY wa-api/ wa-api/
 COPY wa-demo-service/ wa-demo-service/
 
-RUN mvn -B -DskipTests clean package -am -pl wa-demo-service
+RUN mvn -B -Dmaven.test.skip=true clean package -am -pl wa-demo-service
 RUN JAR=$(ls wa-demo-service/target/wa-demo-service-*.jar | head -n 1) \
   && cp "$JAR" /build/app.jar
 

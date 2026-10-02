@@ -1,7 +1,7 @@
 FROM maven:3.9.8-eclipse-temurin-17 AS build
 WORKDIR /build
 COPY . .
-RUN mvn -B -DskipTests clean package -am -pl wa-demo-service
+RUN mvn -B -Dmaven.test.skip=true clean package -am -pl wa-demo-service
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
