@@ -79,6 +79,22 @@ class LeaderboardServiceImplSortTest {
         assertThat(list).extracting(LeaderboardResp::userId).containsExactly(2L, 1L);
     }
 
+    @Test
+    @DisplayName("高压：当前总榜金币前五算高压，第六名不算")
+    void liveTotalTopFiveIsHighPressureEvenWithoutSnapshot() {
+        when(userProfileMapper.selectList(any())).thenReturn(List.of(
+                profile(1L, 150L, 3, 0, 0),
+                profile(2L, 140L, 2, 0, 0),
+                profile(3L, 130L, 2, 0, 0),
+                profile(4L, 120L, 1, 0, 0),
+                profile(5L, 110L, 1, 0, 0),
+                profile(6L, 100L, 1, 0, 0)));
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of());
+
+        assertThat(service.teamTouchesDailyTop(List.of(5L, 99L))).isTrue();
+        assertThat(service.teamTouchesDailyTop(List.of(6L, 99L))).isFalse();
+    }
+
     private static UserProfile profile(long userId, long money, int wins, int losses, int draws) {
         UserProfile profile = new UserProfile();
         profile.setUserId(userId);

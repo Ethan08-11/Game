@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -172,14 +173,33 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     @Override
     public boolean teamTouchesDailyTop(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return false;
+        }
+        Set<Long> team = userIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        if (team.isEmpty()) {
+            return false;
+        }
+        if (liveTopUserIds().stream().anyMatch(team::contains)) {
+            return true;
+        }
         ensureDailyTopSnapshot();
-        if (!dailyTopTableExists() || userIds == null || userIds.isEmpty()) {
+        return intersectsDailyTopSnapshot(team);
+    }
+
+    private Set<Long> liveTopUserIds() {
+        return listLeaderboard(null, "total", 1, 0).stream()
+                .filter(item -> item.userId() != null && item.money() != null && item.money() > 0)
+                .limit(5)
+                .map(LeaderboardResp::userId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private boolean intersectsDailyTopSnapshot(Set<Long> team) {
+        if (!dailyTopTableExists() || team.isEmpty()) {
             return false;
         }
-        List<Long> ids = userIds.stream().filter(Objects::nonNull).distinct().toList();
-        if (ids.isEmpty()) {
-            return false;
-        }
+        List<Long> ids = List.copyOf(team);
         String placeholders = ids.stream().map(id -> "?").collect(Collectors.joining(","));
         List<Object> args = new ArrayList<>();
         args.add(Date.valueOf(LocalDate.now(LEADERBOARD_ZONE)));
