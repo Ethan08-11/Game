@@ -1759,10 +1759,9 @@ public class MatchServiceImpl implements MatchService {
             }
             case "HEAL_BOSS" -> {
                 int beforeValue = value(match.getBossCurrentHp());
-                int afterValue = beforeValue + actualValue;
-                match.setBossMaxHp(value(match.getBossMaxHp()) + actualValue);
+                int afterValue = Math.min(value(match.getBossMaxHp()), beforeValue + actualValue);
                 match.setBossCurrentHp(afterValue);
-                results.add(effectResult(effect, "BOSS", null, baseValue, actualValue,
+                results.add(effectResult(effect, "BOSS", null, baseValue, afterValue - beforeValue,
                         beforeValue, afterValue, match.getCurrentRound()));
             }
             case "GUARD_ALLY" -> {
@@ -1819,12 +1818,10 @@ public class MatchServiceImpl implements MatchService {
                 int remaining = Math.max(value(effect.getRemainingTriggers()), Math.max(actualValue, 1));
                 MatchRounds round = currentRound(match);
                 int beforeTriggered = round == null ? 0 : value(round.getCustomerTriggered());
-                if (round != null) {
-                    if (beforeTriggered == 1) {
-                        revertCustomerEffectThisRound(match, round, listPlayers(match.getId()));
-                        round.setCustomerTriggered(0);
-                        matchRoundsMapper.updateById(round);
-                    }
+                if (round != null && beforeTriggered == 1) {
+                    revertCustomerEffectThisRound(match, round, listPlayers(match.getId()));
+                    round.setCustomerTriggered(0);
+                    matchRoundsMapper.updateById(round);
                     remaining = Math.max(remaining - 1, 0);
                 }
                 MatchPendingEffects pending = remaining > 0
@@ -1846,7 +1843,7 @@ public class MatchServiceImpl implements MatchService {
                 int converted = value(actor.getShield());
                 actor.setShield(0);
                 int hpBefore = value(match.getBossCurrentHp());
-                dealBossHp(match, actor, converted, false, BossDmgKind.CONVERT, results);
+                dealBossHp(match, actor, converted, true, BossDmgKind.CONVERT, results);
                 results.add(effectResult(effect, "BOSS", null, converted, converted,
                         hpBefore, value(match.getBossCurrentHp()), match.getCurrentRound()));
             }
@@ -2692,8 +2689,8 @@ public class MatchServiceImpl implements MatchService {
                 match.setBossCurrentAttack(value(match.getBossCurrentAttack()) + Math.max(value(pending.getEffectValue()), 0));
             } else if ("HEAL_BOSS".equals(pending.getEffectType())) {
                 int hpGain = Math.max(value(pending.getEffectValue()), 0);
-                match.setBossMaxHp(value(match.getBossMaxHp()) + hpGain);
-                match.setBossCurrentHp(value(match.getBossCurrentHp()) + hpGain);
+                int maxHp = value(match.getBossMaxHp());
+                match.setBossCurrentHp(Math.min(maxHp, value(match.getBossCurrentHp()) + hpGain));
             } else if ("DRAW_CARDS".equals(pending.getEffectType()) && pending.getTargetUserId() != null) {
                 drawCards(match.getId(), pending.getTargetUserId(), roundNo, value(pending.getEffectValue()));
             } else {
@@ -3693,7 +3690,7 @@ public class MatchServiceImpl implements MatchService {
             persistHookPlayer(credited);
         }
         if (kind != BossDmgKind.CHASE && kind != BossDmgKind.HP_LOSS_EXTRA && credited != null) {
-            resolveChaseAllyAttack(match, credited, results);
+            resolveChaseAllyAttack(match, results);
         }
         if (kind != BossDmgKind.HP_LOSS_EXTRA && hpLoss > 0) {
             resolveBossHpLossExtras(match, results);
