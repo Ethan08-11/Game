@@ -65,18 +65,18 @@ class LeaderboardServiceImplSortTest {
     }
 
     @Test
-    @DisplayName("总榜：金币胜场都相同时，先攒到该金币的靠前")
-    void firstToReachGoldRanksHigher() {
-        UserProfile laterSmallerId = profile(1L, 100L, 8, 2, 0);
-        laterSmallerId.setMoneyReachedAt(LocalDateTime.of(2026, 10, 1, 12, 0));
-        UserProfile earlierLargerId = profile(9L, 100L, 8, 2, 0);
-        earlierLargerId.setMoneyReachedAt(LocalDateTime.of(2026, 10, 1, 9, 0));
-        when(userProfileMapper.selectList(any())).thenReturn(List.of(laterSmallerId, earlierLargerId));
+    @DisplayName("总榜：同金币时先攒到该金币的靠前，即使对方胜率更高")
+    void firstToReachGoldRanksHigherThanBetterWinRate() {
+        UserProfile laterBetterRate = profile(1L, 150L, 8, 0, 0);
+        laterBetterRate.setMoneyReachedAt(LocalDateTime.of(2026, 10, 1, 20, 0));
+        UserProfile earlierLowerRate = profile(2L, 150L, 3, 1, 0);
+        earlierLowerRate.setMoneyReachedAt(LocalDateTime.of(2026, 10, 1, 11, 0));
+        when(userProfileMapper.selectList(any())).thenReturn(List.of(laterBetterRate, earlierLowerRate));
         when(userMapper.selectBatchIds(any())).thenReturn(List.of());
 
         List<LeaderboardResp> list = service.listLeaderboard(null, "total", 1, 0);
 
-        assertThat(list).extracting(LeaderboardResp::userId).containsExactly(9L, 1L);
+        assertThat(list).extracting(LeaderboardResp::userId).containsExactly(2L, 1L);
     }
 
     private static UserProfile profile(long userId, long money, int wins, int losses, int draws) {
