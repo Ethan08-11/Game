@@ -42,6 +42,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     private static final Logger log = LoggerFactory.getLogger(LeaderboardServiceImpl.class);
     private static final ZoneId LEADERBOARD_ZONE = ZoneId.of("Asia/Shanghai");
     private static final int MIN_WINRATE_MATCHES = 20;
+    private static final int HIGH_PRESSURE_CAP = 5;
     private static final Pattern REWARD_AMOUNT = Pattern.compile("\"amount\"\\s*:\\s*(-?\\d+)");
 
     private final UserProfileMapper userProfileMapper;
@@ -161,7 +162,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         }
         List<LeaderboardResp> top = listLeaderboard(null, "total", 1, 0).stream()
                 .filter(item -> item.userId() != null && item.money() != null && item.money() > 0)
-                .limit(5)
+                .limit(HIGH_PRESSURE_CAP)
                 .toList();
         int rank = 1;
         for (LeaderboardResp item : top) {
@@ -187,40 +188,61 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         if (team.isEmpty()) {
             return false;
         }
-        if (liveTopUserIds().stream().anyMatch(team::contains)) {
-            return true;
-        }
-        for (Long userId : team) {
-            if (ranksAsTopFive(userId, pendingDailyGold(userId))) {
-                return true;
+        return highPressureRoster().stream().anyMatch(team::contains);
+    }
+
+    Set<Long> highPressureRoster() {
+        LinkedHashSet<Long> roster = new LinkedHashSet<>();
+        Map<Long, Long> extras = pendingDailyGoldByUser();
+        List<UserProfile> eligible = new ArrayList<>();
+        for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
+            if (profile.getUserId() == null) {
+                continue;
+            }
+            UserProfile row = copyRankProfile(profile);
+            row.setMoney(safeMoney(row) + extras.getOrDefault(row.getUserId(), 0L));
+            if (hasMonthlyStats(row)) {
+                eligible.add(row);
             }
         }
-        ensureDailyTopSnapshot();
-        return intersectsDailyTopSnapshot(team);
-    }
-
-    private Set<Long> liveTopUserIds() {
-        return listLeaderboard(null, "total", 1, 0).stream()
-                .filter(item -> item.userId() != null && item.money() != null && item.money() > 0)
-                .limit(5)
-                .map(LeaderboardResp::userId)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-    }
-
-    private boolean intersectsDailyTopSnapshot(Set<Long> team) {
-        if (!dailyTopTableExists() || team.isEmpty()) {
-            return false;
+        sortEligible(eligible, false);
+        for (UserProfile profile : eligible) {
+            if (safeMoney(profile) <= 0) {
+                continue;
+            }
+            roster.add(profile.getUserId());
+            if (roster.size() >= HIGH_PRESSURE_CAP) {
+                return roster;
+            }
         }
-        List<Long> ids = List.copyOf(team);
-        String placeholders = ids.stream().map(id -> "?").collect(Collectors.joining(","));
-        List<Object> args = new ArrayList<>();
-        args.add(Date.valueOf(LocalDate.now(LEADERBOARD_ZONE)));
-        args.addAll(ids);
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM leaderboard_daily_top WHERE day_date = ? AND user_id IN (" + placeholders + ")",
-                Integer.class,
-                args.toArray());
-        return count != null && count > 0;
+        if (roster.size() >= HIGH_PRESSURE_CAP) {
+            return roster;
+        }
+        ensureDailyTopSnapshot();
+        for (Long userId : snapshotUserIdsInRankOrder()) {
+            if (userId == null) {
+                continue;
+            }
+            roster.add(userId);
+            if (roster.size() >= HIGH_PRESSURE_CAP) {
+                break;
+            }
+        }
+        return roster;
+    }
+
+    private List<Long> snapshotUserIdsInRankOrder() {
+        if (!dailyTopTableExists()) {
+            return List.of();
+        }
+        try {
+            return jdbcTemplate.query(
+                    "SELECT user_id FROM leaderboard_daily_top WHERE day_date = ? ORDER BY rank_no ASC",
+                    (rs, i) -> rs.getLong(1),
+                    Date.valueOf(LocalDate.now(LEADERBOARD_ZONE)));
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private boolean dailyTopTableExists() {
@@ -270,9 +292,9 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             }
             rank++;
             if (userId.equals(profile.getUserId())) {
-                return rank <= 5;
+                return rank <= HIGH_PRESSURE_CAP;
             }
-            if (rank >= 5) {
+            if (rank >= HIGH_PRESSURE_CAP) {
                 return false;
             }
         }
@@ -290,51 +312,76 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return copy;
     }
 
-    private long pendingDailyGold(Long userId) {
-        if (userId == null || !goldPayable(userId)) {
-            return 0L;
-        }
+    private Map<Long, Long> pendingDailyGoldByUser() {
+        Map<Long, Long> extras = new HashMap<>();
         String period = QuestPeriod.currentDailyDate().toString();
         try {
-            long extra = 0L;
-            Set<Integer> finishedMatchSlots = new HashSet<>();
+            Map<Integer, Long> matchGold = matchSlotGoldBySlot();
+            Map<Long, List<Map<String, Object>>> rowsByUser = new HashMap<>();
             List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                    SELECT t.task_code AS task_code, t.reward_value AS reward_value, ut.status AS status
+                    SELECT ut.user_id AS user_id, t.task_code AS task_code,
+                           t.reward_value AS reward_value, ut.status AS status,
+                           ut.progress_value AS progress_value
                     FROM user_tasks ut
                     INNER JOIN tasks t ON t.id = ut.task_id
-                    WHERE ut.user_id = ?
-                      AND ut.period_key = ?
+                    WHERE ut.period_key = ?
                       AND t.task_code IN (
+                        'T-DAILY-SLOT',
                         'T-DAILY-MATCH-1','T-DAILY-MATCH-2','T-DAILY-MATCH-3',
                         'T-DAILY-WIN-1','T-DAILY-WIN-2','T-DAILY-WIN-3')
-                    """, userId, period);
+                    """, period);
             for (Map<String, Object> row : rows) {
-                String code = String.valueOf(row.get("task_code"));
-                Object statusRaw = row.get("status");
-                if (!(statusRaw instanceof Number statusNumber)) {
+                Object userRaw = row.get("user_id");
+                if (!(userRaw instanceof Number userNumber)) {
                     continue;
                 }
-                int status = statusNumber.intValue();
-                if (code.startsWith("T-DAILY-MATCH-") && status >= 2) {
-                    try {
-                        finishedMatchSlots.add(Integer.parseInt(code.substring("T-DAILY-MATCH-".length())));
-                    } catch (NumberFormatException ignored) {
-                        // skip malformed task codes
-                    }
-                }
-                if (status == 2) {
-                    extra += rewardAmount(row.get("reward_value"));
-                }
+                rowsByUser.computeIfAbsent(userNumber.longValue(), id -> new ArrayList<>()).add(row);
             }
-            int nextSlot = dailySlotProgress(userId, period) + 1;
-            if (nextSlot >= 1 && nextSlot <= 3 && !finishedMatchSlots.contains(nextSlot)) {
-                extra += matchSlotGold(nextSlot);
+            for (Map.Entry<Long, List<Map<String, Object>>> entry : rowsByUser.entrySet()) {
+                Long userId = entry.getKey();
+                if (!goldPayable(userId)) {
+                    continue;
+                }
+                extras.put(userId, extraFromTaskRows(entry.getValue(), matchGold));
             }
-            return extra;
+            return extras;
         } catch (Exception e) {
-            log.debug("Skip pending daily gold for {}: {}", userId, e.getMessage());
-            return 0L;
+            log.debug("Skip pending daily gold: {}", e.getMessage());
+            return extras;
         }
+    }
+
+    private static long extraFromTaskRows(List<Map<String, Object>> rows, Map<Integer, Long> matchGold) {
+        long extra = 0L;
+        int slotProgress = 0;
+        Set<Integer> finishedMatchSlots = new HashSet<>();
+        for (Map<String, Object> row : rows) {
+            String code = String.valueOf(row.get("task_code"));
+            Object statusRaw = row.get("status");
+            int status = statusRaw instanceof Number statusNumber ? statusNumber.intValue() : 0;
+            if ("T-DAILY-SLOT".equals(code)) {
+                Object progressRaw = row.get("progress_value");
+                if (progressRaw instanceof Number progressNumber) {
+                    slotProgress = Math.max(progressNumber.intValue(), 0);
+                }
+                continue;
+            }
+            if (code.startsWith("T-DAILY-MATCH-") && status >= 2) {
+                try {
+                    finishedMatchSlots.add(Integer.parseInt(code.substring("T-DAILY-MATCH-".length())));
+                } catch (NumberFormatException ignored) {
+                    // skip malformed task codes
+                }
+            }
+            if (status == 2) {
+                extra += rewardAmount(row.get("reward_value"));
+            }
+        }
+        int nextSlot = slotProgress + 1;
+        if (nextSlot >= 1 && nextSlot <= 3 && !finishedMatchSlots.contains(nextSlot)) {
+            extra += matchGold.getOrDefault(nextSlot, 0L);
+        }
+        return extra;
     }
 
     private boolean goldPayable(Long userId) {
@@ -349,31 +396,30 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         }
     }
 
-    private int dailySlotProgress(Long userId, String period) {
+    private Map<Integer, Long> matchSlotGoldBySlot() {
+        Map<Integer, Long> amounts = new HashMap<>();
         try {
-            Integer n = jdbcTemplate.queryForObject("""
-                    SELECT ut.progress_value
-                    FROM user_tasks ut
-                    INNER JOIN tasks t ON t.id = ut.task_id
-                    WHERE ut.user_id = ? AND ut.period_key = ? AND t.task_code = 'T-DAILY-SLOT'
-                    LIMIT 1
-                    """, Integer.class, userId, period);
-            return n == null ? 0 : Math.max(n, 0);
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT task_code, reward_value
+                    FROM tasks
+                    WHERE task_code IN ('T-DAILY-MATCH-1','T-DAILY-MATCH-2','T-DAILY-MATCH-3')
+                    """);
+            for (Map<String, Object> row : rows) {
+                String code = String.valueOf(row.get("task_code"));
+                if (!code.startsWith("T-DAILY-MATCH-")) {
+                    continue;
+                }
+                try {
+                    int slot = Integer.parseInt(code.substring("T-DAILY-MATCH-".length()));
+                    amounts.put(slot, rewardAmount(row.get("reward_value")));
+                } catch (NumberFormatException ignored) {
+                    // skip malformed task codes
+                }
+            }
         } catch (Exception e) {
-            return 0;
+            log.debug("Skip daily match gold catalog: {}", e.getMessage());
         }
-    }
-
-    private long matchSlotGold(int slot) {
-        try {
-            String json = jdbcTemplate.queryForObject(
-                    "SELECT reward_value FROM tasks WHERE task_code = ? LIMIT 1",
-                    String.class,
-                    "T-DAILY-MATCH-" + slot);
-            return rewardAmount(json);
-        } catch (Exception e) {
-            return 0L;
-        }
+        return amounts;
     }
 
     private static long rewardAmount(Object raw) {
