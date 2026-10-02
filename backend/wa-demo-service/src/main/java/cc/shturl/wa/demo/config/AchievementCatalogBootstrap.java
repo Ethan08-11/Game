@@ -101,6 +101,18 @@ public class AchievementCatalogBootstrap implements ApplicationRunner {
                 "title", "{\"name\":\"高压五胜\"}", 308, 3, 1);
         upsert("ACH-029", "月度过半", "growth", "当月工作日领过不少于定额一半", "work_day_half", "{\"count\":0}",
                 "title", "{\"name\":\"月度过半\"}", 309, 3, 1);
+        upsert("ACH-042", "久经沙场", "battle", "累计打完 60 局（输赢都算，作废不计）", "match_count", "{\"count\":60}",
+                "title", "{\"name\":\"久经沙场\"}", 310, 3, 1);
+        upsert("ACH-043", "任务老手", "growth", "累计领取 60 个任务奖励", "task_complete_count", "{\"count\":60}",
+                "title", "{\"name\":\"任务老手\"}", 311, 3, 1);
+        upsert("ACH-044", "十友相知", "social", "累计添加 10 位好友", "friend_count", "{\"count\":10}",
+                "title", "{\"name\":\"十友相知\"}", 312, 3, 1);
+        upsert("ACH-045", "完美三日", "growth", "同一个月里有 3 天都完成并赢得当日第 1、2、3 局", "perfect_month", "{\"count\":3}",
+                "title", "{\"name\":\"完美三日\"}", 313, 3, 1);
+        upsert("ACH-046", "五客会战", "battle", "在 5 种不同雇主的局里各获胜至少 1 局", "customer_kinds", "{\"count\":5}",
+                "title", "{\"name\":\"五客会战\"}", 314, 3, 1);
+        upsert("ACH-047", "险中取胜", "battle", "自己的血曾降到 10 及以下后仍获胜，累计 3 局", "clutch_win", "{\"count\":3,\"hp\":10}",
+                "title", "{\"name\":\"险中取胜\"}", 315, 3, 1);
 
         upsert("ACH-030", "百胜传奇", "battle", "累计取得 100 场胜利", "win_count", "{\"count\":100}",
                 "title", "{\"name\":\"百胜传奇\"}", 401, 4, 1);

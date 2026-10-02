@@ -183,6 +183,9 @@ public class AchievementServiceImpl implements AchievementService {
             case "dept_no_revive" -> snapshot.deptNoRevive;
             case "fast_clear" -> snapshot.fastClears;
             case "perfect_week" -> snapshot.perfectWeek;
+            case "perfect_month" -> snapshot.perfectMonth;
+            case "customer_kinds" -> snapshot.customerKinds;
+            case "clutch_win" -> snapshot.clutchWins;
             case "all_unlocked" -> snapshot.allOthersUnlocked;
             default -> 0;
         };
@@ -209,7 +212,7 @@ public class AchievementServiceImpl implements AchievementService {
     private Snapshot globalSnapshot() {
         int collectible = queryCount(
                 "SELECT COUNT(*) FROM cards WHERE status = 1 AND IFNULL(require_unlock, 0) = 1");
-        return new Snapshot(0, 0, 0, 0, 0, collectible, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return new Snapshot(0, 0, 0, 0, 0, collectible, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     private Snapshot snapshot(Long userId) {
@@ -258,7 +261,8 @@ public class AchievementServiceImpl implements AchievementService {
         return new Snapshot(wins, wins + losses, friends, tasksClaimed, cards, collectible,
                 workDaysMonth, workDaysWeek, workDaysOctober, uniqueTeammates, dailyPerfect, 0,
                 hidden.hpWinStreak, hidden.harshCustomers, hidden.lowHpNoRevive,
-                hidden.deptNoRevive, hidden.fastClears, hidden.perfectWeek);
+                hidden.deptNoRevive, hidden.fastClears, hidden.perfectWeek,
+                perfectMonth(userId), customerKinds(userId), clutchWins(userId));
     }
 
     private int queryUniqueTeammates(Long userId, String weekKey) {
@@ -450,6 +454,57 @@ public class AchievementServiceImpl implements AchievementService {
         }
     }
 
+    private int perfectMonth(Long userId) {
+        try {
+            List<String> days = jdbcTemplate.queryForList("""
+                    SELECT ut.period_key
+                    FROM user_tasks ut
+                    INNER JOIN tasks t ON t.id = ut.task_id
+                    WHERE ut.user_id = ? AND ut.status >= 2
+                      AND t.task_code IN (
+                        'T-DAILY-MATCH-1','T-DAILY-MATCH-2','T-DAILY-MATCH-3',
+                        'T-DAILY-WIN-1','T-DAILY-WIN-2','T-DAILY-WIN-3')
+                    GROUP BY ut.period_key
+                    HAVING COUNT(DISTINCT t.task_code) = 6
+                    """, String.class, userId);
+            Map<YearMonth, Integer> months = new HashMap<>();
+            for (String day : days) {
+                if (day == null || day.isBlank()) {
+                    continue;
+                }
+                YearMonth month = YearMonth.from(LocalDate.parse(day));
+                months.merge(month, 1, Integer::sum);
+            }
+            int best = 0;
+            for (int count : months.values()) {
+                best = Math.max(best, count);
+            }
+            return best;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private int customerKinds(Long userId) {
+        return queryCount("""
+                SELECT COUNT(DISTINCT ct.customer_code)
+                FROM matches m
+                INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                INNER JOIN customer_types ct ON ct.id = m.customer_type_id
+                WHERE m.status = 2 AND m.winner_type = 1
+                """, userId);
+    }
+
+    private int clutchWins(Long userId) {
+        return queryCount("""
+                SELECT COUNT(*)
+                FROM matches m
+                INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                WHERE m.status = 2 AND m.winner_type = 1
+                  AND me.min_hp IS NOT NULL AND me.min_hp <= 10
+                """, userId);
+    }
+
     private int number(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
@@ -468,11 +523,13 @@ public class AchievementServiceImpl implements AchievementService {
                             int workDaysMonth, int workDaysWeek, int workDaysOctober, int uniqueTeammates,
                             int dailyPerfect, int allOthersUnlocked,
                             int hpWinStreak, int harshCustomers, int lowHpNoRevive, int deptNoRevive,
-                            int fastClears, int perfectWeek) {
+                            int fastClears, int perfectWeek,
+                            int perfectMonth, int customerKinds, int clutchWins) {
         Snapshot withAllOthersUnlocked(int value) {
             return new Snapshot(wins, matches, friends, tasksClaimed, cards, collectibleTotal,
                     workDaysMonth, workDaysWeek, workDaysOctober, uniqueTeammates, dailyPerfect, value,
-                    hpWinStreak, harshCustomers, lowHpNoRevive, deptNoRevive, fastClears, perfectWeek);
+                    hpWinStreak, harshCustomers, lowHpNoRevive, deptNoRevive, fastClears, perfectWeek,
+                    perfectMonth, customerKinds, clutchWins);
         }
     }
 }
