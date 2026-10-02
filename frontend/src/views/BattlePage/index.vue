@@ -269,7 +269,7 @@
           <h2 class="disconnect-title">离开对战</h2>
           <p class="disconnect-desc">
             放弃将记为失败，并占用今日任务局数，无法再刷该局奖励。
-            若对局卡死、刷新后仍重连不上，请选「对局异常」。
+            若对局卡死、刷新后仍重连不上，请选「对局异常」（每人每天只能作废 1 局，不记胜负）。当天再用不会作废。
           </p>
           <div class="leave-actions">
             <el-button type="danger" size="large" :loading="leavingMatch" @click="confirmAbandon">放弃对局</el-button>

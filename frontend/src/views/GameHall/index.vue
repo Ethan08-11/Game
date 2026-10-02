@@ -75,7 +75,7 @@
         <div class="reconnect-modal">
           <h2 class="reconnect-title">你有未完成的对局</h2>
           <p class="reconnect-desc">
-            检测到上一次游戏异常退出，是否重新连接继续对战？放弃会占用今日任务局数。卡死且重连不上可点「对局异常」。
+            检测到上一次游戏异常退出，是否重新连接继续对战？放弃会占用今日任务局数。卡死且重连不上可点「对局异常」（每人每天只能作废 1 局）。
           </p>
           <p class="reconnect-countdown">
             {{ reconnectCountdown }} 秒后将按放弃处理（占用今日任务局数）

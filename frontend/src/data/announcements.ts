@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-daily-abnormal-match-limit',
+    title: '异常对局：每人每天只能作废 1 局',
+    date: '2026-10-02',
+    content: '对局卡死、约 5 分钟没有有效操作后，可以申请「对局异常」作废本局，不记胜负、不占用今日任务局数。每人每天只能这样作废 1 局。当天如果已经用过，再点不会作废，请改选放弃（记失败，并占用今日任务局数）。一直挂到自动处理时，本局也会记为失败。',
+  },
+  {
     id: 'topic-leaderboard-prize-202610',
     title: LEADERBOARD_PRIZE_NOTICE_TITLE,
     date: '2026-10-01',
