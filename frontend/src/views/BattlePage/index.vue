@@ -1133,7 +1133,7 @@ function effectLabel(effectType?: string) {
     ADD_SHIELD: '增加防御',
     HEAL_PLAYER: '恢复血值',
     GUARD_ALLY: '替队友挡刀',
-    CHASE_ALLY_ATTACK: '追击队友伤害',
+    CHASE_ALLY_ATTACK: '追击伤害',
     ON_BOSS_HP_LOSS: '掉血追加',
     COUNTER_ON_HIT: '被打反击',
     DODGE_NEXT_HIT: '躲避下次攻击',
@@ -1142,7 +1142,7 @@ function effectLabel(effectType?: string) {
     DAMAGE_BOSS: '对霸凌者造成伤害',
     SKIP_CUSTOMER_EFFECT: '顾客无法行动',
     CLEAR_BOSS_SHIELD: '清空敌人防御',
-    SKIP_BULLY_ATTACK: '敌人无法行动',
+    SKIP_BULLY_ATTACK: '霸凌者不出手',
   }
   return map[effectType || ''] || effectType || '未知效果'
 }
@@ -2109,7 +2109,7 @@ async function playEffectClip(effect: any, ctx: {
         }))
       }
       const dest = handCardsRef.value || ctx.fromEl
-      if (dest) spawnHeroMark(dest, '预览下回合抽牌', 'tone-delay', 0.15)
+      if (dest) spawnHeroMark(dest, '锁定下回合抽牌', 'tone-delay', 0.15)
       await waitFx(300)
       return
     }
@@ -2127,7 +2127,7 @@ async function playEffectClip(effect: any, ctx: {
     }
     case 'SKIP_BULLY_ATTACK': {
       const dest = ctx.bullyEl || ctx.hudEl || ctx.fromEl
-      if (dest) spawnHeroMark(dest, '敌人无法行动', 'tone-delay', 0.12)
+      if (dest) spawnHeroMark(dest, '霸凌者不出手', 'tone-delay', 0.12)
       await waitFx(280)
       return
     }

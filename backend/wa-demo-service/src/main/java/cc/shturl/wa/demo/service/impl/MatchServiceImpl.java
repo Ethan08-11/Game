@@ -3707,11 +3707,8 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
-    private void resolveChaseAllyAttack(Matches match, MatchPlayers striker, List<CardEffectResp> results) {
+    private void resolveChaseAllyAttack(Matches match, List<CardEffectResp> results) {
         for (MatchPendingEffects hook : listHookPendings(match.getId(), "CHASE_ALLY_ATTACK")) {
-            if (striker.getUserId() != null && striker.getUserId().equals(hook.getSourceUserId())) {
-                continue;
-            }
             MatchPlayers owner = matchPlayersMapper.selectOne(Wrappers.<MatchPlayers>lambdaQuery()
                     .eq(MatchPlayers::getMatchId, match.getId())
                     .eq(MatchPlayers::getUserId, hook.getSourceUserId())
