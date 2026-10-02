@@ -4,6 +4,7 @@ import cc.shturl.wa.demo.dto.resp.LeaderboardResp;
 import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
+import cc.shturl.wa.demo.service.WorkDayService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,11 +14,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +34,8 @@ class LeaderboardServiceImplSortTest {
     private UserMapper userMapper;
     @Mock
     private JdbcTemplate jdbcTemplate;
+    @Mock
+    private WorkDayService workDayService;
 
     @InjectMocks
     private LeaderboardServiceImpl service;
@@ -93,6 +100,62 @@ class LeaderboardServiceImplSortTest {
 
         assertThat(service.teamTouchesDailyTop(List.of(5L, 99L))).isTrue();
         assertThat(service.teamTouchesDailyTop(List.of(6L, 99L))).isFalse();
+    }
+
+    @Test
+    @DisplayName("高压：第六名把未领或本局完成档金币算进去能进前五则算高压")
+    void projectedGoldThatWouldEnterTopFiveIsHighPressure() {
+        when(userProfileMapper.selectList(any())).thenReturn(List.of(
+                profile(1L, 150L, 3, 0, 0),
+                profile(2L, 140L, 2, 0, 0),
+                profile(3L, 130L, 2, 0, 0),
+                profile(4L, 120L, 1, 0, 0),
+                profile(5L, 110L, 1, 0, 0),
+                profile(6L, 100L, 1, 0, 0)));
+
+        assertThat(service.ranksAsTopFive(6L, 0L)).isFalse();
+        assertThat(service.ranksAsTopFive(6L, 11L)).isTrue();
+        assertThat(service.ranksAsTopFive(6L, 50L)).isTrue();
+    }
+
+    @Test
+    @DisplayName("高压：已完成未领的每日金币会计入潜在前五")
+    void unclaimedCompletedDailyGoldCanTriggerHighPressure() {
+        stubSixPlayerBoard();
+        when(jdbcTemplate.queryForList(anyString(), any(), any())).thenReturn(List.of(taskRow(
+                "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
+
+        assertThat(service.teamTouchesDailyTop(List.of(6L))).isTrue();
+    }
+
+    @Test
+    @DisplayName("高压：休息日未领金币不计入潜在前五")
+    void restDayPendingGoldDoesNotTriggerHighPressure() {
+        stubSixPlayerBoard();
+        when(workDayService.snapshot(6L)).thenReturn(new WorkDayService.Snapshot(24, 24, true, false));
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(), any())).thenReturn(List.of(taskRow(
+                "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
+
+        assertThat(service.teamTouchesDailyTop(List.of(6L))).isFalse();
+    }
+
+    private void stubSixPlayerBoard() {
+        when(userProfileMapper.selectList(any())).thenReturn(List.of(
+                profile(1L, 150L, 3, 0, 0),
+                profile(2L, 140L, 2, 0, 0),
+                profile(3L, 130L, 2, 0, 0),
+                profile(4L, 120L, 1, 0, 0),
+                profile(5L, 110L, 1, 0, 0),
+                profile(6L, 100L, 1, 0, 0)));
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of());
+    }
+
+    private static Map<String, Object> taskRow(String code, String rewardValue, int status) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("task_code", code);
+        row.put("reward_value", rewardValue);
+        row.put("status", status);
+        return row;
     }
 
     private static UserProfile profile(long userId, long money, int wins, int losses, int draws) {
