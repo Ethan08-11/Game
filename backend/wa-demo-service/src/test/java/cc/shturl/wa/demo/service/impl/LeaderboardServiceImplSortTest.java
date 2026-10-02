@@ -121,7 +121,7 @@ class LeaderboardServiceImplSortTest {
     @DisplayName("高压：已完成未领的每日金币会计入前五，名单仍最多 5 人")
     void unclaimedCompletedDailyGoldCanTriggerHighPressure() {
         stubSixPlayerBoard();
-        when(jdbcTemplate.queryForList(anyString(), any())).thenReturn(List.of(taskRow(
+        when(jdbcTemplate.queryForList(anyString(), any(Object.class))).thenReturn(List.of(taskRow(
                 6L, "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
 
         assertThat(service.teamTouchesDailyTop(List.of(6L))).isTrue();
@@ -133,7 +133,7 @@ class LeaderboardServiceImplSortTest {
     void restDayPendingGoldDoesNotTriggerHighPressure() {
         stubSixPlayerBoard();
         when(workDayService.snapshot(6L)).thenReturn(new WorkDayService.Snapshot(24, 24, true, false));
-        when(jdbcTemplate.queryForList(anyString(), any())).thenReturn(List.of(taskRow(
+        when(jdbcTemplate.queryForList(anyString(), any(Object.class))).thenReturn(List.of(taskRow(
                 6L, "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
 
         assertThat(service.teamTouchesDailyTop(List.of(6L))).isFalse();
