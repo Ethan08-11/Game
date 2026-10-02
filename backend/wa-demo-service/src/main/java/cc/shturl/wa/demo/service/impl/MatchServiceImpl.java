@@ -69,7 +69,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -115,6 +117,9 @@ public class MatchServiceImpl implements MatchService {
     private static final long STUCK_CANCEL_IDLE_MILLIS = 300_000L;
     /** 看门狗自动作废：卡死满 10 分钟。 */
     private static final long STUCK_AUTO_VOID_IDLE_MILLIS = 600_000L;
+    /** 每人每天只能有 1 局异常作废，避免反复作废来保住胜率。 */
+    private static final int DAILY_ABNORMAL_MATCH_LIMIT = 1;
+    private static final ZoneId SHANGHAI = ZoneId.of("Asia/Shanghai");
     private static final int WINNER_INTERRUPTED = 3;
     private static final String RECONNECT_ATTEMPT_ACTION = "reconnect_attempt";
     private static final Set<String> KEEP_PHASE_ON_DISCONNECT = Set.of(
@@ -2829,6 +2834,18 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void voidMatch(Matches match, String reason) {
+        if (!abnormalQuotaAvailable(match.getId())) {
+            if (!"auto".equals(reason)) {
+                throw new BusinessException("本局不能再作废：有玩家今天已经用过异常对局（每人每天 1 次）。请放弃对局，将记为失败并占用今日任务局数。");
+            }
+            finishMatch(match, 2, MatchEndKind.FORFEIT);
+            notifyPlayers(match.getId(), "match.ended", Map.of(
+                    "matchId", match.getId(),
+                    "winnerType", 2,
+                    "reason", "stuck_quota_forfeit"));
+            logger.info("Stuck match counted as loss because daily abnormal quota is used matchId={}", match.getId());
+            return;
+        }
         finishMatch(match, WINNER_INTERRUPTED, MatchEndKind.VOID);
         notifyPlayers(match.getId(), "match.ended", Map.of(
                 "matchId", match.getId(),
@@ -2836,6 +2853,34 @@ public class MatchServiceImpl implements MatchService {
                 "reason", "void",
                 "voidReason", reason == null ? "stuck" : reason));
         logger.info("Voided stuck match matchId={} reason={}", match.getId(), reason);
+    }
+
+    /** 本局所有玩家今天都还没用过异常作废，才允许再作废。 */
+    private boolean abnormalQuotaAvailable(Long matchId) {
+        LocalDateTime start = LocalDate.now(SHANGHAI).atStartOfDay(SHANGHAI)
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDateTime();
+        LocalDateTime end = start.plusDays(1);
+        List<Long> voidMatchIds = matchesMapper.selectList(Wrappers.<Matches>lambdaQuery()
+                        .select(Matches::getId)
+                        .eq(Matches::getWinnerType, WINNER_INTERRUPTED)
+                        .ge(Matches::getEndedAt, start)
+                        .lt(Matches::getEndedAt, end))
+                .stream()
+                .map(Matches::getId)
+                .toList();
+        if (voidMatchIds.isEmpty()) {
+            return true;
+        }
+        for (MatchPlayers player : listPlayers(matchId)) {
+            Long used = matchPlayersMapper.selectCount(Wrappers.<MatchPlayers>lambdaQuery()
+                    .eq(MatchPlayers::getUserId, player.getUserId())
+                    .in(MatchPlayers::getMatchId, voidMatchIds));
+            if (used != null && used >= DAILY_ABNORMAL_MATCH_LIMIT) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void noteReconnectAttempt(Long userId, Long matchId) {
@@ -2963,7 +3008,7 @@ public class MatchServiceImpl implements MatchService {
     /**
      * COMPLETE：正常打完，记战绩并结算完成/获胜任务。
      * FORFEIT：放弃或掉线超时，记失败并占用当日局数，不算完成、不给获胜任务。
-     * VOID：卡死作废，不占槽、不记胜负、不发任务。
+     * VOID：卡死作废，不占槽、不记胜负、不发任务。每人每天只能有 1 局。
      */
     private void finishMatch(Matches match, int winnerType, MatchEndKind kind) {
         if (kind == MatchEndKind.VOID) {

@@ -138,7 +138,7 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
 
     private void upsertCatalog() {
         upsert("T-DAILY-SLOT", "当日局数槽", "system", "DAILY", "DAY", "MATCH_SLOT",
-                "内部计数：正常结束、放弃、掉线超时都占用一局；卡死作废不占用",
+                "内部计数：正常结束、放弃、掉线超时都占用一局；卡死作废不占用，且每人每天只能作废 1 局",
                 "match_slot", "{}", "none", "{}", 99, 0, 1);
         upsert("T-DAILY-MATCH-1", "完成第 1 局", "daily", "DAILY", "DAY", "MATCH_COUNT",
                 "今天打完第 1 局即可，输赢都算。中途放弃占用当日局数，但不算完成、不发这枚金币",
