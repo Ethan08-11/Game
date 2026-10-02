@@ -61,7 +61,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
             jdbcTemplate.execute("""
                     ALTER TABLE `user_profiles`
                     ADD COLUMN `money_reached_at` datetime NULL
-                    COMMENT '当前金币数额最近一次增加时间，总榜同金币时先到者靠前'
+                    COMMENT '当前金币数额最近一次增加时间，总榜同金币且胜率胜场总场仍相同时先到者靠前'
                     AFTER `weekly_money`
                     """);
             log.info("Added user_profiles.money_reached_at.");

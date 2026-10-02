@@ -65,8 +65,8 @@ class LeaderboardServiceImplSortTest {
     }
 
     @Test
-    @DisplayName("总榜：同金币时先攒到该金币的靠前，即使对方胜率更高")
-    void firstToReachGoldRanksHigherThanBetterWinRate() {
+    @DisplayName("总榜：同金币时先比精确胜率再比胜场，先攒到金币不能压过更高胜率")
+    void sameGoldRanksByWinRateThenWinsBeforeReachedAt() {
         UserProfile laterBetterRate = profile(1L, 150L, 8, 0, 0);
         laterBetterRate.setMoneyReachedAt(LocalDateTime.of(2026, 10, 1, 20, 0));
         UserProfile earlierLowerRate = profile(2L, 150L, 3, 1, 0);
@@ -76,7 +76,7 @@ class LeaderboardServiceImplSortTest {
 
         List<LeaderboardResp> list = service.listLeaderboard(null, "total", 1, 0);
 
-        assertThat(list).extracting(LeaderboardResp::userId).containsExactly(2L, 1L);
+        assertThat(list).extracting(LeaderboardResp::userId).containsExactly(1L, 2L);
     }
 
     @Test
