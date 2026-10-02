@@ -181,6 +181,13 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     @Override
     public boolean teamTouchesDailyTop(Collection<Long> userIds) {
+        return teamTouchesDailyTop(userIds, LocalDate.now(LEADERBOARD_ZONE));
+    }
+
+    boolean teamTouchesDailyTop(Collection<Long> userIds, LocalDate today) {
+        if (!highPressureEnabledOn(today)) {
+            return false;
+        }
         if (userIds == null || userIds.isEmpty()) {
             return false;
         }
@@ -189,6 +196,11 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             return false;
         }
         return highPressureRoster().stream().anyMatch(team::contains);
+    }
+
+    /** 每月 1–7 日（Asia/Shanghai）高压不生效，8 日起恢复。 */
+    static boolean highPressureEnabledOn(LocalDate day) {
+        return day != null && day.getDayOfMonth() > 7;
     }
 
     Set<Long> highPressureRoster() {
