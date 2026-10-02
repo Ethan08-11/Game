@@ -41,6 +41,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         runScript("db/041_wealthy_customer.sql");
         runScript("db/042_harsh_customer.sql");
         runScript("db/043_timid_anxious_retune.sql");
+        runScript("db/044_timid_attack.sql");
         runScript("db/019_customer_bound_bullies.sql");
         runScript("db/023_bully_focus_no_pierce.sql");
         runScript("db/024_all_customers_hard_shield.sql");
@@ -50,7 +51,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         runScript("db/029_bully_hp_after_mercenaries.sql");
         runScript("db/030_bully_hp_150_200.sql");
         update("CUSTOMER_KIND", -1, 30, 10);
-        update("CUSTOMER_TIMID", 4, 65, 10);
+        update("CUSTOMER_TIMID", 2, 65, 10);
         update("CUSTOMER_ANXIOUS", 3, 60, 10);
         update("CUSTOMER_WINDOW", 2, 20, 10);
         update("CUSTOMER_WEALTHY", 1, 40, 10);

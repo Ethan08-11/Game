@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-timid-attack-2',
+    title: '难度：胆小怕事改为攻击 +2',
+    date: '2026-10-02',
+    content: '「胆小怕事」效果由霸凌者加血改为：触发时本回合霸凌者攻击 +2。不再提高霸凌者血量。触发概率仍约 65%。',
+  },
+  {
     id: 'topic-customer-equal-weights',
     title: '顾客：正常局六人平分，高压三人平分（含刻薄尖客）',
     date: '2026-10-02',
@@ -44,7 +50,7 @@ export const announcements: Announcement[] = [
     id: 'topic-timid-anxious-retune',
     title: '难度：胆小怕事加血改为 +4，焦虑难安加攻改为 +3',
     date: '2026-10-01',
-    content: '「胆小怕事」效果触发时，霸凌者血量由 +2 改为 +4（上限同步提高）。「焦虑难安」效果触发时，本回合霸凌者攻击由 +2 改为 +3。登场权重改为与其他顾客平分。与高压名单组队时从胆小怕事、焦虑难安、刻薄尖客三人里平分抽取。',
+    content: '「胆小怕事」效果已改为本回合霸凌者攻击 +2，不再加血。「焦虑难安」效果触发时，本回合霸凌者攻击 +3。登场权重与其他顾客平分。与高压名单组队时从胆小怕事、焦虑难安、刻薄尖客三人里平分抽取。',
   },
   {
     id: 'topic-harsh-customer',
