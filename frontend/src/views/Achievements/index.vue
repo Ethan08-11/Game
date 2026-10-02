@@ -110,16 +110,18 @@ onMounted(() => {
 <style scoped>
 .page {
   position: relative;
+  height: 100%;
   padding: var(--space-10);
   color: var(--color-text-primary);
   text-align: center;
-  min-height: 100%;
   isolation: isolate;
   overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .page::before {
   content: '';
-  position: absolute;
+  position: fixed;
   inset: -20px;
   background: var(--hall-bg, var(--color-bg-base)) center/cover no-repeat;
   filter: blur(6px);
@@ -159,11 +161,13 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, 180px);
   justify-content: center;
+  align-content: start;
   align-items: stretch;
   gap: var(--space-4);
   width: 100%;
   max-width: calc(180px * 5 + var(--space-4) * 4);
-  margin: 0 auto var(--space-8);
+  margin: 0 auto;
+  padding-bottom: 64px;
 }
 .card {
   width: 180px;
