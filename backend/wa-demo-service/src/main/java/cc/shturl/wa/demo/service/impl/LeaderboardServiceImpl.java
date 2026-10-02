@@ -6,6 +6,8 @@ import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.LeaderboardService;
+import cc.shturl.wa.demo.service.QuestPeriod;
+import cc.shturl.wa.demo.service.WorkDayService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -24,11 +26,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,10 +42,12 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     private static final Logger log = LoggerFactory.getLogger(LeaderboardServiceImpl.class);
     private static final ZoneId LEADERBOARD_ZONE = ZoneId.of("Asia/Shanghai");
     private static final int MIN_WINRATE_MATCHES = 20;
+    private static final Pattern REWARD_AMOUNT = Pattern.compile("\"amount\"\\s*:\\s*(-?\\d+)");
 
     private final UserProfileMapper userProfileMapper;
     private final UserMapper userMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final WorkDayService workDayService;
 
     @Override
     public List<LeaderboardResp> listLeaderboard(Long currentUserId, String type, int page, int size) {
@@ -183,6 +190,11 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         if (liveTopUserIds().stream().anyMatch(team::contains)) {
             return true;
         }
+        for (Long userId : team) {
+            if (ranksAsTopFive(userId, pendingDailyGold(userId))) {
+                return true;
+            }
+        }
         ensureDailyTopSnapshot();
         return intersectsDailyTopSnapshot(team);
     }
@@ -217,6 +229,166 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 Integer.class,
                 "leaderboard_daily_top");
         return count != null && count > 0;
+    }
+
+    boolean ranksAsTopFive(Long userId, long extra) {
+        if (userId == null) {
+            return false;
+        }
+        List<UserProfile> eligible = new ArrayList<>();
+        UserProfile self = null;
+        for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
+            if (profile.getUserId() == null) {
+                continue;
+            }
+            UserProfile row = copyRankProfile(profile);
+            if (userId.equals(row.getUserId())) {
+                row.setMoney(safeMoney(row) + Math.max(extra, 0L));
+                self = row;
+            }
+            if (userId.equals(row.getUserId()) || hasMonthlyStats(profile)) {
+                eligible.add(row);
+            }
+        }
+        if (self == null) {
+            if (extra <= 0) {
+                return false;
+            }
+            self = new UserProfile();
+            self.setUserId(userId);
+            self.setMoney(extra);
+            eligible.add(self);
+        }
+        if (safeMoney(self) <= 0) {
+            return false;
+        }
+        sortEligible(eligible, false);
+        int rank = 0;
+        for (UserProfile profile : eligible) {
+            if (safeMoney(profile) <= 0) {
+                continue;
+            }
+            rank++;
+            if (userId.equals(profile.getUserId())) {
+                return rank <= 5;
+            }
+            if (rank >= 5) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private UserProfile copyRankProfile(UserProfile source) {
+        UserProfile copy = new UserProfile();
+        copy.setUserId(source.getUserId());
+        copy.setMoney(source.getMoney());
+        copy.setWinCount(source.getWinCount());
+        copy.setLoseCount(source.getLoseCount());
+        copy.setDrawCount(source.getDrawCount());
+        copy.setMoneyReachedAt(source.getMoneyReachedAt());
+        return copy;
+    }
+
+    private long pendingDailyGold(Long userId) {
+        if (userId == null || !goldPayable(userId)) {
+            return 0L;
+        }
+        String period = QuestPeriod.currentDailyDate().toString();
+        try {
+            long extra = 0L;
+            Set<Integer> finishedMatchSlots = new HashSet<>();
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT t.task_code AS task_code, t.reward_value AS reward_value, ut.status AS status
+                    FROM user_tasks ut
+                    INNER JOIN tasks t ON t.id = ut.task_id
+                    WHERE ut.user_id = ?
+                      AND ut.period_key = ?
+                      AND t.task_code IN (
+                        'T-DAILY-MATCH-1','T-DAILY-MATCH-2','T-DAILY-MATCH-3',
+                        'T-DAILY-WIN-1','T-DAILY-WIN-2','T-DAILY-WIN-3')
+                    """, userId, period);
+            for (Map<String, Object> row : rows) {
+                String code = String.valueOf(row.get("task_code"));
+                Object statusRaw = row.get("status");
+                if (!(statusRaw instanceof Number statusNumber)) {
+                    continue;
+                }
+                int status = statusNumber.intValue();
+                if (code.startsWith("T-DAILY-MATCH-") && status >= 2) {
+                    try {
+                        finishedMatchSlots.add(Integer.parseInt(code.substring("T-DAILY-MATCH-".length())));
+                    } catch (NumberFormatException ignored) {
+                        // skip malformed task codes
+                    }
+                }
+                if (status == 2) {
+                    extra += rewardAmount(row.get("reward_value"));
+                }
+            }
+            int nextSlot = dailySlotProgress(userId, period) + 1;
+            if (nextSlot >= 1 && nextSlot <= 3 && !finishedMatchSlots.contains(nextSlot)) {
+                extra += matchSlotGold(nextSlot);
+            }
+            return extra;
+        } catch (Exception e) {
+            log.debug("Skip pending daily gold for {}: {}", userId, e.getMessage());
+            return 0L;
+        }
+    }
+
+    private boolean goldPayable(Long userId) {
+        try {
+            if (workDayService == null) {
+                return true;
+            }
+            WorkDayService.Snapshot snap = workDayService.snapshot(userId);
+            return snap == null || !snap.restDay();
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    private int dailySlotProgress(Long userId, String period) {
+        try {
+            Integer n = jdbcTemplate.queryForObject("""
+                    SELECT ut.progress_value
+                    FROM user_tasks ut
+                    INNER JOIN tasks t ON t.id = ut.task_id
+                    WHERE ut.user_id = ? AND ut.period_key = ? AND t.task_code = 'T-DAILY-SLOT'
+                    LIMIT 1
+                    """, Integer.class, userId, period);
+            return n == null ? 0 : Math.max(n, 0);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private long matchSlotGold(int slot) {
+        try {
+            String json = jdbcTemplate.queryForObject(
+                    "SELECT reward_value FROM tasks WHERE task_code = ? LIMIT 1",
+                    String.class,
+                    "T-DAILY-MATCH-" + slot);
+            return rewardAmount(json);
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    private static long rewardAmount(Object raw) {
+        if (raw == null) {
+            return 0L;
+        }
+        Matcher matcher = REWARD_AMOUNT.matcher(String.valueOf(raw));
+        if (!matcher.find()) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(matcher.group(1));
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     private boolean isWinRateBoard(String type) {

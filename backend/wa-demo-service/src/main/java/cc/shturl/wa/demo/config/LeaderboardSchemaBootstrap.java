@@ -106,8 +106,19 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
         log.info("Added leaderboard_week.aligned_to_total column.");
     }
 
+    private static final String DAILY_TOP_COMMENT = "每日0点总榜前五快照，高压顾客奖池用";
+
     private void ensureDailyTopTable() {
         if (tableExists("leaderboard_daily_top")) {
+            String comment = jdbcTemplate.queryForObject(
+                    """
+                    SELECT TABLE_COMMENT FROM information_schema.tables
+                    WHERE table_schema = DATABASE() AND table_name = 'leaderboard_daily_top'
+                    """,
+                    String.class);
+            if (comment != null && comment.contains("20:00")) {
+                jdbcTemplate.execute("ALTER TABLE `leaderboard_daily_top` COMMENT='" + DAILY_TOP_COMMENT + "'");
+            }
             return;
         }
         jdbcTemplate.execute("""
@@ -119,7 +130,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
                   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                   PRIMARY KEY (`day_date`, `rank_no`),
                   KEY `idx_day_user` (`day_date`, `user_id`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日0点总榜前五快照，高难顾客奖池用'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日0点总榜前五快照，高压顾客奖池用'
                 """);
         log.info("Created leaderboard_daily_top table.");
     }
