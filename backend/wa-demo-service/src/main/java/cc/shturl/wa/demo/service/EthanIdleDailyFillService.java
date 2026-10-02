@@ -25,8 +25,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Ethan 当日 20:00 前一局都没打时，自动记 3 场胜利、领完每日对局金币，
- * 并按这 3 局推进每周「10 位不同同事」进度。日界与周界均为 20:00。
+ * Ethan 当日 20:00 前一局都没打时，自动记 3 场胜利、领完刚结束那一档每日金币。
+ * 任务日界与其他玩家相同（20:00 切到新一天），不预领新一天的任务，方便继续组队领金币。
  */
 @Component
 @Order(21)
@@ -56,19 +56,19 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         LocalDate ended = QuestPeriod.endedDailyDate(QuestPeriod.now());
         fillIfIdle(ended.minusDays(1));
         fillIfIdle(ended);
-        syncVisibleDailyBoard();
+        restoreVisibleDailyIfPreclaimed();
     }
 
     @Scheduled(cron = "0 0 20 * * *", zone = "Asia/Shanghai")
     public void fillEndedDayAtEightPm() {
         fillIfIdle(QuestPeriod.endedDailyDate(QuestPeriod.now()));
-        syncVisibleDailyBoard();
+        restoreVisibleDailyIfPreclaimed();
     }
 
     @Scheduled(cron = "0 10 20 * * *", zone = "Asia/Shanghai")
     public void fillEndedDayIfMissed() {
         fillIfIdle(QuestPeriod.endedDailyDate(QuestPeriod.now()));
-        syncVisibleDailyBoard();
+        restoreVisibleDailyIfPreclaimed();
     }
 
     public void fillIfIdle(LocalDate day) {
@@ -104,8 +104,7 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         int created = insertAutoWins(userId, day);
         ensureProfile(userId);
         leaderboardService.ensureCurrentMonth();
-        long gold = completeAndClaimDaily(userId, day, true);
-        gold += completeAndClaimDaily(userId, QuestPeriod.currentDailyDate(), false);
+        long gold = completeAndClaimDaily(userId, day);
         gold += bumpWeeklyTeam(userId, day, created);
         int exp = created * WIN_EXP;
         userProfileMapper.applyMatchSettlement(userId, created, 0, 0, exp, gold);
@@ -181,31 +180,59 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         return created;
     }
 
-    /** 20:00 后列表已切到新 period，补记日的已领状态要同步到当前可见每日任务。 */
-    private void syncVisibleDailyBoard() {
+    /**
+     * 若当前可见每日任务被 20:00 补记预领、但本窗口并没有实打对局，则清回未完成，
+     * 与其他玩家同一刷新档，仍可组队领金币。已发金币不扣回。
+     */
+    private void restoreVisibleDailyIfPreclaimed() {
         if (!tableExists("users") || !tableExists("tasks") || !tableExists("user_tasks")) {
             return;
         }
-        ensurePatchTable();
         Long userId = findEthanId();
         if (userId == null) {
             return;
         }
         LocalDate current = QuestPeriod.currentDailyDate();
-        LocalDate ended = QuestPeriod.endedDailyDate(QuestPeriod.now());
-        if (current.equals(ended) || !patchApplied(patchId(ended))) {
+        if (countedMatches(userId, current) > 0) {
             return;
         }
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        tx.executeWithoutResult(status -> completeAndClaimDaily(userId, current, false));
+        tx.executeWithoutResult(status -> resetDailyTasks(userId, current));
     }
 
-    private long completeAndClaimDaily(Long userId, LocalDate day, boolean payGold) {
+    private void resetDailyTasks(Long userId, LocalDate day) {
+        String period = day.toString();
+        int updated = 0;
+        for (String code : DAILY_CODES) {
+            Map<String, Object> task = queryTask(code);
+            if (task == null) {
+                continue;
+            }
+            long taskId = ((Number) task.get("id")).longValue();
+            int target = Math.max(intVal(task.get("target_count"), 1), 1);
+            updated += jdbcTemplate.update("""
+                    UPDATE user_tasks
+                    SET progress_value = 0,
+                        target_value = ?,
+                        status = 0,
+                        completed_at = NULL,
+                        claimed_at = NULL
+                    WHERE user_id = ? AND task_id = ? AND period_key = ?
+                      AND IFNULL(status, 0) > 0
+                    """, target, userId, taskId, period);
+        }
+        if (updated > 0) {
+            log.warn("Restored Ethan visible daily tasks for {} ({} rows); idle fill does not pre-claim the live board.",
+                    period, updated);
+        }
+    }
+
+    private long completeAndClaimDaily(Long userId, LocalDate day) {
         if (day == null) {
             return 0L;
         }
         String period = day.toString();
-        boolean pay = payGold && workDayService.allowGold(userId, day);
+        boolean payGold = workDayService.allowGold(userId, day);
         long gold = 0L;
         LocalDateTime now = QuestPeriod.now();
         for (String code : DAILY_CODES) {
@@ -233,7 +260,7 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
                 continue;
             }
             long reward = 0L;
-            if (nextStatus == 3 && pay && "money".equalsIgnoreCase(String.valueOf(task.get("reward_type")))) {
+            if (nextStatus == 3 && payGold && "money".equalsIgnoreCase(String.valueOf(task.get("reward_type")))) {
                 reward = rewardAmount(String.valueOf(task.get("reward_value")));
             }
             jdbcTemplate.update("""
