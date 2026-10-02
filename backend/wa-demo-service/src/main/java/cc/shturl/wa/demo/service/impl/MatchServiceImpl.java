@@ -1678,9 +1678,9 @@ public class MatchServiceImpl implements MatchService {
             case "DAMAGE_BOSS" -> {
                 actualValue = applyTurnDamageModifiers(match.getId(), actor.getUserId(), actualValue);
                 int hpBefore = value(match.getBossCurrentHp());
-                int hpLoss = dealBossHp(match, actor, actualValue, parseIgnoreShield(effect.getExtraData()),
+                dealBossHp(match, actor, actualValue, parseIgnoreShield(effect.getExtraData()),
                         BossDmgKind.CARD, results);
-                results.add(effectResult(effect, "BOSS", null, baseValue, hpLoss,
+                results.add(effectResult(effect, "BOSS", null, baseValue, actualValue,
                         hpBefore, value(match.getBossCurrentHp()), match.getCurrentRound()));
             }
             case "REDUCE_BOSS_ATTACK" -> {
@@ -1840,8 +1840,8 @@ public class MatchServiceImpl implements MatchService {
                 int converted = value(actor.getShield());
                 actor.setShield(0);
                 int hpBefore = value(match.getBossCurrentHp());
-                int hpLoss = dealBossHp(match, actor, converted, false, BossDmgKind.CONVERT, results);
-                results.add(effectResult(effect, "BOSS", null, converted, hpLoss,
+                dealBossHp(match, actor, converted, false, BossDmgKind.CONVERT, results);
+                results.add(effectResult(effect, "BOSS", null, converted, converted,
                         hpBefore, value(match.getBossCurrentHp()), match.getCurrentRound()));
             }
             default -> throw new BusinessException("不支持的立即效果类型：" + effect.getEffectType());
@@ -3675,10 +3675,10 @@ public class MatchServiceImpl implements MatchService {
             }
             int extra = Math.max(value(hook.getEffectValue()), 0);
             int hpBefore = value(match.getBossCurrentHp());
-            int hpLoss = dealBossHp(match, owner, extra, false, BossDmgKind.CHASE, results);
-            if (results != null && hpLoss > 0) {
+            dealBossHp(match, owner, extra, false, BossDmgKind.CHASE, results);
+            if (results != null && extra > 0) {
                 results.add(new CardEffectResp("CHASE_ALLY_ATTACK", "IMMEDIATE", "BOSS", null,
-                        extra, hpLoss, hpBefore, value(match.getBossCurrentHp()), false,
+                        extra, extra, hpBefore, value(match.getBossCurrentHp()), false,
                         match.getCurrentRound(), hook.getId(), hook.getExtraData()));
             }
         }
@@ -3695,10 +3695,10 @@ public class MatchServiceImpl implements MatchService {
             }
             int extra = Math.max(value(hook.getEffectValue()), 1);
             int hpBefore = value(match.getBossCurrentHp());
-            int hpLoss = dealBossHp(match, owner, extra, true, BossDmgKind.HP_LOSS_EXTRA, results);
-            if (results != null && hpLoss > 0) {
+            dealBossHp(match, owner, extra, true, BossDmgKind.HP_LOSS_EXTRA, results);
+            if (results != null && extra > 0) {
                 results.add(new CardEffectResp("ON_BOSS_HP_LOSS", "IMMEDIATE", "BOSS", null,
-                        extra, hpLoss, hpBefore, value(match.getBossCurrentHp()), false,
+                        extra, extra, hpBefore, value(match.getBossCurrentHp()), false,
                         match.getCurrentRound(), hook.getId(), hook.getExtraData()));
             }
         }
