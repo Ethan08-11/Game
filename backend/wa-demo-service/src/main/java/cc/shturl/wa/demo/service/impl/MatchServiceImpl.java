@@ -2717,14 +2717,14 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
-    /** Timid rolls +3 or +4 HP. Anxious rolls +2 or +3 attack. */
+    /** Timid rolls +3 to +6 HP. Anxious rolls +2 to +4 attack. */
     private int rollCustomerEffect(CustomerTypes customer) {
         String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
         if (BullyCatalog.CUSTOMER_TIMID.equals(code)) {
-            return ThreadLocalRandom.current().nextInt(3, 5);
+            return ThreadLocalRandom.current().nextInt(3, 7);
         }
         if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code)) {
-            return ThreadLocalRandom.current().nextInt(2, 4);
+            return ThreadLocalRandom.current().nextInt(2, 5);
         }
         return value(customer.getEffectValue());
     }

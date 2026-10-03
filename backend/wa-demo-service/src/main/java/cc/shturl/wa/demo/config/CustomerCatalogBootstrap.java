@@ -43,6 +43,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         runScript("db/043_timid_anxious_retune.sql");
         runScript("db/044_timid_attack.sql");
         runScript("db/045_customer_trigger_50.sql");
+        runScript("db/046_timid_anxious_range.sql");
         runScript("db/019_customer_bound_bullies.sql");
         runScript("db/023_bully_focus_no_pierce.sql");
         runScript("db/024_all_customers_hard_shield.sql");
@@ -58,12 +59,12 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
                 UPDATE customer_types
                 SET description = ?
                 WHERE customer_code = 'CUSTOMER_TIMID'
-                """, "容易紧张。效果触发时，霸凌者血量随机 +3～4（上限同步提高）。");
+                """, "容易紧张。效果触发时，霸凌者血量随机 +3～6（上限同步提高）。");
         jdbcTemplate.update("""
                 UPDATE customer_types
                 SET description = ?
                 WHERE customer_code = 'CUSTOMER_ANXIOUS'
-                """, "情绪波动较大。效果触发时，本回合霸凌者攻击随机 +2～3。");
+                """, "情绪波动较大。效果触发时，本回合霸凌者攻击随机 +2～4。");
         update("CUSTOMER_WINDOW", 1, 50, 10);
         jdbcTemplate.update("""
                 UPDATE customer_types
