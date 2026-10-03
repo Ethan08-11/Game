@@ -141,15 +141,24 @@ class LeaderboardServiceImplSortTest {
     }
 
     @Test
-    @DisplayName("高压：每月 1 日至 7 日不针对潜在前五")
+    @DisplayName("高压：每月日历第一周不针对潜在前五")
     void firstWeekOfMonthDisablesHighPressure() {
         stubSixPlayerBoard();
 
-        assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 1))).isFalse();
-        assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 7))).isFalse();
-        assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 8))).isTrue();
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 10, 1))).isZero();
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 10, 4))).isZero();
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 10, 5))).isEqualTo(1);
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 10, 31))).isEqualTo(4);
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 6, 1))).isZero();
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 6, 7))).isZero();
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 6, 8))).isEqualTo(1);
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 3, 1))).isZero();
+        assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 3, 31))).isEqualTo(5);
+
+        assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 4))).isFalse();
+        assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 5))).isTrue();
         assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 2))).isFalse();
-        assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 8))).isTrue();
+        assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 5))).isTrue();
     }
 
     private void stubSixPlayerBoard() {

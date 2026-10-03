@@ -198,9 +198,19 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return highPressureRoster().stream().anyMatch(team::contains);
     }
 
-    /** 每月 1–7 日（Asia/Shanghai）高压不生效，8 日起恢复。 */
+    /**
+     * 每月按日历周（周一开始，含 1 日的那一周为第一周）切换。
+     * 第一周高压不生效，第二周起恢复。
+     */
     static boolean highPressureEnabledOn(LocalDate day) {
-        return day != null && day.getDayOfMonth() > 7;
+        return day != null && calendarWeekOfMonth(day) >= 1;
+    }
+
+    /** 0 起算。多于五周时调用方自行封顶。 */
+    static int calendarWeekOfMonth(LocalDate day) {
+        LocalDate first = day.withDayOfMonth(1);
+        int leading = first.getDayOfWeek().getValue() - 1;
+        return (leading + day.getDayOfMonth() - 1) / 7;
     }
 
     Set<Long> highPressureRoster() {

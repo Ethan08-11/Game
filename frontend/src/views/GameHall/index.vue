@@ -157,7 +157,7 @@ const questBtnStyle = { left: '800px', bottom: '330px', width: '500px', height: 
 const customerBtnStyle = { left: '800px', bottom: '239px', width: '500px', height: '184px' }
 const startBtnStyle = { backgroundImage: `url(${startBtnImg})`, left: '703px', bottom: '-4px', width: '700px', height: '258px' }
 
-/** 每月按北京时间自然日分段，每段七个字，都从「暴风雨前的宁静」接下去。 */
+/** 每月按北京时间日历周分段（周一开始），每段七个字。 */
 const MONTH_MODE_NAMES = [
   '暴风雨前的宁静',
   '暴雨点名前五人',
@@ -167,11 +167,17 @@ const MONTH_MODE_NAMES = [
 ] as const
 
 function monthModeName(now = new Date()): string {
-  const day = Number(new Intl.DateTimeFormat('en-US', {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Shanghai',
-    day: 'numeric',
-  }).format(now))
-  const week = day <= 7 ? 0 : day <= 14 ? 1 : day <= 21 ? 2 : day <= 28 ? 3 : 4
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now).map(part => [part.type, part.value]))
+  const year = Number(parts.year)
+  const month = Number(parts.month)
+  const day = Number(parts.day)
+  const leading = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7
+  const week = Math.min(Math.floor((leading + day - 1) / 7), MONTH_MODE_NAMES.length - 1)
   return MONTH_MODE_NAMES[week]
 }
 
