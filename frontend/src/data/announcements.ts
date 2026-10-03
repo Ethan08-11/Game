@@ -12,9 +12,9 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 export const announcements: Announcement[] = [
   {
     id: 'topic-weekly-teammate-hints',
-    title: '任务：周任务每天推荐 3 名队友',
+    title: '任务：周任务只推荐 3 名队友',
     date: '2026-10-03',
-    content: '周任务还没领取时，任务页会写出本周已经组过的人，避免忘记和谁打过。同时每天再推荐 3 名还没组过的玩家，优先本周上线并且打过对局的人。推荐只是提示，不计入那 10 人。',
+    content: '周任务还没领取时，任务页只显示 3 名推荐队友，优先本周上线并且打过对局的人。推荐只是提示，不计入那 10 人。',
   },
   {
     id: 'topic-weekly-claim-cap',

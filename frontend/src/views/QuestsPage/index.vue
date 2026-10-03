@@ -41,8 +41,7 @@
                 <span class="progress-text">{{ progressText(entry.task) }}</span>
               </div>
               <div v-if="showWeeklyHints(entry.task)" class="weekly-hints">
-                <div v-if="weeklyTeammates.length">本周已组：{{ hintNames(weeklyTeammates) }}</div>
-                <div v-if="weeklySuggestions.length">推荐队友：{{ hintNames(weeklySuggestions) }}</div>
+                {{ hintNames(weeklySuggestions) }}
               </div>
             </div>
             <div class="card-side">
@@ -152,7 +151,6 @@ const workDaysQuota = ref(0)
 const restDay = ref(false)
 const weeklyClaims = ref(0)
 const weeklyClaimLimit = ref(4)
-const weeklyTeammates = ref<WeeklyPlayerHint[]>([])
 const weeklySuggestions = ref<WeeklyPlayerHint[]>([])
 const resetInSeconds = ref(0)
 const loading = ref(true)
@@ -231,8 +229,7 @@ function weeklyBlocked(task: UserTask): boolean {
 }
 
 function showWeeklyHints(task: UserTask): boolean {
-  return task.taskType === 'weekly' && task.status < 3
-    && (weeklyTeammates.value.length > 0 || weeklySuggestions.value.length > 0)
+  return task.taskType === 'weekly' && task.status < 3 && weeklySuggestions.value.length > 0
 }
 
 function hintNames(list: WeeklyPlayerHint[]): string {
@@ -261,8 +258,7 @@ async function loadBoard() {
   restDay.value = Boolean(board.restDay)
   weeklyClaims.value = board.weeklyClaims || 0
   weeklyClaimLimit.value = board.weeklyClaimLimit || 4
-  weeklyTeammates.value = board.weeklyTeammates || []
-  weeklySuggestions.value = board.weeklySuggestions || []
+  weeklySuggestions.value = (board.weeklySuggestions || []).slice(0, 3)
   resetInSeconds.value = board.resetInSeconds || 0
 }
 
