@@ -49,6 +49,8 @@ export interface MyTaskBoard {
   workDaysUsed?: number
   workDaysQuota?: number
   restDay?: boolean
+  weeklyClaims?: number
+  weeklyClaimLimit?: number
 }
 
 export interface TaskClaimResult {

@@ -10,6 +10,8 @@ public record MyTaskBoardResp(
         Long resetInSeconds,
         Integer workDaysUsed,
         Integer workDaysQuota,
-        Boolean restDay
+        Boolean restDay,
+        Integer weeklyClaims,
+        Integer weeklyClaimLimit
 ) {
 }
