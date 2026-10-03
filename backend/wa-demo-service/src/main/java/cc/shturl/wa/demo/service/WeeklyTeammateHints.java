@@ -10,7 +10,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -18,8 +17,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 周任务未领取前，展示本周已经组过的队友，并按天追加推荐。
- * 推荐优先本周上线并且打过对局的人，不写入任务进度。
+ * 周任务未领取前只推荐 3 人。优先本周上线并且打过对局的人，不写入任务进度。
  */
 @Component
 public class WeeklyTeammateHints {
@@ -49,13 +47,11 @@ public class WeeklyTeammateHints {
                 return Hints.NONE;
             }
             Set<Long> already = task == null ? Set.of() : parseIds(task.extraData);
-            List<WeeklyPlayerHint> teammates = namesOf(already);
             List<Candidate> pool = candidates(userId, weekStart, weekStart.plusWeeks(1), already);
-            int dayIndex = (int) Math.max(ChronoUnit.DAYS.between(weekStart, today), 0);
-            List<WeeklyPlayerHint> suggestions = reveal(order(pool, userId, weekStart), dayIndex).stream()
+            List<WeeklyPlayerHint> suggestions = reveal(order(pool, userId, weekStart)).stream()
                     .map(item -> new WeeklyPlayerHint(item.userId, item.name))
                     .toList();
-            return new Hints(teammates, suggestions);
+            return new Hints(List.of(), suggestions);
         } catch (Exception e) {
             return Hints.NONE;
         }
@@ -71,24 +67,6 @@ public class WeeklyTeammateHints {
                 """, (rs, row) -> new TaskRow(rs.getInt("status"), rs.getString("extra_data")),
                 userId, WEEKLY_CODE, period);
         return rows.isEmpty() ? null : rows.get(0);
-    }
-
-    private List<WeeklyPlayerHint> namesOf(Set<Long> ids) {
-        if (ids.isEmpty()) {
-            return List.of();
-        }
-        String marks = String.join(",", ids.stream().map(id -> "?").toList());
-        List<WeeklyPlayerHint> rows = jdbcTemplate.query("""
-                SELECT u.id AS user_id,
-                       COALESCE(NULLIF(TRIM(p.display_name), ''), u.username) AS name
-                FROM users u
-                LEFT JOIN user_profiles p ON p.user_id = u.id
-                WHERE u.id IN (""" + marks + """
-                )
-                ORDER BY name, u.id
-                """, (rs, row) -> new WeeklyPlayerHint(rs.getLong("user_id"), rs.getString("name")),
-                ids.toArray());
-        return rows;
     }
 
     private List<Candidate> candidates(Long userId, LocalDate fromDay, LocalDate toDay, Set<Long> exclude) {
@@ -132,12 +110,11 @@ public class WeeklyTeammateHints {
                 .toList();
     }
 
-    static List<Candidate> reveal(List<Candidate> ordered, int dayIndex) {
-        int count = (Math.max(dayIndex, 0) + 1) * PER_DAY;
-        if (ordered.size() <= count) {
+    static List<Candidate> reveal(List<Candidate> ordered) {
+        if (ordered.size() <= PER_DAY) {
             return ordered;
         }
-        return ordered.subList(0, count);
+        return ordered.subList(0, PER_DAY);
     }
 
     static int priority(boolean played, boolean online) {

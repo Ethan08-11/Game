@@ -23,8 +23,8 @@ class WeeklyTeammateHintsTest {
     }
 
     @Test
-    @DisplayName("每天在未组过的人里再露出 3 名")
-    void revealGrowsByThreeEachDay() {
+    @DisplayName("未领取前只露出 3 名推荐")
+    void revealOnlyThree() {
         List<WeeklyTeammateHints.Candidate> ordered = List.of(
                 new WeeklyTeammateHints.Candidate(1, "a", 3),
                 new WeeklyTeammateHints.Candidate(2, "b", 3),
@@ -32,8 +32,7 @@ class WeeklyTeammateHintsTest {
                 new WeeklyTeammateHints.Candidate(4, "d", 3),
                 new WeeklyTeammateHints.Candidate(5, "e", 2)
         );
-        assertThat(WeeklyTeammateHints.reveal(ordered, 0)).hasSize(3);
-        assertThat(WeeklyTeammateHints.reveal(ordered, 1)).extracting(WeeklyTeammateHints.Candidate::userId)
-                .containsExactly(1L, 2L, 3L, 4L, 5L);
+        assertThat(WeeklyTeammateHints.reveal(ordered)).extracting(WeeklyTeammateHints.Candidate::userId)
+                .containsExactly(1L, 2L, 3L);
     }
 }
