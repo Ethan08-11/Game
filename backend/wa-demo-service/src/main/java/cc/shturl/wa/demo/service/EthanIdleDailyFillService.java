@@ -16,9 +16,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,8 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
             "T-DAILY-MATCH-2", "T-DAILY-WIN-2",
             "T-DAILY-MATCH-3", "T-DAILY-WIN-3"
     );
+    private static final ZoneId STORED_CLOCK = ZoneId.of("UTC");
+    private static final DateTimeFormatter SQL_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final JdbcTemplate jdbcTemplate;
     private final UserProfileMapper userProfileMapper;
@@ -99,9 +102,10 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         if (patchApplied(patchId)) {
             return;
         }
-        if (countedMatches(userId, day) > 0) {
+        int played = countedMatches(userId, day);
+        if (played > 0) {
             markPatch(patchId);
-            log.info("Ethan played on {}, skip idle auto-fill.", day);
+            log.info("Ethan already played {} real match(es) on {}, skip idle auto-fill.", played, day);
             return;
         }
         int created = insertAutoWins(userId, day);
@@ -117,18 +121,28 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
     }
 
     private int countedMatches(Long userId, LocalDate day) {
+        String start = utcWallStart(day);
+        String end = utcWallStart(day.plusDays(1));
         Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM match_players mp
                 INNER JOIN matches m ON m.id = mp.match_id
                 WHERE mp.user_id = ?
                   AND m.status = 2
-                  AND m.winner_type IN (1, 2)
-                  AND COALESCE(m.started_at, m.created_at) >= ?
-                  AND COALESCE(m.started_at, m.created_at) < ?
-                """, Integer.class, userId, Timestamp.valueOf(QuestPeriod.windowStart(day)),
-                Timestamp.valueOf(QuestPeriod.windowEnd(day)));
+                  AND IFNULL(m.winner_type, 0) IN (1, 2)
+                  AND IFNULL(m.match_code, '') NOT LIKE 'AE%'
+                  AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
+                  AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
+                """, Integer.class, userId, start, end);
         return count == null ? 0 : count;
+    }
+
+    /** DATETIME 按 UTC 墙钟落库；上海 0 点对应前一天 16:00。勿用 Timestamp，驱动会再加 8 小时。 */
+    private String utcWallStart(LocalDate shanghaiDay) {
+        return shanghaiDay.atStartOfDay(WorkDayQuota.ZONE)
+                .withZoneSameInstant(STORED_CLOCK)
+                .toLocalDateTime()
+                .format(SQL_TIME);
     }
 
     private int insertAutoWins(Long userId, LocalDate day) {
