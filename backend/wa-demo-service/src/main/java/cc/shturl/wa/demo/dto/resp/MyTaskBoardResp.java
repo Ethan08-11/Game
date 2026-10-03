@@ -12,6 +12,8 @@ public record MyTaskBoardResp(
         Integer workDaysQuota,
         Boolean restDay,
         Integer weeklyClaims,
-        Integer weeklyClaimLimit
+        Integer weeklyClaimLimit,
+        List<WeeklyPlayerHint> weeklyTeammates,
+        List<WeeklyPlayerHint> weeklySuggestions
 ) {
 }

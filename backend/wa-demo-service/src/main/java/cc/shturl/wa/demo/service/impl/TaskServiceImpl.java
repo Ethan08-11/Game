@@ -18,6 +18,7 @@ import cc.shturl.wa.demo.service.QuestPeriod;
 import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.WorkDayQuota;
 import cc.shturl.wa.demo.service.WeeklyClaimLimit;
+import cc.shturl.wa.demo.service.WeeklyTeammateHints;
 import cc.shturl.wa.demo.service.WorkDayService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -53,6 +54,7 @@ public class TaskServiceImpl implements TaskService {
     private final JdbcTemplate jdbcTemplate;
     private final LeaderboardService leaderboardService;
     private final WorkDayService workDayService;
+    private final WeeklyTeammateHints weeklyTeammateHints;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -76,7 +78,7 @@ public class TaskServiceImpl implements TaskService {
         int quota = WorkDayQuota.days(YearMonth.now(ZONE));
         if (!userExists(userId)) {
             return new MyTaskBoardResp(List.of(), 0, 0, false, secondsUntilDailyReset(), 0, quota, false, 0,
-                    WeeklyClaimLimit.PER_MONTH);
+                    WeeklyClaimLimit.PER_MONTH, List.of(), List.of());
         }
         ensureDefaultTasks(userId);
         recordLogin(userId);
@@ -100,8 +102,10 @@ public class TaskServiceImpl implements TaskService {
                 claimable++;
             }
         }
+        WeeklyTeammateHints.Hints hints = weeklyTeammateHints.load(userId);
         return new MyTaskBoardResp(visible, remainingMoney, claimable, false, secondsUntilDailyReset(),
-                workDays.used(), workDays.quota(), workDays.restDay(), weeklyClaims, WeeklyClaimLimit.PER_MONTH);
+                workDays.used(), workDays.quota(), workDays.restDay(), weeklyClaims, WeeklyClaimLimit.PER_MONTH,
+                hints.teammates(), hints.suggestions());
     }
 
     @Override

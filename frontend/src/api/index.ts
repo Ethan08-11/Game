@@ -41,7 +41,7 @@ export type { MatchDetailResp, MatchDeckResp, MatchPlayerResp, MatchCustomerResp
 
 // social
 export { getSkins, purchaseSkin, getQuests, claimQuestReward, fetchTasks, fetchMyTaskBoard, claimTask } from './social'
-export type { Skin, Quest, ApiTask, UserTask, MyTaskBoard, TaskClaimResult } from './social'
+export type { Skin, Quest, ApiTask, UserTask, MyTaskBoard, TaskClaimResult, WeeklyPlayerHint } from './social'
 
 // room
 export { sendRoomInvite, acceptRoomInvite, rejectRoomInvite, getPendingRoomInvites, getRoomDetail, getCurrentRoom, releaseIdleRoom, setRoomDepartment, setRoomReady, setRoomFirstPlayer, leaveRoom, extractRoomId } from './room'
