@@ -54,17 +54,6 @@
       </div>
     </div>
 
-    <div v-if="peekDrawCards.length" class="peek-draw-overlay" @click.self="peekDrawCards = []">
-      <div class="peek-draw-card">
-        <h2>下回合将抽到</h2>
-        <p>这些牌会在下回合开始时进入手牌，顺序不变。</p>
-        <ul class="peek-draw-list">
-          <li v-for="item in peekDrawCards" :key="item.instanceId || item.cardName">{{ item.cardName }}</li>
-        </ul>
-        <el-button type="primary" @click="peekDrawCards = []">知道了</el-button>
-      </div>
-    </div>
-
     <footer class="battle-footer">
       <div class="footer-row">
         <div ref="drawPileRef" class="draw-pile card-area-highlight" :class="{ 'is-pulse': pilePulse }" @click="showDeckModal = true">
@@ -347,11 +336,33 @@
             :defense="players[0].defense"
           />
         </div>
-        <div v-if="isTeammateSeat(0) && canSeeTeammateHand" class="teammate-hand-dock">
-          <div class="teammate-mini-hand">
+        <div v-if="showSeatHandDock(0)" class="teammate-hand-dock">
+          <div v-if="isTeammateSeat(0) && canSeeTeammateHand" class="teammate-mini-hand">
             <div
               v-for="(card, index) in teammateHand"
               :key="card.id"
+              class="teammate-mini-slot"
+              :style="{ zIndex: index + 1 }"
+            >
+              <div class="teammate-mini-scale">
+                <CardItem
+                  :name="card.name"
+                  :dept="card.dept"
+                  :cost="card.cost"
+                  :type="card.type"
+                  :description="card.description"
+                  :damage="card.damage || 0"
+                  :shield="card.shield || 0"
+                  :image-url="card.imageUrl"
+                  disabled
+                />
+              </div>
+            </div>
+          </div>
+          <div v-if="peekHandForSeat(0).length" class="teammate-mini-hand is-peek">
+            <div
+              v-for="(card, index) in peekHandForSeat(0)"
+              :key="`peek-0-${card.id}`"
               class="teammate-mini-slot"
               :style="{ zIndex: index + 1 }"
             >
@@ -394,11 +405,33 @@
             :defense="players[1].defense"
           />
         </div>
-        <div v-if="isTeammateSeat(1) && canSeeTeammateHand" class="teammate-hand-dock">
-          <div class="teammate-mini-hand">
+        <div v-if="showSeatHandDock(1)" class="teammate-hand-dock">
+          <div v-if="isTeammateSeat(1) && canSeeTeammateHand" class="teammate-mini-hand">
             <div
               v-for="(card, index) in teammateHand"
               :key="card.id"
+              class="teammate-mini-slot"
+              :style="{ zIndex: index + 1 }"
+            >
+              <div class="teammate-mini-scale">
+                <CardItem
+                  :name="card.name"
+                  :dept="card.dept"
+                  :cost="card.cost"
+                  :type="card.type"
+                  :description="card.description"
+                  :damage="card.damage || 0"
+                  :shield="card.shield || 0"
+                  :image-url="card.imageUrl"
+                  disabled
+                />
+              </div>
+            </div>
+          </div>
+          <div v-if="peekHandForSeat(1).length" class="teammate-mini-hand is-peek">
+            <div
+              v-for="(card, index) in peekHandForSeat(1)"
+              :key="`peek-1-${card.id}`"
               class="teammate-mini-slot"
               :style="{ zIndex: index + 1 }"
             >
@@ -567,6 +600,7 @@ type BattlePlayer = {
   discardCount: number
   fullDeck: BattleCard[]
   hand: BattleCard[]
+  peekHand: BattleCard[]
   discardPile: BattleCard[]
 }
 
@@ -646,7 +680,6 @@ const heroFxPlaying = ref(false)
 const fundsPulse = ref(false)
 const pilePulse = ref(false)
 const handMultPulse = ref(false)
-const peekDrawCards = ref<{ instanceId?: number; cardName: string }[]>([])
 const fxGlow = ref<Record<number, string>>({})
 const bullyHudRef = ref<HTMLElement | null>(null)
 const drawPileRef = ref<HTMLElement | null>(null)
@@ -996,6 +1029,16 @@ const canSeeTeammateHand = computed(() => {
   if (isSelectingFirstPlayer.value) return true
   return !isCurrentUserActiveTurnPlayer.value
 })
+function peekHandForSeat(seat: number) {
+  return players.value[seat]?.peekHand || []
+}
+function showSeatHandDock(seat: number) {
+  return (isTeammateSeat(seat) && canSeeTeammateHand.value) || peekHandForSeat(seat).length > 0
+}
+function applyPeekHand(userId: unknown, cards: BattleCard[]) {
+  const player = players.value.find((item) => sameBattleUserId(item.userId, userId))
+  if (player) player.peekHand = cards
+}
 const hiddenHandCount = computed(() => Math.max(activeHandCount.value, activeHand.value.length, 5))
 const handFlipped = ref(false)
 const visibleHandSlots = computed(() => (
@@ -1266,6 +1309,7 @@ function syncToStore(detail: any) {
     discardCount: item.discardCount ?? 0,
     fullDeck: players.value[index]?.fullDeck || [],
     hand: Array.isArray(item.hand) ? item.hand.map(mapCard) : (players.value[index]?.hand || []),
+    peekHand: Array.isArray(item.peekHand) ? item.peekHand.map(mapCard) : (players.value[index]?.peekHand || []),
     discardPile: [],
   }))
 
@@ -1355,6 +1399,7 @@ async function refreshBattleState() {
     if (Array.isArray(state.hand)) {
       player.hand = state.hand.map(mapCard)
     }
+    player.peekHand = Array.isArray(state.peekHand) ? state.peekHand.map(mapCard) : []
   }
   activePlayerState.fullDeck = (deck.cards ?? []).map(mapCard)
   activePlayerState.hand = (detail.hand ?? myState?.hand ?? activePlayerState.hand).map(mapCard)
@@ -2101,14 +2146,11 @@ async function playEffectClip(effect: any, ctx: {
     }
     case 'PEEK_NEXT_DRAW': {
       const extra = parseEffectExtra(effect)
-      const cards = Array.isArray(extra.peekCards) ? extra.peekCards : []
-      if (sameBattleUserId(ctx.actorUserId, selfUserId()) && cards.length) {
-        peekDrawCards.value = cards.map((item: any) => ({
-          instanceId: item.instanceId ?? item.instance_id,
-          cardName: String(item.cardName ?? item.card_name ?? '未知'),
-        }))
-      }
-      const dest = handCardsRef.value || ctx.fromEl
+      const cards = Array.isArray(extra.peekCards) ? extra.peekCards
+        : Array.isArray(extra.peek_cards) ? extra.peek_cards
+        : []
+      if (cards.length) applyPeekHand(ctx.actorUserId, cards.map(mapCard))
+      const dest = ctx.fromEl
       if (dest) spawnHeroMark(dest, '锁定下回合抽牌', 'tone-delay', 0.15)
       await waitFx(300)
       return
@@ -3581,37 +3623,6 @@ onUnmounted(() => {
   inset: 0;
   background: rgba(4, 8, 12, 0.42);
 }
-.peek-draw-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100010;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(4, 8, 12, 0.5);
-}
-.peek-draw-card {
-  width: min(420px, 88vw);
-  padding: var(--space-8);
-  border: 1px solid rgba(196, 169, 98, 0.45);
-  border-radius: var(--radius-xl);
-  background: rgba(11, 19, 27, 0.94);
-  color: #fff;
-  text-align: center;
-  box-shadow: var(--shadow-lg);
-}
-.peek-draw-list {
-  margin: 12px 0 18px;
-  padding: 0;
-  list-style: none;
-  text-align: left;
-}
-.peek-draw-list li {
-  padding: 6px 10px;
-  margin-bottom: 6px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-}
 .teammate-hand-dock {
   position: absolute;
   left: 50%;
@@ -3619,6 +3630,10 @@ onUnmounted(() => {
   transform: translate(-50%, calc(100% + 8px));
   z-index: 20;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 .teammate-mini-hand {
   --card-width: 150px;

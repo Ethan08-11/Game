@@ -15,6 +15,7 @@ public record MatchPlayerStateResp(
         Integer handCount,
         Integer deckCount,
         Integer discardCount,
-        List<MatchCardResp> hand
+        List<MatchCardResp> hand,
+        List<MatchCardResp> peekHand
 ) {
 }
