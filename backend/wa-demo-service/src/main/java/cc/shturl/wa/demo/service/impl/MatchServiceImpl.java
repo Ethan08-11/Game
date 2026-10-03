@@ -1567,7 +1567,31 @@ public class MatchServiceImpl implements MatchService {
         return new MatchPlayerStateResp(player.getUserId(), player.getSeatNo(), player.getDeptType(), player.getMaxHp(),
                 player.getCurrentHp(), player.getShield(), player.getActionPoints(), player.getEndedTurn(),
                 player.getPlayerStatus(), handCards.size(), countZone(cards, "DECK"), countZone(cards, "DISCARD"),
-                toCardResponses(handCards));
+                toCardResponses(handCards), peekHandOf(player.getMatchId(), player.getUserId()));
+    }
+
+    private List<MatchCardResp> peekHandOf(Long matchId, Long userId) {
+        if (matchId == null || userId == null) {
+            return List.of();
+        }
+        MatchPendingEffects peek = findHookPending(matchId, userId, "PEEK_NEXT_DRAW");
+        if (peek == null) {
+            return List.of();
+        }
+        List<Long> ids = parsePeekInstanceIds(peek.getExtraData());
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, MatchCards> byId = matchCardsMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(MatchCards::getId, Function.identity(), (left, right) -> left));
+        List<MatchCards> ordered = new ArrayList<>();
+        for (Long id : ids) {
+            MatchCards card = byId.get(id);
+            if (card != null) {
+                ordered.add(card);
+            }
+        }
+        return toCardResponses(ordered);
     }
 
     private int countZone(List<MatchCards> cards, String zone) {
@@ -1969,15 +1993,18 @@ public class MatchServiceImpl implements MatchService {
             card.setVersion(value(card.getVersion()) + 1);
             matchCardsMapper.updateById(card);
             Cards def = cardsMapper.selectById(card.getCardId());
-            String name = def == null || def.getCardName() == null ? "?" : def.getCardName().replace("\"", "");
-            String image = def == null || def.getImageUrl() == null ? "" : def.getImageUrl().replace("\"", "");
             if (i > 0) {
                 json.append(',');
             }
             json.append("{\"instanceId\":").append(card.getId())
                     .append(",\"cardId\":").append(card.getCardId())
-                    .append(",\"cardName\":\"").append(name).append('"')
-                    .append(",\"imageUrl\":\"").append(image).append("\"}");
+                    .append(",\"cardCode\":\"").append(jsonEscape(def == null ? null : def.getCardCode())).append('"')
+                    .append(",\"cardName\":\"").append(jsonEscape(def == null ? null : def.getCardName())).append('"')
+                    .append(",\"deptType\":\"").append(jsonEscape(def == null ? null : def.getDeptType())).append('"')
+                    .append(",\"cost\":").append(def == null || def.getCost() == null ? 0 : def.getCost())
+                    .append(",\"cardType\":\"").append(jsonEscape(def == null ? null : def.getCardType())).append('"')
+                    .append(",\"description\":\"").append(jsonEscape(def == null ? null : def.getDescription())).append('"')
+                    .append(",\"imageUrl\":\"").append(jsonEscape(def == null ? null : def.getImageUrl())).append("\"}");
         }
         json.append("]}");
         MatchPendingEffects pending = new MatchPendingEffects();
@@ -1995,6 +2022,16 @@ public class MatchServiceImpl implements MatchService {
         pending.setExtraData(json.toString());
         matchPendingEffectsMapper.insert(pending);
         return json.toString();
+    }
+
+    private String jsonEscape(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        return raw.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", "")
+                .replace("\n", "\\n");
     }
 
     private List<Long> parsePeekInstanceIds(String extraData) {

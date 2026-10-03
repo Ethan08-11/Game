@@ -14,6 +14,7 @@ export interface MatchPlayerResp {
   deckCount?: number
   discardCount?: number
   hand?: MatchHandCardResp[]
+  peekHand?: MatchHandCardResp[]
 }
 
 export interface MatchCustomerResp {
