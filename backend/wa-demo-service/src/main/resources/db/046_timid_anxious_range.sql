@@ -1,9 +1,9 @@
--- 胆小怕事加血 +3～5；焦虑难安加攻 +2～4。可重复执行。
+-- 胆小怕事加血 +3～6；焦虑难安加攻 +2～4。可重复执行。
 UPDATE `customer_types`
 SET
   `effect_type` = 'bully_hp_up',
   `effect_value` = 3,
-  `description` = '容易紧张。效果触发时，霸凌者血量随机 +3～5（上限同步提高）。'
+  `description` = '容易紧张。效果触发时，霸凌者血量随机 +3～6（上限同步提高）。'
 WHERE `customer_code` = 'CUSTOMER_TIMID';
 
 UPDATE `customer_types`

@@ -12,9 +12,9 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 export const announcements: Announcement[] = [
   {
     id: 'topic-timid-anxious-range-oct3',
-    title: '难度：胆小怕事加血 +3～5，焦虑难安加攻 +2～4',
+    title: '难度：胆小怕事加血 +3～6，焦虑难安加攻 +2～4',
     date: '2026-10-03',
-    content: '「胆小怕事」效果触发时，霸凌者血量改为随机 +3～5（上限同步提高）。「焦虑难安」效果触发时，本回合霸凌者攻击改为随机 +2～4。触发概率仍是 50%。对局内显示的是这一回合实际随机到的数字。',
+    content: '「胆小怕事」效果触发时，霸凌者血量改为随机 +3～6（上限同步提高）。「焦虑难安」效果触发时，本回合霸凌者攻击改为随机 +2～4。触发概率仍是 50%。对局内显示的是这一回合实际随机到的数字。',
   },
   {
     id: 'topic-calendar-week-mode',

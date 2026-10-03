@@ -59,7 +59,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
                 UPDATE customer_types
                 SET description = ?
                 WHERE customer_code = 'CUSTOMER_TIMID'
-                """, "容易紧张。效果触发时，霸凌者血量随机 +3～5（上限同步提高）。");
+                """, "容易紧张。效果触发时，霸凌者血量随机 +3～6（上限同步提高）。");
         jdbcTemplate.update("""
                 UPDATE customer_types
                 SET description = ?
