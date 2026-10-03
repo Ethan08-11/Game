@@ -40,6 +40,10 @@
                 </div>
                 <span class="progress-text">{{ progressText(entry.task) }}</span>
               </div>
+              <div v-if="showWeeklyHints(entry.task)" class="weekly-hints">
+                <div v-if="weeklyTeammates.length">本周已组：{{ hintNames(weeklyTeammates) }}</div>
+                <div v-if="weeklySuggestions.length">推荐队友：{{ hintNames(weeklySuggestions) }}</div>
+              </div>
             </div>
             <div class="card-side">
               <div class="card-reward">
@@ -120,7 +124,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { fetchMyTaskBoard, claimTask } from '@/api'
+import { fetchMyTaskBoard, claimTask, type WeeklyPlayerHint } from '@/api'
+import { formatPlayerName } from '@/utils/playerName'
 import type { UserTask } from '@/api'
 import { useUserStore } from '@/store/user'
 import BackButton from '@/components/BackButton.vue'
@@ -147,6 +152,8 @@ const workDaysQuota = ref(0)
 const restDay = ref(false)
 const weeklyClaims = ref(0)
 const weeklyClaimLimit = ref(4)
+const weeklyTeammates = ref<WeeklyPlayerHint[]>([])
+const weeklySuggestions = ref<WeeklyPlayerHint[]>([])
 const resetInSeconds = ref(0)
 const loading = ref(true)
 const error = ref('')
@@ -223,6 +230,15 @@ function weeklyBlocked(task: UserTask): boolean {
   return task.taskType === 'weekly' && task.status === 2 && weeklyClaims.value >= weeklyClaimLimit.value
 }
 
+function showWeeklyHints(task: UserTask): boolean {
+  return task.taskType === 'weekly' && task.status < 3
+    && (weeklyTeammates.value.length > 0 || weeklySuggestions.value.length > 0)
+}
+
+function hintNames(list: WeeklyPlayerHint[]): string {
+  return list.map(item => formatPlayerName(item.name)).filter(Boolean).join('、')
+}
+
 function restDayBlocked(task: UserTask): boolean {
   return restDay.value && task.status === 2 && task.rewardType === 'money'
 }
@@ -245,6 +261,8 @@ async function loadBoard() {
   restDay.value = Boolean(board.restDay)
   weeklyClaims.value = board.weeklyClaims || 0
   weeklyClaimLimit.value = board.weeklyClaimLimit || 4
+  weeklyTeammates.value = board.weeklyTeammates || []
+  weeklySuggestions.value = board.weeklySuggestions || []
   resetInSeconds.value = board.resetInSeconds || 0
 }
 
@@ -460,6 +478,12 @@ function rewardText(task: UserTask): string {
 .card-info { flex: 1; min-width: 0; margin-left: 8em; }
 .task-name { font-weight: var(--weight-semibold); }
 .task-desc { font-size: var(--text-sm); color: #4a3520; }
+.weekly-hints {
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: #4a3520;
+  line-height: 1.45;
+}
 .task-target { font-size: var(--text-xs); color: #4a3520; margin-top: 2px; }
 .task-progress {
   display: flex;

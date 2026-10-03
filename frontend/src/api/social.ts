@@ -51,6 +51,13 @@ export interface MyTaskBoard {
   restDay?: boolean
   weeklyClaims?: number
   weeklyClaimLimit?: number
+  weeklyTeammates?: WeeklyPlayerHint[]
+  weeklySuggestions?: WeeklyPlayerHint[]
+}
+
+export interface WeeklyPlayerHint {
+  userId: number
+  name: string
 }
 
 export interface TaskClaimResult {
