@@ -159,7 +159,7 @@ public class TaskCatalogBootstrap implements ApplicationRunner {
                 "今天第 3 局最终获胜才算；看广告复活后赢了也算。放弃或掉线超时会占用这局，无法重打",
                 "match_slot_win", "{\"slot\":3}", "money", "{\"amount\":10}", 1, 31, 1);
         upsert("T-WEEKLY-TEAM-10", "跟 10 位不同同事组合", "weekly", "WEEKLY", "WEEK", "DISTINCT_TEAMMATE_COUNT",
-                "本周在每日前 3 局里，和 10 个不同的人组过队。放弃会占掉其中一局",
+                "本周在每日前 3 局里，和 10 个不同的人组过队。放弃会占掉其中一局。每月最多领取 4 次",
                 "distinct_teammate", "{}", "money", "{\"amount\":500}", 10, 90, 1);
     }
 

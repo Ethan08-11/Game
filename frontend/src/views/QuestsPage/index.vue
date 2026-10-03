@@ -11,6 +11,7 @@
         <div class="quest-summary">
           <span v-if="restDay">本月工作日已满 {{ workDaysUsed }}/{{ workDaysQuota }}，休息日不发金币</span>
           <span v-else>今日还可领 {{ remainingMoney }} 金币 · 本月工作日 {{ workDaysUsed }}/{{ workDaysQuota }}</span>
+          <span>周任务 {{ weeklyClaims }}/{{ weeklyClaimLimit }}</span>
           <span class="quest-reset">刷新倒计时 {{ resetLabel }}</span>
         </div>
         <template v-for="(entry, idx) in flatTaskList" :key="entry.task.id">
@@ -56,6 +57,11 @@
                 class="quest-action done"
                 disabled
               >休息日</button>
+              <button
+                v-else-if="weeklyBlocked(entry.task)"
+                class="quest-action done"
+                disabled
+              >本月已满</button>
               <button
                 v-else-if="entry.task.status >= 3"
                 class="quest-action done"
@@ -139,6 +145,8 @@ const remainingMoney = ref(0)
 const workDaysUsed = ref(0)
 const workDaysQuota = ref(0)
 const restDay = ref(false)
+const weeklyClaims = ref(0)
+const weeklyClaimLimit = ref(4)
 const resetInSeconds = ref(0)
 const loading = ref(true)
 const error = ref('')
@@ -208,7 +216,11 @@ function canGoStart(task: UserTask): boolean {
 }
 
 function canClaim(task: UserTask): boolean {
-  return task.status === 2 && !restDayBlocked(task)
+  return task.status === 2 && !restDayBlocked(task) && !weeklyBlocked(task)
+}
+
+function weeklyBlocked(task: UserTask): boolean {
+  return task.taskType === 'weekly' && task.status === 2 && weeklyClaims.value >= weeklyClaimLimit.value
 }
 
 function restDayBlocked(task: UserTask): boolean {
@@ -231,6 +243,8 @@ async function loadBoard() {
   workDaysUsed.value = board.workDaysUsed || 0
   workDaysQuota.value = board.workDaysQuota || 0
   restDay.value = Boolean(board.restDay)
+  weeklyClaims.value = board.weeklyClaims || 0
+  weeklyClaimLimit.value = board.weeklyClaimLimit || 4
   resetInSeconds.value = board.resetInSeconds || 0
 }
 

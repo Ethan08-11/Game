@@ -292,6 +292,9 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         int nextStatus = progress >= target ? 3 : Math.max(status, progress > 0 ? 1 : 0);
         LocalDateTime now = QuestPeriod.now();
         long gold = 0L;
+        if (nextStatus >= 3 && status < 3 && !WeeklyClaimLimit.allowed(jdbcTemplate, userId)) {
+            nextStatus = 2;
+        }
         if (nextStatus >= 3 && status < 3
                 && workDayService.allowGold(userId, day)
                 && "money".equalsIgnoreCase(String.valueOf(task.get("reward_type")))) {

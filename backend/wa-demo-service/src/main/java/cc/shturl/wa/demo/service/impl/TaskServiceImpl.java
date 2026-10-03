@@ -17,6 +17,7 @@ import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.QuestPeriod;
 import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.WorkDayQuota;
+import cc.shturl.wa.demo.service.WeeklyClaimLimit;
 import cc.shturl.wa.demo.service.WorkDayService;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -24,6 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +50,7 @@ public class TaskServiceImpl implements TaskService {
     private final UserTaskMapper userTaskMapper;
     private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
+    private final JdbcTemplate jdbcTemplate;
     private final LeaderboardService leaderboardService;
     private final WorkDayService workDayService;
     private final ObjectMapper objectMapper;
@@ -72,29 +75,33 @@ public class TaskServiceImpl implements TaskService {
     public MyTaskBoardResp listMyTaskBoard(Long userId) {
         int quota = WorkDayQuota.days(YearMonth.now(ZONE));
         if (!userExists(userId)) {
-            return new MyTaskBoardResp(List.of(), 0, 0, false, secondsUntilDailyReset(), 0, quota, false);
+            return new MyTaskBoardResp(List.of(), 0, 0, false, secondsUntilDailyReset(), 0, quota, false, 0,
+                    WeeklyClaimLimit.PER_MONTH);
         }
         ensureDefaultTasks(userId);
         recordLogin(userId);
         WorkDayService.Snapshot workDays = workDayService.snapshot(userId);
         List<UserTaskResp> visible = currentVisibleTasks(userId);
+        int weeklyClaims = WeeklyClaimLimit.countThisMonth(jdbcTemplate, userId);
+        boolean weeklyFull = weeklyClaims >= WeeklyClaimLimit.PER_MONTH;
         int remainingMoney = 0;
         int claimable = 0;
         for (UserTaskResp item : visible) {
             int status = item.status() == null ? 0 : item.status();
             boolean moneyReward = "money".equalsIgnoreCase(item.rewardType());
+            boolean weeklyBlocked = weeklyFull && "weekly".equalsIgnoreCase(item.taskType());
             if (!workDays.restDay()
                     && status < 3
                     && "daily".equalsIgnoreCase(item.taskType())
                     && moneyReward) {
                 remainingMoney += rewardAmount(item.rewardValue());
             }
-            if (status == 2 && !(workDays.restDay() && moneyReward)) {
+            if (status == 2 && !(workDays.restDay() && moneyReward) && !weeklyBlocked) {
                 claimable++;
             }
         }
         return new MyTaskBoardResp(visible, remainingMoney, claimable, false, secondsUntilDailyReset(),
-                workDays.used(), workDays.quota(), workDays.restDay());
+                workDays.used(), workDays.quota(), workDays.restDay(), weeklyClaims, WeeklyClaimLimit.PER_MONTH);
     }
 
     @Override
@@ -126,6 +133,10 @@ public class TaskServiceImpl implements TaskService {
         }
         if (money > 0 && !workDayService.allowGold(userId)) {
             throw new BusinessException("本月工作日已用完，休息日不发放金币");
+        }
+        if (task != null && "weekly".equalsIgnoreCase(task.getTaskType())
+                && !WeeklyClaimLimit.allowed(jdbcTemplate, userId)) {
+            throw new BusinessException("本月周任务最多领取 4 次");
         }
         if (money > 0 || exp > 0) {
             leaderboardService.ensureCurrentMonth();

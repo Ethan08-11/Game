@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-weekly-claim-cap',
+    title: '任务：周任务每月最多领 4 次',
+    date: '2026-10-03',
+    content: '周任务按北京时间自然月计算，每人每月最多领取 4 次。一个月里有时会跨到 5 个日历周，第 5 次不再发 500 金币。休息日规则不变，领满工作日后周常同样不发金币。',
+  },
+  {
     id: 'topic-timid-anxious-range-oct3',
     title: '难度：胆小怕事加血 +3～6，焦虑难安加攻 +2～4',
     date: '2026-10-03',
