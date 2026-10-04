@@ -10,7 +10,7 @@ import java.time.temporal.TemporalAdjusters;
 
 /**
  * 每日 / 每周任务按自然日 0 点（Asia/Shanghai）切换。
- * Ethan 未打补记仍在当天 20:00 触发，补的是当天 0 点到次日 0 点这一档。
+ * Ethan 的前三局补记仍在当天 20:00 触发，补的是当天 0 点到次日 0 点这一档。
  */
 public final class QuestPeriod {
     public static final LocalTime RESET_AT = LocalTime.MIDNIGHT;
