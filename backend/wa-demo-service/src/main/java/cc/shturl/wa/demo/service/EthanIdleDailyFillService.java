@@ -20,14 +20,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Ethan 当天 20:00 前一局都没打时，自动记 3 场胜利并领完当日每日金币。
- * 任务刷新是每天 0 点；补记只动当天 0 点到次日 0 点这一档，触发时间仍是 20:00。
+ * Ethan 每天 20:00 把当天前 3 局里还没打完的局补成胜利，并领走对应每日金币。
+ * 已经打完的局不重复发。任务刷新是每天 0 点；补的仍是当天这一档。
  */
 @Component
 @Order(21)
@@ -85,46 +86,69 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
             return;
         }
         ensurePatchTable();
-        String patchId = patchId(day);
-        if (patchApplied(patchId)) {
-            return;
-        }
         Long userId = findEthanId();
         if (userId == null) {
             log.warn("Ethan idle daily fill skipped; user not found.");
             return;
         }
+        String patchId = patchId(day);
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         tx.executeWithoutResult(status -> doFill(userId, day, patchId));
     }
 
     private void doFill(Long userId, LocalDate day, String patchId) {
-        if (patchApplied(patchId)) {
-            return;
-        }
-        int played = countedMatches(userId, day);
-        if (played > 0) {
+        List<Integer> real = realResults(userId, day);
+        int autoExisting = countedAuto(day);
+        int missing = missingSlots(real.size(), autoExisting);
+        int created = insertAutoWins(userId, day, missing);
+        List<Integer> slots = filledSlots(real, autoExisting + created);
+        if (created == 0 && !hasUnclaimed(userId, day, slots)) {
             markPatch(patchId);
-            log.info("Ethan already played {} real match(es) on {}, skip idle auto-fill.", played, day);
             return;
         }
-        int created = insertAutoWins(userId, day);
         ensureProfile(userId);
         leaderboardService.ensureCurrentMonth();
-        long gold = completeAndClaimDaily(userId, day);
-        gold += bumpWeeklyTeam(userId, day, created);
+        long gold = completeAndClaimDaily(userId, day, slots);
+        int weeklyAdded = real.isEmpty() ? created : 0;
+        gold += bumpWeeklyTeam(userId, day, weeklyAdded);
         int exp = created * WIN_EXP;
         userProfileMapper.applyMatchSettlement(userId, created, 0, 0, exp, gold);
         markPatch(patchId);
-        log.warn("Ethan idle auto-fill {}: +{} wins, +{} gold, +{} exp, weekly +{}.",
-                day, created, gold, exp, created);
+        log.warn("Ethan idle auto-fill {}: real={}, toppedUp={}, +{} gold, +{} exp, weekly +{}.",
+                day, real.size(), created, gold, exp, weeklyAdded);
     }
 
-    private int countedMatches(Long userId, LocalDate day) {
+    /** 前 3 局里，真实对局占掉的名额之外还要补几局。 */
+    static int missingSlots(int realSettled, int autoExisting) {
+        return Math.max(0, AUTO_WINS - Math.max(realSettled, 0) - Math.max(autoExisting, 0));
+    }
+
+    /** 真实对局在前，没打的名额补成胜利。1 胜，2 负。 */
+    static List<Integer> filledSlots(List<Integer> real, int autoWins) {
+        List<Integer> slots = new ArrayList<>();
+        if (real != null) {
+            for (Integer result : real) {
+                if (slots.size() >= AUTO_WINS) {
+                    break;
+                }
+                if (result != null && (result == 1 || result == 2)) {
+                    slots.add(result);
+                }
+            }
+        }
+        int extras = Math.max(autoWins, 0);
+        while (slots.size() < AUTO_WINS && extras > 0) {
+            slots.add(1);
+            extras--;
+        }
+        return slots;
+    }
+
+    private List<Integer> realResults(Long userId, LocalDate day) {
         String start = utcWallStart(day);
         String end = utcWallStart(day.plusDays(1));
-        Integer count = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
+        return jdbcTemplate.query("""
+                SELECT m.winner_type
                 FROM match_players mp
                 INNER JOIN matches m ON m.id = mp.match_id
                 WHERE mp.user_id = ?
@@ -133,8 +157,40 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
                   AND IFNULL(m.match_code, '') NOT LIKE 'AE%'
                   AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
                   AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
-                """, Integer.class, userId, start, end);
+                ORDER BY COALESCE(m.ended_at, m.started_at, m.created_at), m.id
+                LIMIT ?
+                """, (rs, row) -> rs.getInt("winner_type"), userId, start, end, AUTO_WINS);
+    }
+
+    /** 补胜按对局号计数。库里的开始时间是上海墙钟，不能和真实对局的 UTC 窗口混用。 */
+    private int countedAuto(LocalDate day) {
+        String prefix = "AE" + day.toString().replace("-", "") + "%";
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM matches WHERE match_code LIKE ?",
+                Integer.class, prefix);
         return count == null ? 0 : count;
+    }
+
+    private boolean hasUnclaimed(Long userId, LocalDate day, List<Integer> slots) {
+        for (String code : DAILY_CODES) {
+            ClaimPlan plan = claimPlan(code, slots);
+            if (plan == null || plan.status < 3) {
+                continue;
+            }
+            Map<String, Object> task = queryTask(code);
+            if (task == null) {
+                continue;
+            }
+            Integer status = jdbcTemplate.queryForObject("""
+                    SELECT status FROM user_tasks
+                    WHERE user_id = ? AND task_id = ? AND period_key = ?
+                    LIMIT 1
+                    """, Integer.class, userId, ((Number) task.get("id")).longValue(), day.toString());
+            if (status == null || status < 3) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** DATETIME 按 UTC 墙钟落库；上海 0 点对应前一天 16:00。勿用 Timestamp，驱动会再加 8 小时。 */
@@ -145,7 +201,10 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
                 .format(SQL_TIME);
     }
 
-    private int insertAutoWins(Long userId, LocalDate day) {
+    private int insertAutoWins(Long userId, LocalDate day, int needed) {
+        if (needed <= 0) {
+            return 0;
+        }
         Long customerId = queryId("SELECT id FROM customer_types WHERE IFNULL(status, 1) = 1 ORDER BY id LIMIT 1");
         Long bullyId = queryId("SELECT id FROM bullies WHERE IFNULL(status, 1) = 1 ORDER BY id LIMIT 1");
         String bossName = queryString("SELECT bully_name FROM bullies WHERE id = ?", bullyId);
@@ -193,11 +252,14 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
                     )
                     """, matchId, userId);
             created++;
+            if (created >= needed) {
+                break;
+            }
         }
         return created;
     }
 
-    private long completeAndClaimDaily(Long userId, LocalDate day) {
+    private long completeAndClaimDaily(Long userId, LocalDate day, List<Integer> slots) {
         if (day == null) {
             return 0L;
         }
@@ -206,14 +268,18 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         long gold = 0L;
         LocalDateTime now = QuestPeriod.now();
         for (String code : DAILY_CODES) {
+            ClaimPlan plan = claimPlan(code, slots);
+            if (plan == null) {
+                continue;
+            }
             Map<String, Object> task = queryTask(code);
             if (task == null) {
                 continue;
             }
             long taskId = ((Number) task.get("id")).longValue();
             int target = Math.max(intVal(task.get("target_count"), 1), 1);
-            int progress = slotProgress(code);
-            int nextStatus = "T-DAILY-SLOT".equals(code) ? 1 : 3;
+            int progress = plan.progress;
+            int nextStatus = plan.status;
             jdbcTemplate.update("""
                     INSERT INTO user_tasks (
                       user_id, task_id, period_key, progress_value, target_value,
@@ -245,6 +311,35 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
             gold += reward;
         }
         return gold;
+    }
+
+    private ClaimPlan claimPlan(String code, List<Integer> slots) {
+        int filled = slots == null ? 0 : Math.min(slots.size(), AUTO_WINS);
+        if ("T-DAILY-SLOT".equals(code)) {
+            return new ClaimPlan(filled, 1);
+        }
+        int index = slotIndex(code);
+        if (index < 1 || index > filled) {
+            return null;
+        }
+        if (code.startsWith("T-DAILY-WIN-") && slots.get(index - 1) != 1) {
+            return null;
+        }
+        int progress = code.startsWith("T-DAILY-MATCH-") ? index : 1;
+        return new ClaimPlan(progress, 3);
+    }
+
+    private int slotIndex(String code) {
+        if (code.startsWith("T-DAILY-MATCH-")) {
+            return Integer.parseInt(code.substring("T-DAILY-MATCH-".length()));
+        }
+        if (code.startsWith("T-DAILY-WIN-")) {
+            return Integer.parseInt(code.substring("T-DAILY-WIN-".length()));
+        }
+        return 0;
+    }
+
+    private record ClaimPlan(int progress, int status) {
     }
 
     private long bumpWeeklyTeam(Long userId, LocalDate day, int added) {
@@ -362,16 +457,6 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         } catch (Exception e) {
             return "[]";
         }
-    }
-
-    private int slotProgress(String code) {
-        if ("T-DAILY-SLOT".equals(code)) {
-            return AUTO_WINS;
-        }
-        if (code.startsWith("T-DAILY-MATCH-")) {
-            return Integer.parseInt(code.substring("T-DAILY-MATCH-".length()));
-        }
-        return 1;
     }
 
     private Map<String, Object> queryTask(String code) {
