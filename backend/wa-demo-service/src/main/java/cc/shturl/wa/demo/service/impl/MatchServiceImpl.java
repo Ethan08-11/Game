@@ -2447,7 +2447,7 @@ public class MatchServiceImpl implements MatchService {
                                 + ",\"absorbedDamage\":" + absorb.absorbed()
                                 + ",\"overflow\":" + absorb.overflow() + "}");
                 results.add(new BossAttackTargetResp(player.getUserId(), absorb.attack(), absorb.shieldBefore(),
-                        absorb.absorbed(), hp, 0, hp, false));
+                        absorb.absorbed(), hp, 0, hp, false, false));
                 hpLoss.merge(player.getUserId(), 0, Integer::sum);
                 continue;
             }
@@ -2457,7 +2457,7 @@ public class MatchServiceImpl implements MatchService {
                     int hp = value(player.getCurrentHp());
                     insertBossAttackAction(match, round, player, hp, hp,
                             "{\"attack\":0,\"skipped\":true,\"absorbedDamage\":0}");
-                    results.add(new BossAttackTargetResp(player.getUserId(), 0, value(player.getShield()), 0, hp, 0, hp, false));
+                    results.add(new BossAttackTargetResp(player.getUserId(), 0, value(player.getShield()), 0, hp, 0, hp, false, false));
                 }
                 continue;
             }
@@ -2533,7 +2533,7 @@ public class MatchServiceImpl implements MatchService {
             insertBossAttackAction(match, round, player, hp, hp,
                     "{\"attack\":" + attack + ",\"dodged\":true,\"absorbedDamage\":0}");
             return new BossAttackTargetResp(player.getUserId(), attack, value(player.getShield()),
-                    0, hp, 0, hp, false);
+                    0, hp, 0, hp, false, true);
         }
         int shieldBefore = value(player.getShield());
         int absorbed = Math.min(shieldBefore, attack);
@@ -2558,7 +2558,7 @@ public class MatchServiceImpl implements MatchService {
             resolveCounterOnHit(match, player);
         }
         return new BossAttackTargetResp(player.getUserId(), attack, shieldBefore, absorbed, hpBefore,
-                hpBefore - hpAfter, hpAfter, hpAfter <= 0);
+                hpBefore - hpAfter, hpAfter, hpAfter <= 0, false);
     }
 
     private void insertBossAttackAction(Matches match, MatchRounds round, MatchPlayers player,
