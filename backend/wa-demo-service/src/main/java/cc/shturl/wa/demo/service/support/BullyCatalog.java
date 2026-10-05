@@ -37,6 +37,8 @@ public final class BullyCatalog {
     public static final int HP = 180;
     public static final int ATTACK_MIN = 17;
     public static final int ATTACK_MAX = 20;
+    /** 图鉴仍显示 50%；对局内负面顾客实际按 60% 掷。 */
+    public static final int NEGATIVE_COMBAT_TRIGGER_CHANCE = 60;
     public static final int DEFENSE_STANCE_CHANCE = 15;
     public static final int DEFENSE_SHIELD = 14;
     public static final int PAIR_CHIP_THRESHOLD = 3;
@@ -142,6 +144,29 @@ public final class BullyCatalog {
 
     public static int pierceFor(BullySkill skill, boolean defenseStance) {
         return 0;
+    }
+
+    public static boolean isNegativeCustomer(CustomerTypes customer) {
+        if (customer == null) {
+            return false;
+        }
+        String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
+        if (CUSTOMER_TIMID.equals(code) || CUSTOMER_ANXIOUS.equals(code) || CUSTOMER_HARSH.equals(code)) {
+            return true;
+        }
+        String type = customer.getEffectType() == null ? "" : customer.getEffectType().trim();
+        return "bully_hp_up".equalsIgnoreCase(type)
+                || "bully_attack_up".equalsIgnoreCase(type)
+                || "player_action_hp_down".equalsIgnoreCase(type);
+    }
+
+    /** 图鉴走库里的 trigger_chance；负面顾客对局内暗改为 60%。 */
+    public static int combatTriggerChance(CustomerTypes customer) {
+        if (isNegativeCustomer(customer)) {
+            return NEGATIVE_COMBAT_TRIGGER_CHANCE;
+        }
+        Integer stored = customer == null ? null : customer.getTriggerChance();
+        return stored == null ? 0 : stored;
     }
 
     public static boolean roll(int chance) {
