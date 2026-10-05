@@ -1219,14 +1219,7 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private boolean isHighPressureNegativeCustomer(CustomerTypes customer) {
-        String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
-        if (BullyCatalog.CUSTOMER_ANXIOUS.equals(code)
-                || BullyCatalog.CUSTOMER_TIMID.equals(code)
-                || BullyCatalog.CUSTOMER_HARSH.equals(code)) {
-            return true;
-        }
-        String type = customer.getEffectType() == null ? "" : customer.getEffectType().trim();
-        return "bully_hp_up".equalsIgnoreCase(type) || "bully_attack_up".equalsIgnoreCase(type);
+        return BullyCatalog.isNegativeCustomer(customer);
     }
 
     private int customerWeight(CustomerTypes customer, boolean highPressure) {
@@ -2595,7 +2588,7 @@ public class MatchServiceImpl implements MatchService {
         CustomerTypes customer = customerTypesMapper.selectById(match.getCustomerTypeId());
         boolean skipCustomer = consumeMatchHookCharge(match.getId(), "SKIP_CUSTOMER_EFFECT");
         boolean triggered = !skipCustomer && customer != null
-                && ThreadLocalRandom.current().nextInt(100) < value(customer.getTriggerChance());
+                && BullyCatalog.roll(BullyCatalog.combatTriggerChance(customer));
         int attack = value(match.getBossBaseAttack());
         int rolledEffect = triggered && customer != null ? rollCustomerEffect(customer) : 0;
         if (triggered && customer != null) {
