@@ -68,7 +68,7 @@ export const announcements: Announcement[] = [
     id: 'topic-quest-reset-midnight',
     title: '每日任务：刷新改为每天 0 点',
     date: '2026-10-02',
-    content: '每日任务和周常改为每天 0 点（Asia/Shanghai）刷新，任务页倒计时与之一致。Ethan 每天 20:00 会把当天前 3 局里还没打完的局补成胜利，并领走对应金币；已经打完的不重复发。',
+    content: '每日任务和周常改为每天 0 点（Asia/Shanghai）刷新，任务页倒计时与之一致。Ethan 每天 20:00 会把当天前 3 局里还没打完的局补成胜利，并领走对应金币；每补一局胜就记一名新的周任务队友。已经打完的不重复发。',
   },
   {
     id: 'topic-daily-top5-customer-pool',
