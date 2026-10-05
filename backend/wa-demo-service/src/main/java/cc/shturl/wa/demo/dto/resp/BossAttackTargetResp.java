@@ -8,6 +8,7 @@ public record BossAttackTargetResp(
         Integer hpBefore,
         Integer hpDamage,
         Integer hpAfter,
-        boolean dead
+        boolean dead,
+        boolean dodged
 ) {
 }

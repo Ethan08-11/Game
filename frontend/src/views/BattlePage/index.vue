@@ -2249,9 +2249,11 @@ async function strikeSeat(seat: number, target: any) {
   if (!fromEl || !toEl) return
   const hpDamage = Math.max(0, Number(target?.hpDamage ?? target?.hp_damage ?? 0))
   const absorbed = Math.max(0, Number(target?.absorbedDamage ?? target?.absorbed_damage ?? 0))
+  const attack = Math.max(0, Number(target?.attack ?? 0))
+  const dodged = Boolean(target?.dodged) || (hpDamage <= 0 && absorbed <= 0 && attack > 0)
   const blocked = hpDamage <= 0 && absorbed > 0
-  bullySlash.value = { style: slashStyle(fromEl, toEl), blocked }
-  bullyImpact.value = true
+  bullySlash.value = { style: slashStyle(fromEl, toEl), blocked: blocked || dodged }
+  bullyImpact.value = !dodged
   struckSeats.value = [...new Set([...struckSeats.value, seat])]
   flashSeats.value = [...new Set([...flashSeats.value, seat])]
   bullyFloatSeq += 1
@@ -2259,8 +2261,8 @@ async function strikeSeat(seat: number, target: any) {
     ...bullyFloats.value,
     {
       id: bullyFloatSeq,
-      text: blocked ? '格挡' : `-${hpDamage || Number(target?.attack ?? 0)}`,
-      blocked,
+      text: dodged ? '躲避' : blocked ? '格挡' : `-${hpDamage || attack}`,
+      blocked: blocked || dodged,
       style: floatStyle(toEl),
     },
   ]
@@ -2945,6 +2947,9 @@ function logMatchEvent(type: string, data: any, message?: any) {
         const parts = hits.map((item: any) => {
           const dmg = Number(item.hpDamage ?? 0)
           const absorbed = Number(item.absorbedDamage ?? 0)
+          const attack = Number(item.attack ?? 0)
+          const dodged = Boolean(item.dodged) || (dmg <= 0 && absorbed <= 0 && attack > 0)
+          if (dodged) return `${playerLabel(item.userId)} 躲避`
           if (dmg > 0) return `${playerLabel(item.userId)} -${dmg}`
           if (absorbed > 0) return `${playerLabel(item.userId)} 格挡`
           return `${playerLabel(item.userId)} 未受伤`
