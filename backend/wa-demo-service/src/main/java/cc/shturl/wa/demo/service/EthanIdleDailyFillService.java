@@ -28,6 +28,7 @@ import java.util.Set;
 
 /**
  * Ethan 每天 20:00 把当天前 3 局里还没打完的局补成胜利，并领走对应每日金币。
+ * 每补一局胜就写入一名新的周任务队友，凑满 10 人则领取周任务金币。
  * 已经打完的局不重复发。任务刷新是每天 0 点；补的仍是当天这一档。
  */
 @Component
@@ -109,7 +110,7 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         ensureProfile(userId);
         leaderboardService.ensureCurrentMonth();
         long gold = completeAndClaimDaily(userId, day, slots);
-        int weeklyAdded = real.isEmpty() ? created : 0;
+        int weeklyAdded = created;
         gold += bumpWeeklyTeam(userId, day, weeklyAdded);
         int exp = created * WIN_EXP;
         userProfileMapper.applyMatchSettlement(userId, created, 0, 0, exp, gold);
