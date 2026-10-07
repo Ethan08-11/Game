@@ -32,6 +32,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -46,6 +48,8 @@ public class TaskServiceImpl implements TaskService {
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final String WEEKLY_TEAM_CODE = "T-WEEKLY-TEAM-10";
     private static final String DAILY_SLOT_CODE = "T-DAILY-SLOT";
+    private static final DateTimeFormatter SQL_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final int WEEKLY_DAILY_CAP = 3;
 
     private final TaskMapper taskMapper;
     private final UserTaskMapper userTaskMapper;
@@ -81,6 +85,7 @@ public class TaskServiceImpl implements TaskService {
                     WeeklyClaimLimit.PER_MONTH, List.of(), List.of());
         }
         ensureDefaultTasks(userId);
+        rebuildWeeklyTeammates(userId);
         recordLogin(userId);
         WorkDayService.Snapshot workDays = workDayService.snapshot(userId);
         List<UserTaskResp> visible = currentVisibleTasks(userId);
@@ -448,6 +453,79 @@ public class TaskServiceImpl implements TaskService {
             }
             applyProgress(userTask, task, 1);
         }
+    }
+
+    @Override
+    @Transactional
+    public void rebuildWeeklyTeammates(Long userId) {
+        if (!userExists(userId)) {
+            return;
+        }
+        Tasks task = taskMapper.selectOne(Wrappers.<Tasks>lambdaQuery()
+                .eq(Tasks::getTaskCode, WEEKLY_TEAM_CODE)
+                .eq(Tasks::getStatus, 1)
+                .last("LIMIT 1"));
+        if (task == null) {
+            return;
+        }
+        UserTask userTask = findOrCreateUserTask(userId, task, periodKeyFor(task));
+        if (userTask == null || userTask.getId() == null) {
+            return;
+        }
+        if (userTask.getStatus() != null && userTask.getStatus() >= 3) {
+            return;
+        }
+        Set<Long> ids = weeklyTeammatesFromMatches(userId);
+        userTask.setExtraData(writeIdSet(ids));
+        applyProgress(userTask, task, ids.size());
+    }
+
+    private Set<Long> weeklyTeammatesFromMatches(Long userId) {
+        Set<Long> ids = new LinkedHashSet<>();
+        LocalDate weekStart = QuestPeriod.currentWeeklyStart();
+        LocalDate today = QuestPeriod.currentDailyDate();
+        LocalDate last = today.isBefore(weekStart) ? weekStart : today;
+        if (last.isAfter(weekStart.plusDays(6))) {
+            last = weekStart.plusDays(6);
+        }
+        for (LocalDate day = weekStart; !day.isAfter(last); day = day.plusDays(1)) {
+            ids.addAll(firstThreeTeammates(userId, day));
+        }
+        return ids;
+    }
+
+    private List<Long> firstThreeTeammates(Long userId, LocalDate day) {
+        String start = utcWallStart(day);
+        String end = utcWallStart(day.plusDays(1));
+        try {
+            return jdbcTemplate.query("""
+                    SELECT other.user_id
+                    FROM (
+                      SELECT m.id
+                      FROM matches m
+                      INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                      WHERE m.status = 2
+                        AND IFNULL(m.winner_type, 0) IN (1, 2)
+                        AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
+                        AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
+                      ORDER BY COALESCE(m.started_at, m.created_at, m.id), m.id
+                      LIMIT ?
+                    ) first3
+                    INNER JOIN match_players other
+                      ON other.match_id = first3.id AND other.user_id <> ?
+                    """, (rs, rowNum) -> rs.getLong(1),
+                    userId, start, end, WEEKLY_DAILY_CAP, userId);
+        } catch (Exception e) {
+            log.warn("Skip weekly teammate rebuild for user {} on {}: {}", userId, day, e.getMessage());
+            return List.of();
+        }
+    }
+
+    private String utcWallStart(LocalDate shanghaiDay) {
+        return shanghaiDay.atStartOfDay(WorkDayQuota.ZONE)
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime()
+                .format(SQL_TIME);
     }
 
     private void addUniqueTeammate(Long userId, Long teammateId) {

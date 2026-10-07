@@ -198,7 +198,7 @@
               <div class="stats-panel">
                 <p>对局回合：{{ resultRounds }}</p>
                 <p>对局结果：{{ resultTitle }}</p>
-                <p v-if="resultVoid" class="void-hint">本局作废，不占用今日任务局数，也不发任务金币。</p>
+                <p v-if="resultVoid" class="void-hint">本局作废，不占用今日任务局数和每周前三局，也不发任务金币。</p>
                 <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
                 <p>P1 最终血量：{{ resultPlayer1Hp }}/{{ resultPlayer1MaxHp }} <span v-if="resultPlayer1Dead" class="dead-tag">（阵亡）</span></p>
                 <p>P2 最终血量：{{ resultPlayer2Hp }}/{{ resultPlayer2MaxHp }} <span v-if="resultPlayer2Dead" class="dead-tag">（阵亡）</span></p>
@@ -258,7 +258,7 @@
           <h2 class="disconnect-title">离开对战</h2>
           <p class="disconnect-desc">
             放弃将记为失败，并占用今日任务局数，无法再刷该局奖励。
-            若对局卡死、刷新后仍重连不上，请选「对局异常」（每人每天只能作废 1 局，不记胜负）。当天再用不会作废。
+            若对局卡死、刷新后仍重连不上，请选「对局异常」（每人每天只能作废 1 局，不记胜负、不占今日和每周前三局）。当天再用不会作废。
           </p>
           <div class="leave-actions">
             <el-button type="danger" size="large" :loading="leavingMatch" @click="confirmAbandon">放弃对局</el-button>
@@ -2647,7 +2647,7 @@ async function confirmVoidStuck() {
     resultVoid.value = true
     game.isGameOver = true
     game.isVictory = false
-    ElMessage.success('本局已作废，不占用今日任务局数')
+    ElMessage.success('本局已作废，不占用今日任务局数和每周前三局')
   } catch (error: any) {
     ElMessage.error(error?.message || '暂不能按卡死取消')
   } finally {

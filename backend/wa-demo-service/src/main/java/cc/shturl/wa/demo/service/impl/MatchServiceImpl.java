@@ -3244,6 +3244,14 @@ public class MatchServiceImpl implements MatchService {
                 }
             }
         }
+        for (MatchPlayers player : settledPlayers) {
+            try {
+                taskService.rebuildWeeklyTeammates(player.getUserId());
+            } catch (Exception e) {
+                logger.warn("Skip weekly teammate rebuild userId={} matchId={}: {}",
+                        player.getUserId(), match.getId(), e.getMessage());
+            }
+        }
         if (kind != MatchEndKind.VOID) {
             boolean bothLowHp = grantRewards && winnerType == 1 && bothPlayersHitDangerHp(settledPlayers);
             for (MatchPlayers player : settledPlayers) {
