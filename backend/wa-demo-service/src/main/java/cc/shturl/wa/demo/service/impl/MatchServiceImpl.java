@@ -110,7 +110,7 @@ public class MatchServiceImpl implements MatchService {
     private static final long DEFEAT_MONEY = 0L;
     private static final int REVIVE_HP_MIN = 16;
     private static final int REVIVE_HP_MAX = 22;
-    private static final long RECONNECT_TIMEOUT_MILLIS = 60_000L;
+    private static final long RECONNECT_TIMEOUT_MILLIS = 300_000L;
     private static final long REVIVE_TIMEOUT_MILLIS = 90_000L;
     private static final long REVIVE_MAX_WAIT_MILLIS = 180_000L;
     /** 玩家申请「对局异常」：至少 5 分钟没有任何有效操作。 */
@@ -2897,21 +2897,13 @@ public class MatchServiceImpl implements MatchService {
     }
 
     /**
-     * 作废卡死或掉线的对局。次数记在 chargeUserId 本人名下，队友用过不影响自己。
-     * 自动处理时，本人次数用完才改判失败。
+     * 作废卡死或掉线的对局。本局任一玩家今天已经作废过，其他人也不能再作废。
+     * 自动处理时，次数用完才改判失败。
      */
     private void voidMatch(Matches match, String reason, Long chargeUserId) {
-        Long charged = null;
-        if (chargeUserId != null) {
-            if (playerHasAbnormalQuota(chargeUserId)) {
-                charged = chargeUserId;
-            }
-        } else {
-            charged = pickPlayerWithAbnormalQuota(match.getId());
-        }
-        if (charged == null) {
+        if (!abnormalQuotaAvailable(match.getId())) {
             if (!"auto".equals(reason)) {
-                throw new BusinessException("本局不能再作废：你今天已经用过异常对局（每人每天 1 次）。请放弃对局，将记为失败并占用今日任务局数。");
+                throw new BusinessException("本局不能再作废：有玩家今天已经用过异常对局（每人每天 1 次）。请放弃对局，将记为失败并占用今日任务局数。");
             }
             finishMatch(match, 2, MatchEndKind.FORFEIT);
             notifyPlayers(match.getId(), "match.ended", Map.of(
@@ -2920,6 +2912,11 @@ public class MatchServiceImpl implements MatchService {
                     "reason", "stuck_quota_forfeit"));
             logger.info("Stuck match counted as loss because daily abnormal quota is used matchId={}", match.getId());
             return;
+        }
+        Long charged = chargeUserId;
+        if (charged == null) {
+            List<MatchPlayers> players = listPlayers(match.getId());
+            charged = players.isEmpty() ? null : players.get(0).getUserId();
         }
         finishMatch(match, WINNER_INTERRUPTED, MatchEndKind.VOID);
         noteStuckVoid(match.getId(), reason, charged);
@@ -2931,7 +2928,7 @@ public class MatchServiceImpl implements MatchService {
         logger.info("Voided stuck match matchId={} reason={} chargedUserId={}", match.getId(), reason, charged);
     }
 
-    /** 只有记在玩家名下的卡死作废才占用每天 1 次。运营重置的作废没有这条记录。 */
+    /** 记一条卡死作废。运营重置没有这条记录，不占用每天 1 次。本局所有玩家都会算作用过。 */
     private void noteStuckVoid(Long matchId, String reason, Long chargeUserId) {
         if (matchId == null || chargeUserId == null) {
             return;
@@ -2952,42 +2949,43 @@ public class MatchServiceImpl implements MatchService {
         matchActionsMapper.insert(action);
     }
 
-    /** 次数只记在本人名下。队友当天作废过，不影响自己。 */
-    private boolean playerHasAbnormalQuota(Long userId) {
-        if (userId == null) {
+    private boolean hasStuckVoidMark(Long matchId) {
+        if (matchId == null) {
             return false;
         }
+        Long marked = matchActionsMapper.selectCount(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, matchId)
+                .eq(MatchActions::getActionType, STUCK_VOID_ACTION));
+        return marked != null && marked > 0;
+    }
+
+    /** 本局任一玩家今天已经作废过，整局都不能再作废。 */
+    private boolean abnormalQuotaAvailable(Long matchId) {
         LocalDateTime start = LocalDate.now(SHANGHAI).atStartOfDay(SHANGHAI)
                 .withZoneSameInstant(ZoneId.systemDefault())
                 .toLocalDateTime();
         LocalDateTime end = start.plusDays(1);
-        List<Long> chargedMatchIds = matchActionsMapper.selectList(Wrappers.<MatchActions>lambdaQuery()
-                        .select(MatchActions::getMatchId)
-                        .eq(MatchActions::getActorUserId, userId)
-                        .eq(MatchActions::getActionType, STUCK_VOID_ACTION))
+        List<Long> voidMatchIds = matchesMapper.selectList(Wrappers.<Matches>lambdaQuery()
+                        .select(Matches::getId)
+                        .eq(Matches::getWinnerType, WINNER_INTERRUPTED)
+                        .ge(Matches::getEndedAt, start)
+                        .lt(Matches::getEndedAt, end))
                 .stream()
-                .map(MatchActions::getMatchId)
-                .filter(java.util.Objects::nonNull)
-                .distinct()
+                .map(Matches::getId)
+                .filter(this::hasStuckVoidMark)
                 .toList();
-        if (chargedMatchIds.isEmpty()) {
+        if (voidMatchIds.isEmpty()) {
             return true;
         }
-        Long used = matchesMapper.selectCount(Wrappers.<Matches>lambdaQuery()
-                .in(Matches::getId, chargedMatchIds)
-                .eq(Matches::getWinnerType, WINNER_INTERRUPTED)
-                .ge(Matches::getEndedAt, start)
-                .lt(Matches::getEndedAt, end));
-        return used == null || used < DAILY_ABNORMAL_MATCH_LIMIT;
-    }
-
-    private Long pickPlayerWithAbnormalQuota(Long matchId) {
         for (MatchPlayers player : listPlayers(matchId)) {
-            if (playerHasAbnormalQuota(player.getUserId())) {
-                return player.getUserId();
+            Long used = matchPlayersMapper.selectCount(Wrappers.<MatchPlayers>lambdaQuery()
+                    .eq(MatchPlayers::getUserId, player.getUserId())
+                    .in(MatchPlayers::getMatchId, voidMatchIds));
+            if (used != null && used >= DAILY_ABNORMAL_MATCH_LIMIT) {
+                return false;
             }
         }
-        return null;
+        return true;
     }
 
     private void noteReconnectAttempt(Long userId, Long matchId) {
