@@ -222,7 +222,7 @@ async function doCancelStuck() {
     reconnectMatchId.value = ''
     room.resetMatchMaking()
     clearMatchCache()
-    ElMessage.success('本局已作废，不占用今日任务局数')
+    ElMessage.success('本局已作废，不占用今日任务局数和每周前三局')
     user.loadFriends().catch(() => {})
   } catch (error: any) {
     ElMessage.error(error?.message || '暂不能按卡死取消，请先重连或稍后再试')
