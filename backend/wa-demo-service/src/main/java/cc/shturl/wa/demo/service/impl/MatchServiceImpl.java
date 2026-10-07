@@ -47,7 +47,9 @@ import cc.shturl.wa.demo.mapper.MatchRoundsMapper;
 import cc.shturl.wa.demo.mapper.MatchesMapper;
 import cc.shturl.wa.demo.mapper.RoomMembersMapper;
 import cc.shturl.wa.demo.mapper.UserCardPoolsMapper;
+import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
+import cc.shturl.wa.demo.entity.User;
 import cc.shturl.wa.demo.service.AchievementService;
 import cc.shturl.wa.demo.service.CardCollectionService;
 import cc.shturl.wa.demo.service.ClientNetworkService;
@@ -147,6 +149,7 @@ public class MatchServiceImpl implements MatchService {
     private final CustomerTypesMapper customerTypesMapper;
     private final BulliesMapper bulliesMapper;
     private final UserProfileMapper userProfileMapper;
+    private final UserMapper userMapper;
     private final UserCardPoolsMapper userCardPoolsMapper;
     private final RoomNotificationService notificationService;
     private final UserPresenceService userPresenceService;
@@ -2901,9 +2904,14 @@ public class MatchServiceImpl implements MatchService {
      * 自动处理时，次数用完才改判失败。
      */
     private void voidMatch(Matches match, String reason, Long chargeUserId) {
-        if (!abnormalQuotaAvailable(match.getId())) {
+        List<String> blockedNames = playersWhoUsedVoidToday(match.getId());
+        if (!blockedNames.isEmpty()) {
             if (!"auto".equals(reason)) {
-                throw new BusinessException("本局不能再作废：有玩家今天已经用过异常对局（每人每天 1 次）。请放弃对局，将记为失败并占用今日任务局数。");
+                String message = String.join("、", blockedNames) + "今日已作废过，本局不能再作废。";
+                notifyPlayers(match.getId(), "match.void.blocked", Map.of(
+                        "matchId", match.getId(),
+                        "message", message));
+                throw new BusinessException(message);
             }
             finishMatch(match, 2, MatchEndKind.FORFEIT);
             notifyPlayers(match.getId(), "match.ended", Map.of(
@@ -2959,8 +2967,8 @@ public class MatchServiceImpl implements MatchService {
         return marked != null && marked > 0;
     }
 
-    /** 本局任一玩家今天已经作废过，整局都不能再作废。 */
-    private boolean abnormalQuotaAvailable(Long matchId) {
+    /** 本局里今天已经作废过的玩家。空列表表示这局还可以作废。 */
+    private List<String> playersWhoUsedVoidToday(Long matchId) {
         LocalDateTime start = LocalDate.now(SHANGHAI).atStartOfDay(SHANGHAI)
                 .withZoneSameInstant(ZoneId.systemDefault())
                 .toLocalDateTime();
@@ -2975,17 +2983,28 @@ public class MatchServiceImpl implements MatchService {
                 .filter(this::hasStuckVoidMark)
                 .toList();
         if (voidMatchIds.isEmpty()) {
-            return true;
+            return List.of();
         }
+        List<String> names = new ArrayList<>();
         for (MatchPlayers player : listPlayers(matchId)) {
             Long used = matchPlayersMapper.selectCount(Wrappers.<MatchPlayers>lambdaQuery()
                     .eq(MatchPlayers::getUserId, player.getUserId())
                     .in(MatchPlayers::getMatchId, voidMatchIds));
             if (used != null && used >= DAILY_ABNORMAL_MATCH_LIMIT) {
-                return false;
+                names.add(titleName(player.getUserId()));
             }
         }
-        return true;
+        return names;
+    }
+
+    private String titleName(Long userId) {
+        User user = userId == null ? null : userMapper.selectById(userId);
+        String username = user == null ? null : user.getUsername();
+        if (username == null || username.isBlank()) {
+            return "玩家";
+        }
+        String lower = username.toLowerCase();
+        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
     }
 
     private void noteReconnectAttempt(Long userId, Long matchId) {

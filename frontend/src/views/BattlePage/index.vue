@@ -270,6 +270,18 @@
     </Teleport>
 
     <Teleport to="body">
+      <div v-if="showVoidBlockedDialog" class="disconnect-overlay void-blocked-overlay">
+        <div class="disconnect-modal leave-modal">
+          <h2 class="disconnect-title">无法作废本局</h2>
+          <p class="disconnect-desc">{{ voidBlockedMessage }}</p>
+          <div class="leave-actions">
+            <el-button type="primary" size="large" @click="showVoidBlockedDialog = false">知道了</el-button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
       <div v-if="showReviveDialog" class="revive-overlay">
         <div class="revive-stage" @click.stop>
           <video
@@ -746,6 +758,8 @@ let actionPhasePollTimer: ReturnType<typeof setInterval> | null = null
 const showDisconnectDialog = ref(false)
 const showLeaveDialog = ref(false)
 const leavingMatch = ref(false)
+const showVoidBlockedDialog = ref(false)
+const voidBlockedMessage = ref('')
 const resultVoid = ref(false)
 const stuckCancelAvailable = ref(false)
 const disconnectCountdown = ref(30)
@@ -2649,10 +2663,25 @@ async function confirmVoidStuck() {
     game.isVictory = false
     ElMessage.success('本局已作废，不占用今日任务局数和每周前三局')
   } catch (error: any) {
-    ElMessage.error(error?.message || '暂不能按卡死取消')
+    showVoidBlocked(error?.message || '暂不能按卡死取消')
   } finally {
     leavingMatch.value = false
   }
+}
+
+function showVoidBlocked(message: string) {
+  voidBlockedMessage.value = message
+  showVoidBlockedDialog.value = true
+}
+
+function handleVoidBlocked(data: any, message?: any) {
+  const payload = data?.message ? data : (data?.data ?? message?.data?.data ?? message?.data ?? data)
+  const text = String(payload?.message || '')
+  if (!text) return
+  const eventMatchId = String(payload?.matchId ?? '')
+  const current = String(activeMatchId.value || '')
+  if (eventMatchId && current && eventMatchId !== current) return
+  showVoidBlocked(text)
 }
 
 function resolveIsVoid(detail: any): boolean {
@@ -3104,6 +3133,7 @@ onMounted(async () => {
     }),
     subscribeRoomEvent('match.reconnecting', handleMatchReconnecting),
     subscribeRoomEvent('match.recovered', handleMatchRecovered),
+    subscribeRoomEvent('match.void.blocked', handleVoidBlocked),
     subscribeRoomEvent('match.revive.success', (data: any) => {
       const d = data?.data ?? data
       const revivedUserId = String(d?.userId ?? d?.revivedUserId ?? '')
@@ -4725,6 +4755,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 9999;
+}
+.void-blocked-overlay {
+  z-index: 10001;
 }
 .disconnect-modal {
   background: #2a2520;
