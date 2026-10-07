@@ -2134,7 +2134,7 @@ async function playEffectClip(effect: any, ctx: {
     }
     case 'MULTIPLY_TURN_SHIELD': {
       const dest = ctx.fromEl
-      if (dest) spawnHeroMark(dest, `本回合防御 ×${Math.max(2, Math.round(actual || 2))}`, 'tone-mult', 0.12)
+      if (dest) spawnHeroMark(dest, `本回合获得的防御 ×${Math.max(2, Math.round(actual || 2))}`, 'tone-mult', 0.12)
       await waitFx(280)
       return
     }

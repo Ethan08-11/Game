@@ -1736,10 +1736,10 @@ public class MatchServiceImpl implements MatchService {
                 }
             }
             case "ADD_SHIELD" -> {
-                actualValue = applyTurnShieldModifiers(match.getId(), actor.getUserId(), actualValue);
                 for (MatchPlayers recipient : resolveEffectTargets(match.getId(), actor, target, effect)) {
+                    int gained = applyTurnShieldModifiers(match.getId(), recipient.getUserId(), actualValue);
                     int beforeValue = value(recipient.getShield());
-                    int afterValue = Math.max(0, beforeValue + actualValue);
+                    int afterValue = Math.max(0, beforeValue + gained);
                     int applied = afterValue - beforeValue;
                     recipient.setShield(afterValue);
                     if (applied > 0) {
@@ -1948,12 +1948,14 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private int applyTurnShieldModifiers(Long matchId, Long userId, int amount) {
-        int shield = amount;
+        if (amount <= 0) {
+            return amount;
+        }
         MatchPendingEffects mul = findHookPending(matchId, userId, "MULTIPLY_TURN_SHIELD");
         if (mul != null) {
-            shield *= Math.max(value(mul.getEffectValue()), 1);
+            return amount * Math.max(value(mul.getEffectValue()), 1);
         }
-        return shield;
+        return amount;
     }
 
     private String pinNextDrawCards(Long matchId, Long userId, MatchCards source, CardEffects effect, int count) {
@@ -2763,7 +2765,9 @@ public class MatchServiceImpl implements MatchService {
                         Wrappers.<MatchPlayers>lambdaQuery().eq(MatchPlayers::getMatchId, match.getId())
                                 .eq(MatchPlayers::getUserId, pending.getTargetUserId()));
                 if (target != null && "ADD_SHIELD".equals(pending.getEffectType())) {
-                    target.setShield(value(target.getShield()) + value(pending.getEffectValue()));
+                    int gained = applyTurnShieldModifiers(match.getId(), target.getUserId(),
+                            value(pending.getEffectValue()));
+                    target.setShield(Math.max(0, value(target.getShield()) + gained));
                     matchPlayersMapper.updateById(target);
                 } else if (target != null && "HEAL_PLAYER".equals(pending.getEffectType())) {
                     target.setCurrentHp(Math.min(target.getMaxHp(), value(target.getCurrentHp()) + value(pending.getEffectValue())));
