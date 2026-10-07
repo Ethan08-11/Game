@@ -119,6 +119,7 @@ public class MatchServiceImpl implements MatchService {
     private static final long STUCK_AUTO_VOID_IDLE_MILLIS = 600_000L;
     /** 每人每天只能有 1 局异常作废，避免反复作废来保住胜率。 */
     private static final int DAILY_ABNORMAL_MATCH_LIMIT = 1;
+    private static final String STUCK_VOID_ACTION = "stuck_void";
     private static final ZoneId SHANGHAI = ZoneId.of("Asia/Shanghai");
     private static final int WINNER_INTERRUPTED = 3;
     private static final String RECONNECT_ATTEMPT_ACTION = "reconnect_attempt";
@@ -2909,12 +2910,43 @@ public class MatchServiceImpl implements MatchService {
             return;
         }
         finishMatch(match, WINNER_INTERRUPTED, MatchEndKind.VOID);
+        noteStuckVoid(match.getId(), reason);
         notifyPlayers(match.getId(), "match.ended", Map.of(
                 "matchId", match.getId(),
                 "winnerType", WINNER_INTERRUPTED,
                 "reason", "void",
                 "voidReason", reason == null ? "stuck" : reason));
         logger.info("Voided stuck match matchId={} reason={}", match.getId(), reason);
+    }
+
+    /** 只有玩家或系统申请的卡死作废才占用每天 1 次。运营重置的作废没有这条记录。 */
+    private void noteStuckVoid(Long matchId, String reason) {
+        if (matchId == null) {
+            return;
+        }
+        Long existing = matchActionsMapper.selectCount(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, matchId)
+                .eq(MatchActions::getActionType, STUCK_VOID_ACTION));
+        if (existing != null && existing > 0) {
+            return;
+        }
+        MatchActions action = new MatchActions();
+        action.setMatchId(matchId);
+        action.setActorType("system");
+        action.setActionType(STUCK_VOID_ACTION);
+        String voidReason = reason == null || reason.isBlank() ? "stuck" : reason;
+        action.setExtraData("{\"reason\":\"" + voidReason.replace("\"", "") + "\"}");
+        matchActionsMapper.insert(action);
+    }
+
+    private boolean hasStuckVoidMark(Long matchId) {
+        if (matchId == null) {
+            return false;
+        }
+        Long marked = matchActionsMapper.selectCount(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, matchId)
+                .eq(MatchActions::getActionType, STUCK_VOID_ACTION));
+        return marked != null && marked > 0;
     }
 
     /** 本局所有玩家今天都还没用过异常作废，才允许再作废。 */
@@ -2930,6 +2962,7 @@ public class MatchServiceImpl implements MatchService {
                         .lt(Matches::getEndedAt, end))
                 .stream()
                 .map(Matches::getId)
+                .filter(this::hasStuckVoidMark)
                 .toList();
         if (voidMatchIds.isEmpty()) {
             return true;
