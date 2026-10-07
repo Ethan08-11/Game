@@ -89,6 +89,18 @@
       </div>
     </Teleport>
 
+    <Teleport to="body">
+      <div v-if="voidBlockedMessage" class="reconnect-overlay void-blocked-overlay">
+        <div class="reconnect-modal">
+          <h2 class="reconnect-title">无法作废本局</h2>
+          <p class="reconnect-desc">{{ voidBlockedMessage }}</p>
+          <div class="reconnect-actions">
+            <el-button type="primary" size="large" @click="voidBlockedMessage = ''">知道了</el-button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <AvatarPickerDialog v-model="avatarDialogVisible" />
 
   </div>
@@ -188,6 +200,7 @@ const hallReady = ref(false)
 const reconnectDialogVisible = ref(false)
 const reconnectCountdown = ref(30)
 const reconnectMatchId = ref('')
+const voidBlockedMessage = ref('')
 const questBadgeText = ref('')
 const questBadgeTitle = ref('')
 let reconnectTimer: ReturnType<typeof setInterval> | null = null
@@ -225,7 +238,7 @@ async function doCancelStuck() {
     ElMessage.success('本局已作废，不占用今日任务局数和每周前三局')
     user.loadFriends().catch(() => {})
   } catch (error: any) {
-    ElMessage.error(error?.message || '暂不能按卡死取消，请先重连或稍后再试')
+    voidBlockedMessage.value = error?.message || '暂不能按卡死取消，请先重连或稍后再试'
   }
 }
 
@@ -792,6 +805,9 @@ async function handleLogout() {
   align-items: center;
   justify-content: center;
   z-index: 9999;
+}
+.void-blocked-overlay {
+  z-index: 10001;
 }
 .reconnect-modal {
   background: #2a2520;
