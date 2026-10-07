@@ -258,7 +258,7 @@
           <h2 class="disconnect-title">离开对战</h2>
           <p class="disconnect-desc">
             放弃将记为失败，并占用今日任务局数，无法再刷该局奖励。
-            若对局卡死、刷新后仍重连不上，请选「对局异常」（每人每天只能作废 1 局，不记胜负、不占今日和每周前三局）。当天再用不会作废。
+            若对局卡死、刷新后仍重连不上，请选「对局异常」（每人每天只能作废 1 局，不记胜负、不占今日和每周前三局）。只要局里有人当天已经作废过，其他人也不能再作废。
           </p>
           <div class="leave-actions">
             <el-button type="danger" size="large" :loading="leavingMatch" @click="confirmAbandon">放弃对局</el-button>
@@ -2813,9 +2813,9 @@ async function endMatchDueToDisconnect() {
   router.push('/game-hall')
 }
 
-function startWaitForReconnect() {
+function startWaitForReconnect(timeoutSeconds = 300) {
   showDisconnectDialog.value = true
-  disconnectCountdown.value = 60
+  disconnectCountdown.value = timeoutSeconds
   stopDisconnectTimers()
 
   disconnectTimer = setInterval(() => {
@@ -2855,7 +2855,8 @@ function handleMatchReconnecting(data: any) {
     return
   }
   if (uid && sameBattleUserId(uid, teammateId.value) && !showDisconnectDialog.value) {
-    startWaitForReconnect()
+    const timeoutSeconds = Number(payload?.timeoutSeconds ?? data?.timeoutSeconds ?? 300)
+    startWaitForReconnect(Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 ? timeoutSeconds : 300)
   }
   void handleMatchEvent(data)
 }
