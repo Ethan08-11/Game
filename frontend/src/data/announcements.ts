@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-projected-top-five',
+    title: '难度：潜在前五按预测总金币',
+    date: '2026-10-08',
+    content: '潜在前五改为按预测总金币取五人。预测总金币 = 已经到手的金币 + 后面还没打的工作日 × 150 + 这个月还没领的周任务。没开打的人不进名单。周任务每次 500，本月最多 4 次；周次还够领满剩余次数时，没做完的也计入，周次不够时按还能领到的最高次数算。已领过的不再加。每月日历第一周仍不生效。房间里有这五人之一时，仍从胆小怕事、焦虑难安、刻薄尖客三人里平分抽取。',
+  },
+  {
     id: 'topic-weekly-teammate-hints',
     title: '任务：周任务只推荐 3 名队友',
     date: '2026-10-03',

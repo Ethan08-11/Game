@@ -4,7 +4,6 @@ import cc.shturl.wa.demo.dto.resp.LeaderboardResp;
 import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
-import cc.shturl.wa.demo.service.WorkDayService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,8 +34,6 @@ class LeaderboardServiceImplSortTest {
     private UserMapper userMapper;
     @Mock
     private JdbcTemplate jdbcTemplate;
-    @Mock
-    private WorkDayService workDayService;
 
     @InjectMocks
     private LeaderboardServiceImpl service;
@@ -87,57 +85,64 @@ class LeaderboardServiceImplSortTest {
     }
 
     @Test
-    @DisplayName("高压：当前总榜金币前五算高压，第六名不算")
+    @DisplayName("高压：开打天数和周任务相同时，按已到手金币取前五")
     void liveTotalTopFiveIsHighPressureEvenWithoutSnapshot() {
-        when(userProfileMapper.selectList(any())).thenReturn(List.of(
-                profile(1L, 150L, 3, 0, 0),
-                profile(2L, 140L, 2, 0, 0),
-                profile(3L, 130L, 2, 0, 0),
-                profile(4L, 120L, 1, 0, 0),
-                profile(5L, 110L, 1, 0, 0),
-                profile(6L, 100L, 1, 0, 0)));
+        stubSixPlayerBoard();
+        stubProjection(8, 0, false);
 
-        assertThat(service.teamTouchesDailyTop(List.of(5L, 99L), LocalDate.of(2026, 10, 8))).isTrue();
-        assertThat(service.teamTouchesDailyTop(List.of(6L, 99L), LocalDate.of(2026, 10, 8))).isFalse();
-        assertThat(service.highPressureRoster()).hasSize(5).containsExactly(1L, 2L, 3L, 4L, 5L);
+        LocalDate today = LocalDate.of(2026, 10, 8);
+        assertThat(service.teamTouchesDailyTop(List.of(5L, 99L), today)).isTrue();
+        assertThat(service.teamTouchesDailyTop(List.of(6L, 99L), today)).isFalse();
+        assertThat(service.highPressureRoster(today)).hasSize(5).containsExactly(1L, 2L, 3L, 4L, 5L);
     }
 
     @Test
-    @DisplayName("高压：第六名把未领或本局完成档金币算进去能进前五则算高压")
+    @DisplayName("高压：预测总分多 11 就能挤进前五")
     void projectedGoldThatWouldEnterTopFiveIsHighPressure() {
-        when(userProfileMapper.selectList(any())).thenReturn(List.of(
-                profile(1L, 150L, 3, 0, 0),
-                profile(2L, 140L, 2, 0, 0),
-                profile(3L, 130L, 2, 0, 0),
-                profile(4L, 120L, 1, 0, 0),
-                profile(5L, 110L, 1, 0, 0),
-                profile(6L, 100L, 1, 0, 0)));
+        stubSixPlayerBoard();
+        stubProjection(8, 0, false);
 
-        assertThat(service.ranksAsTopFive(6L, 0L)).isFalse();
-        assertThat(service.ranksAsTopFive(6L, 11L)).isTrue();
-        assertThat(service.ranksAsTopFive(6L, 50L)).isTrue();
+        assertThat(service.ranksAsTopFive(6L, 0L, LocalDate.of(2026, 10, 8))).isFalse();
+        assertThat(service.ranksAsTopFive(6L, 11L, LocalDate.of(2026, 10, 8))).isTrue();
+        assertThat(service.ranksAsTopFive(6L, 50L, LocalDate.of(2026, 10, 8))).isTrue();
     }
 
     @Test
-    @DisplayName("高压：已完成未领的每日金币会计入前五，名单仍最多 5 人")
-    void unclaimedCompletedDailyGoldCanTriggerHighPressure() {
+    @DisplayName("高压：少打的工作日按全胜 150 计入后能挤掉已到手金币更高的人")
+    void fewerWorkDaysCanEnterProjectedTopFive() {
         stubSixPlayerBoard();
-        when(jdbcTemplate.queryForList(anyString(), any(Object.class))).thenReturn(List.of(taskRow(
-                6L, "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
+        stubProjectionExcept(6L, 1, 0, false, 8, 0, false);
 
-        assertThat(service.teamTouchesDailyTop(List.of(6L), LocalDate.of(2026, 10, 8))).isTrue();
-        assertThat(service.highPressureRoster()).hasSize(5).contains(6L).doesNotContain(5L);
+        LocalDate today = LocalDate.of(2026, 10, 8);
+        assertThat(service.teamTouchesDailyTop(List.of(6L), today)).isTrue();
+        assertThat(service.highPressureRoster(today)).hasSize(5).contains(6L).doesNotContain(5L);
     }
 
     @Test
-    @DisplayName("高压：休息日未领金币不计入潜在前五")
-    void restDayPendingGoldDoesNotTriggerHighPressure() {
+    @DisplayName("高压：没开打的人不进潜在前五")
+    void playerWhoHasNotStartedIsExcluded() {
         stubSixPlayerBoard();
-        when(workDayService.snapshot(6L)).thenReturn(new WorkDayService.Snapshot(24, 24, true, false));
-        when(jdbcTemplate.queryForList(anyString(), any(Object.class))).thenReturn(List.of(taskRow(
-                6L, "T-DAILY-MATCH-2", "{\"amount\":50}", 2)));
+        stubProjectionExcept(6L, 0, 0, false, 8, 0, false);
 
         assertThat(service.teamTouchesDailyTop(List.of(6L), LocalDate.of(2026, 10, 8))).isFalse();
+        assertThat(service.highPressureRoster(LocalDate.of(2026, 10, 8))).doesNotContain(6L);
+    }
+
+    @Test
+    @DisplayName("高压：周次不够领满时，没做完的只按还能领到的次数算")
+    void unfinishedWeeklyCountsOnlyWhileWindowsRemain() {
+        assertThat(LeaderboardServiceImpl.openWeeklyWindows(LocalDate.of(2026, 10, 8))).isEqualTo(4);
+        assertThat(LeaderboardServiceImpl.openWeeklyWindows(LocalDate.of(2026, 10, 27))).isEqualTo(1);
+        assertThat(LeaderboardServiceImpl.claimableWeeklyCount(4, 0, false)).isEqualTo(4);
+        assertThat(LeaderboardServiceImpl.claimableWeeklyCount(4, 2, true)).isEqualTo(2);
+        assertThat(LeaderboardServiceImpl.claimableWeeklyCount(1, 0, false)).isEqualTo(1);
+
+        stubSixPlayerBoard();
+        stubProjectionExcept(6L, 8, 0, false, 8, 2, true);
+        assertThat(service.highPressureRoster(LocalDate.of(2026, 10, 8))).contains(6L);
+
+        stubProjectionExcept(6L, 8, 0, false, 8, 2, false);
+        assertThat(service.highPressureRoster(LocalDate.of(2026, 10, 27))).doesNotContain(6L);
     }
 
     @Test
@@ -157,8 +162,41 @@ class LeaderboardServiceImplSortTest {
 
         assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 4))).isFalse();
         assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 5))).isTrue();
+        stubProjection(8, 0, false);
         assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 2))).isFalse();
         assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 5))).isTrue();
+    }
+
+    private void stubProjection(int workDays, int claims, boolean currentWeekClaimed) {
+        doReturn(List.of(
+                projectionRow(1L, workDays, claims, currentWeekClaimed),
+                projectionRow(2L, workDays, claims, currentWeekClaimed),
+                projectionRow(3L, workDays, claims, currentWeekClaimed),
+                projectionRow(4L, workDays, claims, currentWeekClaimed),
+                projectionRow(5L, workDays, claims, currentWeekClaimed),
+                projectionRow(6L, workDays, claims, currentWeekClaimed)))
+                .when(jdbcTemplate).queryForList(anyString(), any(Object.class), any(Object.class), any(Object.class), any(Object.class), any(Object.class));
+    }
+
+    private void stubProjectionExcept(long userId, int workDays, int claims, boolean currentWeekClaimed,
+                                      int othersWorkDays, int othersClaims, boolean othersCurrentWeekClaimed) {
+        doReturn(List.of(
+                projectionRow(1L, userId == 1L ? workDays : othersWorkDays, userId == 1L ? claims : othersClaims, userId == 1L ? currentWeekClaimed : othersCurrentWeekClaimed),
+                projectionRow(2L, userId == 2L ? workDays : othersWorkDays, userId == 2L ? claims : othersClaims, userId == 2L ? currentWeekClaimed : othersCurrentWeekClaimed),
+                projectionRow(3L, userId == 3L ? workDays : othersWorkDays, userId == 3L ? claims : othersClaims, userId == 3L ? currentWeekClaimed : othersCurrentWeekClaimed),
+                projectionRow(4L, userId == 4L ? workDays : othersWorkDays, userId == 4L ? claims : othersClaims, userId == 4L ? currentWeekClaimed : othersCurrentWeekClaimed),
+                projectionRow(5L, userId == 5L ? workDays : othersWorkDays, userId == 5L ? claims : othersClaims, userId == 5L ? currentWeekClaimed : othersCurrentWeekClaimed),
+                projectionRow(6L, userId == 6L ? workDays : othersWorkDays, userId == 6L ? claims : othersClaims, userId == 6L ? currentWeekClaimed : othersCurrentWeekClaimed)))
+                .when(jdbcTemplate).queryForList(anyString(), any(Object.class), any(Object.class), any(Object.class), any(Object.class), any(Object.class));
+    }
+
+    private static Map<String, Object> projectionRow(long userId, int workDays, int claims, boolean currentWeekClaimed) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("user_id", userId);
+        row.put("work_days", workDays);
+        row.put("weekly_claims", claims);
+        row.put("current_week_claimed", currentWeekClaimed ? 1 : 0);
+        return row;
     }
 
     private void stubSixPlayerBoard() {
@@ -169,15 +207,6 @@ class LeaderboardServiceImplSortTest {
                 profile(4L, 120L, 1, 0, 0),
                 profile(5L, 110L, 1, 0, 0),
                 profile(6L, 100L, 1, 0, 0)));
-    }
-
-    private static Map<String, Object> taskRow(long userId, String code, String rewardValue, int status) {
-        Map<String, Object> row = new HashMap<>();
-        row.put("user_id", userId);
-        row.put("task_code", code);
-        row.put("reward_value", rewardValue);
-        row.put("status", status);
-        return row;
     }
 
     private static UserProfile profile(long userId, long money, int wins, int losses, int draws) {
