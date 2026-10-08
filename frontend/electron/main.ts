@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from 'electron'
+import { execSync } from 'node:child_process'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -6,6 +7,24 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const windows: BrowserWindow[] = []
+const machineId = resolveMachineId()
+
+function resolveMachineId(): string {
+  if (process.platform === 'win32') {
+    try {
+      const out = execSync('reg query "HKLM\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 3000,
+      })
+      const match = out.match(/MachineGuid\s+REG_SZ\s+([0-9a-fA-F-]{8,})/i)
+      if (match) return `win:${match[1].toLowerCase()}`
+    } catch {
+      return ''
+    }
+  }
+  return ''
+}
 
 function createWindow(titleSuffix = '') {
   const win = new BrowserWindow({
@@ -15,6 +34,8 @@ function createWindow(titleSuffix = '') {
     minHeight: 680,
     title: `这单我们护了！！！！${titleSuffix}`,
     webPreferences: {
+      preload: join(__dirname, 'preload.cjs'),
+      additionalArguments: machineId ? [`--app-device-id=${machineId}`] : [],
       nodeIntegration: false,
       contextIsolation: true,
     },

@@ -1,3 +1,5 @@
+import { clientDeviceId } from '@/utils/clientDevice'
+
 type RoomWsHandler<T = any> = (data: T, message: RoomWsMessage<T>) => void
 
 export interface RoomWsMessage<T = any> {
@@ -60,6 +62,8 @@ function emit(message: RoomWsMessage) {
 function buildUrl(accessToken: string) {
   const url = new URL(getWsBase())
   url.searchParams.set('accessToken', accessToken)
+  const deviceId = clientDeviceId()
+  if (deviceId) url.searchParams.set('deviceId', deviceId)
   return url.toString()
 }
 

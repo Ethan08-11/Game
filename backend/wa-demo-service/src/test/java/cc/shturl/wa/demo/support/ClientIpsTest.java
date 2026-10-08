@@ -27,4 +27,15 @@ class ClientIpsTest {
         assertThat(ClientIps.normalize("unknown")).isNull();
         assertThat(ClientIps.firstForwarded("  ")).isNull();
     }
+
+    @Test
+    @DisplayName("临时 IPv6 只比前 64 位")
+    void shouldTreatTemporaryIpv6AsSameNetwork() {
+        assertThat(ClientIps.sameNetwork(
+                "2001:db8:1:2:aaaa:bbbb:cccc:dddd",
+                "2001:0db8:0001:0002::9")).isTrue();
+        assertThat(ClientIps.sameNetwork("2001:db8:1:2::1", "2001:db8:1:3::1")).isFalse();
+        assertThat(ClientIps.sameNetwork("203.0.113.8", "203.0.113.9")).isFalse();
+        assertThat(ClientIps.sameNetwork("203.0.113.8", "2001:db8:1:2::1")).isFalse();
+    }
 }

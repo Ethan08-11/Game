@@ -5,6 +5,7 @@ directories:
   buildResources: public
 files:
   - dist
+  - dist-electron
   - electron
 win:
   target:

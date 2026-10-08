@@ -20,6 +20,7 @@ import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.TokenService;
 import cc.shturl.wa.demo.service.ClientNetworkService;
 import cc.shturl.wa.demo.service.RoomWebSocketSessionService;
+import cc.shturl.wa.demo.support.ClientDevices;
 import cc.shturl.wa.demo.support.ClientIps;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
@@ -270,7 +271,8 @@ public class AuthServiceImpl implements AuthService {
         if (attributes == null) {
             return;
         }
-        clientNetworkService.rememberIp(userId, ClientIps.fromRequest(attributes.getRequest()));
+        clientNetworkService.rememberClient(userId, ClientIps.fromRequest(attributes.getRequest()),
+                ClientDevices.normalize(attributes.getRequest().getHeader("X-Client-Device")));
     }
 
     private void linkExistingFriends(Long newUserId) {

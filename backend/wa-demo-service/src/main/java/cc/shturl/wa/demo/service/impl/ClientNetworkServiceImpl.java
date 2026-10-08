@@ -5,6 +5,8 @@ import cc.shturl.wa.common.exception.BusinessException;
 import cc.shturl.wa.demo.entity.User;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.service.ClientNetworkService;
+import cc.shturl.wa.demo.support.ClientDevices;
+import cc.shturl.wa.demo.support.ClientIps;
 import cc.shturl.wa.demo.support.TestAccounts;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -15,7 +17,7 @@ import java.time.Duration;
 @Service
 public class ClientNetworkServiceImpl implements ClientNetworkService {
     private static final Duration IP_TTL = Duration.ofMinutes(10);
-    private static final String SAME_NETWORK_MESSAGE = "不能与同一网络下的账号组队";
+    private static final String SAME_NETWORK_MESSAGE = "不能与同一台电脑或同一网络下的账号组队";
 
     private final StringRedisTemplate redisTemplate;
     private final UserMapper userMapper;
@@ -30,11 +32,17 @@ public class ClientNetworkServiceImpl implements ClientNetworkService {
     }
 
     @Override
-    public void rememberIp(Long userId, String ip) {
-        if (userId == null || ip == null || ip.isBlank()) {
+    public void rememberClient(Long userId, String ip, String deviceId) {
+        if (userId == null) {
             return;
         }
-        redisTemplate.opsForValue().set(key(userId), ip, IP_TTL);
+        if (ip != null && !ip.isBlank()) {
+            redisTemplate.opsForValue().set(ipKey(userId), ip, IP_TTL);
+        }
+        String device = ClientDevices.normalize(deviceId);
+        if (device != null) {
+            redisTemplate.opsForValue().set(deviceKey(userId), device, IP_TTL);
+        }
     }
 
     @Override
@@ -42,7 +50,15 @@ public class ClientNetworkServiceImpl implements ClientNetworkService {
         if (userId == null) {
             return null;
         }
-        return redisTemplate.opsForValue().get(key(userId));
+        return redisTemplate.opsForValue().get(ipKey(userId));
+    }
+
+    @Override
+    public String deviceOf(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return redisTemplate.opsForValue().get(deviceKey(userId));
     }
 
     @Override
@@ -53,12 +69,12 @@ public class ClientNetworkServiceImpl implements ClientNetworkService {
         if (isTester(leftUserId) || isTester(rightUserId)) {
             return;
         }
-        String left = ipOf(leftUserId);
-        String right = ipOf(rightUserId);
-        if (left == null || right == null) {
-            return;
+        String leftDevice = deviceOf(leftUserId);
+        String rightDevice = deviceOf(rightUserId);
+        if (leftDevice != null && leftDevice.equals(rightDevice)) {
+            throw new BusinessException(SAME_NETWORK_MESSAGE);
         }
-        if (left.equals(right)) {
+        if (ClientIps.sameNetwork(ipOf(leftUserId), ipOf(rightUserId))) {
             throw new BusinessException(SAME_NETWORK_MESSAGE);
         }
     }
@@ -71,7 +87,11 @@ public class ClientNetworkServiceImpl implements ClientNetworkService {
         return user != null && TestAccounts.isTester(user.getUsername());
     }
 
-    private String key(Long userId) {
-        return RedisKeyConstants.CACHE_PREFIX + "presence:ip:" + userId;
+    private String ipKey(Long userId) {
+        return RedisKeyConstants.USER_CLIENT_IP_PREFIX + userId;
+    }
+
+    private String deviceKey(Long userId) {
+        return RedisKeyConstants.USER_CLIENT_DEVICE_PREFIX + userId;
     }
 }
