@@ -499,7 +499,7 @@ public class TaskServiceImpl implements TaskService {
         String end = utcWallStart(day.plusDays(1));
         try {
             return jdbcTemplate.query("""
-                    SELECT other.user_id
+                    SELECT first3.id AS match_id, other.user_id AS user_id
                     FROM (
                       SELECT m.id
                       FROM matches m
@@ -511,14 +511,26 @@ public class TaskServiceImpl implements TaskService {
                       ORDER BY COALESCE(m.started_at, m.created_at, m.id), m.id
                       LIMIT ?
                     ) first3
-                    INNER JOIN match_players other
+                    LEFT JOIN match_players other
                       ON other.match_id = first3.id AND other.user_id <> ?
-                    """, (rs, rowNum) -> rs.getLong(1),
+                    """, (rs, rowNum) -> {
+                        long matchId = rs.getLong("match_id");
+                        long teammateId = rs.getLong("user_id");
+                        if (rs.wasNull()) {
+                            return weeklyAutoWinId(matchId);
+                        }
+                        return teammateId;
+                    },
                     userId, start, end, WEEKLY_DAILY_CAP, userId);
         } catch (Exception e) {
             log.warn("Skip weekly teammate rebuild for user {} on {}: {}", userId, day, e.getMessage());
             return List.of();
         }
+    }
+
+    /** 自动胜没有队友，用负的对局号占一个进度，避免和真实玩家 id 撞车。 */
+    static long weeklyAutoWinId(long matchId) {
+        return -matchId;
     }
 
     private String utcWallStart(LocalDate shanghaiDay) {
