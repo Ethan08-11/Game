@@ -25,4 +25,7 @@ public final class RedisKeyConstants {
 
     /** 用户当前客户端 IP，Key 格式为前缀 + userId */
     public static final String USER_CLIENT_IP_PREFIX = CACHE_PREFIX + "presence:ip:";
+
+    /** 用户当前电脑标识，Key 格式为前缀 + userId */
+    public static final String USER_CLIENT_DEVICE_PREFIX = CACHE_PREFIX + "presence:device:";
 }

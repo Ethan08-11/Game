@@ -6,6 +6,7 @@ import cc.shturl.wa.demo.service.MatchChatService;
 import cc.shturl.wa.demo.service.RoomPresenceCleanupService;
 import cc.shturl.wa.demo.service.RoomWebSocketSessionService;
 import cc.shturl.wa.demo.service.UserPresenceService;
+import cc.shturl.wa.demo.support.ClientDevices;
 import cc.shturl.wa.demo.support.ClientIps;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,7 +59,7 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
         }
         session.getAttributes().put("authenticatedUserId", userId);
         sessionService.bind(userId, session);
-        rememberIp(userId, session);
+        rememberClient(userId, session);
         cleanupService.handleUserConnected(userId);
         sessionService.sendText(session,
                 "{\"type\":\"ws.connected\",\"message\":\"connected\",\"heartbeatIntervalSeconds\":20,\"onlineTimeoutSeconds\":60}");
@@ -77,7 +78,7 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
             String type = payload.path("type").asText();
             if ("ws.heartbeat".equals(type)) {
                 sessionService.heartbeat(userId, session);
-                rememberIp(userId, session);
+                rememberClient(userId, session);
                 sessionService.sendText(session,
                         "{\"type\":\"ws.heartbeat.ack\",\"timestamp\":" + System.currentTimeMillis() + "}");
             } else if ("match.chat".equals(type)) {
@@ -174,8 +175,9 @@ public class RoomWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    private void rememberIp(Long userId, WebSocketSession session) {
-        clientNetworkService.rememberIp(userId, ClientIps.fromSession(session));
+    private void rememberClient(Long userId, WebSocketSession session) {
+        clientNetworkService.rememberClient(userId, ClientIps.fromSession(session),
+                ClientDevices.normalize(queryParameter(session, "deviceId")));
     }
 
     private Long resolveAuthenticatedUserId(WebSocketSession session) {

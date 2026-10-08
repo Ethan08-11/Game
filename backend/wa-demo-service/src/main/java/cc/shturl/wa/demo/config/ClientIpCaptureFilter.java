@@ -2,6 +2,7 @@ package cc.shturl.wa.demo.config;
 
 import cc.shturl.wa.demo.service.ClientNetworkService;
 import cc.shturl.wa.demo.service.TokenService;
+import cc.shturl.wa.demo.support.ClientDevices;
 import cc.shturl.wa.demo.support.ClientIps;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -41,7 +42,8 @@ public class ClientIpCaptureFilter extends OncePerRequestFilter {
         try {
             Long userId = tokenService.resolveUserId(token);
             if (userId != null) {
-                clientNetworkService.rememberIp(userId, ClientIps.fromRequest(request));
+                clientNetworkService.rememberClient(userId, ClientIps.fromRequest(request),
+                        ClientDevices.normalize(request.getHeader("X-Client-Device")));
             }
         } catch (Exception ignored) {
         }

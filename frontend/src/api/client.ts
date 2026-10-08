@@ -2,6 +2,8 @@
  * HTTP 请求客户端
  */
 
+import { clientDeviceId } from '@/utils/clientDevice'
+
 const BASE_URL = import.meta.env.VITE_API_BASE || '/api'
 
 function getToken(): string {
@@ -88,6 +90,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}, skipRe
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${getToken()}`,
         ...headers,
+        ...(clientDeviceId() ? { 'X-Client-Device': clientDeviceId() } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,

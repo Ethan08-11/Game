@@ -97,6 +97,7 @@ app:
     refresh-token-ttl: ${AUTH_REFRESH_TOKEN_TTL:365d}
   match:
     # 本地双窗口联机用 true；Zeabur 生产设 MATCH_ALLOW_SAME_IP=false
+    # 关闭后：同一公网 IPv4、同一 IPv6 /64，或同一台电脑的机器码，都不能组队
     allow-same-ip: ${MATCH_ALLOW_SAME_IP:true}
 
 mybatis-plus:

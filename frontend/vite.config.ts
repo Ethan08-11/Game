@@ -18,8 +18,27 @@ function loadElectronPlugins(): PluginOption[] {
           vite: {
             build: {
               outDir: 'dist-electron',
-              rollupOptions: {
+              emptyOutDir: false,
+              rolldownOptions: {
                 external: ['electron'],
+              },
+            },
+          },
+        },
+        {
+          onstart(args: { reload: () => void }) {
+            args.reload()
+          },
+          vite: {
+            build: {
+              outDir: 'dist-electron',
+              emptyOutDir: false,
+              rolldownOptions: {
+                input: resolve(__dirname, 'electron/preload.ts'),
+                output: {
+                  format: 'cjs',
+                  entryFileNames: 'preload.cjs',
+                },
               },
             },
           },
