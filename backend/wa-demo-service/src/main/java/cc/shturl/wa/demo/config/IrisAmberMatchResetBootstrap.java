@@ -13,33 +13,30 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 作废 Iris / Chrissy 2026-10-08 上一把（match 1955）。
- * 该局打到第 10 回合，双方都还活着。挂起约 10 分钟后，因 Chrissy 当天已经作废过，被改判失败。
- * 没有发放金币。回退失败场次、今日任务槽，以及本周互相记上的队友。
- * Iris 当天与 Amber 的失败局由后续补丁作废，胜利局保留。
+ * 作废 Iris / Amber 2026-10-08 第一把（match 1946）。
+ * 该局打到第 10 回合，双方都还活着，老板还剩 37 血，被记成失败。
+ * 没有发放金币。回退双方失败场次，并按剩余对局重算今日任务。
+ * Iris 当天只保留与 Amber 的胜利局，因此完成第一把、赢第一把。
+ * 本周队友保留：后面那把胜利仍然算组队。
  */
 @Component
-@Order(38)
-public class IrisChrissyMatchResetBootstrap implements ApplicationRunner {
+@Order(39)
+public class IrisAmberMatchResetBootstrap implements ApplicationRunner {
 
-    private static final Logger log = LoggerFactory.getLogger(IrisChrissyMatchResetBootstrap.class);
-    static final String PATCH_ID = "reset_iris_chrissy_match_1955_20261008";
-    private static final long MATCH_ID = 1955L;
-    private static final long IRIS_ID = 15L;
-    private static final long CHRISSY_ID = 13L;
+    private static final Logger log = LoggerFactory.getLogger(IrisAmberMatchResetBootstrap.class);
+    static final String PATCH_ID = "reset_iris_amber_match_1946_20261008";
+    private static final long MATCH_ID = 1946L;
     private static final String PERIOD = "2026-10-08";
-    private static final String WEEK = "2026-10-05";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
 
-    public IrisChrissyMatchResetBootstrap(JdbcTemplate jdbcTemplate,
+    public IrisAmberMatchResetBootstrap(JdbcTemplate jdbcTemplate,
                                           PlatformTransactionManager transactionManager) {
         this.jdbcTemplate = jdbcTemplate;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -61,7 +58,7 @@ public class IrisChrissyMatchResetBootstrap implements ApplicationRunner {
                 }
             });
         } catch (Exception e) {
-            log.error("Iris/Chrissy match reset failed.", e);
+            log.error("Iris/Amber match reset failed.", e);
         }
     }
 
@@ -74,7 +71,7 @@ public class IrisChrissyMatchResetBootstrap implements ApplicationRunner {
                 WHERE id = ? AND status = 2 AND winner_type = 2
                 """, MATCH_ID);
         if (updated != 1) {
-            log.warn("Skip Iris/Chrissy reset; match {} is not a settled loss.", MATCH_ID);
+            log.warn("Skip Iris/Amber reset; match {} is not a settled loss.", MATCH_ID);
             return false;
         }
         jdbcTemplate.update("""
@@ -98,63 +95,8 @@ public class IrisChrissyMatchResetBootstrap implements ApplicationRunner {
         for (Long playerId : playerIds) {
             rebuildDailyBoard(playerId, start, end);
         }
-        dropWeeklyTeammate(IRIS_ID, CHRISSY_ID);
-        dropWeeklyTeammate(CHRISSY_ID, IRIS_ID);
         log.warn("Voided loss match {} and rebuilt boards for {}.", MATCH_ID, playerIds);
         return true;
-    }
-
-    private void dropWeeklyTeammate(long userId, long teammateId) {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT ut.id, ut.status, ut.extra_data
-                FROM user_tasks ut
-                INNER JOIN tasks t ON t.id = ut.task_id
-                WHERE ut.user_id = ?
-                  AND t.task_code = 'T-WEEKLY-TEAM-10'
-                  AND ut.period_key = ?
-                LIMIT 1
-                """, userId, WEEK);
-        if (rows.isEmpty()) {
-            return;
-        }
-        int status = ((Number) rows.get(0).get("status")).intValue();
-        if (status >= 2) {
-            return;
-        }
-        List<Long> ids = new ArrayList<>();
-        boolean removed = false;
-        Object raw = rows.get(0).get("extra_data");
-        try {
-            JsonNode node = raw instanceof JsonNode json ? json : JSON.readTree(raw == null ? "[]" : String.valueOf(raw));
-            if (node.isArray()) {
-                for (JsonNode item : node) {
-                    if (!item.isNumber()) {
-                        continue;
-                    }
-                    if (item.longValue() == teammateId) {
-                        removed = true;
-                        continue;
-                    }
-                    ids.add(item.longValue());
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Skip weekly teammate rollback for user {}.", userId);
-            return;
-        }
-        if (!removed) {
-            return;
-        }
-        long taskRowId = ((Number) rows.get(0).get("id")).longValue();
-        int progress = ids.size();
-        jdbcTemplate.update("""
-                UPDATE user_tasks
-                SET extra_data = CAST(? AS JSON),
-                    progress_value = ?,
-                    status = ?,
-                    updated_at = NOW()
-                WHERE id = ? AND status < 2
-                """, JSON.valueToTree(ids).toString(), progress, progress > 0 ? 1 : 0, taskRowId);
     }
 
     private void rebuildDailyBoard(long userId, String start, String end) {
