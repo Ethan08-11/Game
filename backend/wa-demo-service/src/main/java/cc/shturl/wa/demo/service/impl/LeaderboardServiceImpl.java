@@ -7,7 +7,8 @@ import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.QuestPeriod;
-import cc.shturl.wa.demo.service.WorkDayService;
+import cc.shturl.wa.demo.service.WeeklyClaimLimit;
+import cc.shturl.wa.demo.service.WorkDayQuota;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -19,21 +20,21 @@ import org.springframework.stereotype.Service;
 import java.sql.Date;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,12 +44,15 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     private static final ZoneId LEADERBOARD_ZONE = ZoneId.of("Asia/Shanghai");
     private static final int MIN_WINRATE_MATCHES = 20;
     private static final int HIGH_PRESSURE_CAP = 5;
-    private static final Pattern REWARD_AMOUNT = Pattern.compile("\"amount\"\\s*:\\s*(-?\\d+)");
+    /** 一天三档对局加三档胜利：30+10+40+10+50+10。 */
+    static final long FULL_CLEAR_DAY_GOLD = 150L;
+    /** 周任务一次。本月最多 {@link WeeklyClaimLimit#PER_MONTH} 次。 */
+    static final long WEEKLY_TASK_GOLD = 500L;
+    private static final DateTimeFormatter WEEK_KEY = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private final UserProfileMapper userProfileMapper;
     private final UserMapper userMapper;
     private final JdbcTemplate jdbcTemplate;
-    private final WorkDayService workDayService;
 
     @Override
     public List<LeaderboardResp> listLeaderboard(Long currentUserId, String type, int page, int size) {
@@ -195,7 +199,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         if (team.isEmpty()) {
             return false;
         }
-        return highPressureRoster().stream().anyMatch(team::contains);
+        return highPressureRoster(today).stream().anyMatch(team::contains);
     }
 
     /**
@@ -214,18 +218,24 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     }
 
     Set<Long> highPressureRoster() {
+        return highPressureRoster(LocalDate.now(LEADERBOARD_ZONE));
+    }
+
+    /**
+     * 预测总金币 = 已到手金币 + 剩余工作日全胜 150 + 本月还来得及领的周任务。
+     * 没开打的人不进名单。周次够领满剩余次数时，没做完的也计入；不够时按还能领到的最高次数。
+     */
+    Set<Long> highPressureRoster(LocalDate today) {
         LinkedHashSet<Long> roster = new LinkedHashSet<>();
-        Map<Long, Long> extras = pendingDailyGoldByUser();
+        Projection projection = loadProjection(today);
         List<UserProfile> eligible = new ArrayList<>();
         for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
-            if (profile.getUserId() == null) {
+            if (profile.getUserId() == null || !projection.started(profile.getUserId())) {
                 continue;
             }
             UserProfile row = copyRankProfile(profile);
-            row.setMoney(safeMoney(row) + extras.getOrDefault(row.getUserId(), 0L));
-            if (hasMonthlyStats(row)) {
-                eligible.add(row);
-            }
+            row.setMoney(projectedMoney(row, projection));
+            eligible.add(row);
         }
         sortEligible(eligible, false);
         for (UserProfile profile : eligible) {
@@ -236,9 +246,6 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             if (roster.size() >= HIGH_PRESSURE_CAP) {
                 return roster;
             }
-        }
-        if (roster.size() >= HIGH_PRESSURE_CAP) {
-            return roster;
         }
         ensureDailyTopSnapshot();
         for (Long userId : snapshotUserIdsInRankOrder()) {
@@ -276,9 +283,14 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     }
 
     boolean ranksAsTopFive(Long userId, long extra) {
-        if (userId == null) {
+        return ranksAsTopFive(userId, extra, LocalDate.now(LEADERBOARD_ZONE));
+    }
+
+    boolean ranksAsTopFive(Long userId, long extra, LocalDate today) {
+        if (userId == null || today == null) {
             return false;
         }
+        Projection projection = loadProjection(today);
         List<UserProfile> eligible = new ArrayList<>();
         UserProfile self = null;
         for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
@@ -286,22 +298,25 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 continue;
             }
             UserProfile row = copyRankProfile(profile);
-            if (userId.equals(row.getUserId())) {
-                row.setMoney(safeMoney(row) + Math.max(extra, 0L));
+            boolean selfRow = userId.equals(row.getUserId());
+            if (!selfRow && !projection.started(row.getUserId())) {
+                continue;
+            }
+            if (selfRow && !projection.started(row.getUserId()) && extra <= 0) {
+                continue;
+            }
+            long projected = projection.started(row.getUserId())
+                    ? projectedMoney(row, projection)
+                    : safeMoney(row);
+            if (selfRow) {
+                projected += Math.max(extra, 0L);
                 self = row;
             }
-            if (userId.equals(row.getUserId()) || hasMonthlyStats(profile)) {
-                eligible.add(row);
-            }
+            row.setMoney(projected);
+            eligible.add(row);
         }
         if (self == null) {
-            if (extra <= 0) {
-                return false;
-            }
-            self = new UserProfile();
-            self.setUserId(userId);
-            self.setMoney(extra);
-            eligible.add(self);
+            return false;
         }
         if (safeMoney(self) <= 0) {
             return false;
@@ -323,6 +338,129 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return false;
     }
 
+    /** 从今天起、本月内还没结束、并且还能领到金币的周次数。 */
+    static int openWeeklyWindows(LocalDate today) {
+        if (today == null) {
+            return 0;
+        }
+        YearMonth month = YearMonth.from(today);
+        LocalDate monthEnd = month.atEndOfMonth();
+        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        int windows = 0;
+        while (!monday.isAfter(monthEnd)) {
+            LocalDate sunday = monday.plusDays(6);
+            if (!sunday.isBefore(today)) {
+                LocalDate claimStart = monday.isBefore(today) ? today : monday;
+                LocalDate claimEnd = sunday.isAfter(monthEnd) ? monthEnd : sunday;
+                if (!claimStart.isAfter(claimEnd)) {
+                    windows++;
+                }
+            }
+            monday = monday.plusWeeks(1);
+        }
+        return windows;
+    }
+
+    /** 剩余可领次数和还开着的周次，取较小的那个。本周已经领过就不再占一个窗口。 */
+    static int claimableWeeklyCount(int openWeeks, int claimedThisMonth, boolean currentWeekClaimed) {
+        int slotsLeft = Math.max(0, WeeklyClaimLimit.PER_MONTH - Math.max(claimedThisMonth, 0));
+        int windows = Math.max(openWeeks, 0);
+        if (currentWeekClaimed) {
+            windows = Math.max(0, windows - 1);
+        }
+        return Math.min(slotsLeft, windows);
+    }
+
+    private long projectedMoney(UserProfile profile, Projection projection) {
+        int used = projection.workDays(profile.getUserId());
+        long daily = (long) Math.max(0, projection.quota - used) * FULL_CLEAR_DAY_GOLD;
+        int weeks = claimableWeeklyCount(
+                projection.openWeeks,
+                projection.claims(profile.getUserId()),
+                projection.currentWeekClaimed(profile.getUserId()));
+        return safeMoney(profile) + daily + weeks * WEEKLY_TASK_GOLD;
+    }
+
+    private Projection loadProjection(LocalDate today) {
+        YearMonth month = YearMonth.from(today);
+        int quota = WorkDayQuota.days(month);
+        int openWeeks = openWeeklyWindows(today);
+        Map<Long, int[]> facts = new HashMap<>();
+        try {
+            LocalDate start = WorkDayQuota.countStart(month);
+            LocalDate end = month.plusMonths(1).atDay(1);
+            String[] bounds = WeeklyClaimLimit.claimedAtBounds(month);
+            String weekKey = QuestPeriod.weeklyStart(today.atStartOfDay()).format(WEEK_KEY);
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT p.user_id AS user_id,
+                           (SELECT COUNT(*) FROM user_month_work_days w
+                             WHERE w.user_id = p.user_id AND w.day_date >= ? AND w.day_date < ?) AS work_days,
+                           (SELECT COUNT(*) FROM user_tasks ut
+                             INNER JOIN tasks t ON t.id = ut.task_id
+                             WHERE ut.user_id = p.user_id
+                               AND LOWER(t.task_type) = 'weekly'
+                               AND ut.status >= 3
+                               AND ut.claimed_at >= ? AND ut.claimed_at < ?) AS weekly_claims,
+                           (SELECT COUNT(*) FROM user_tasks ut
+                             INNER JOIN tasks t ON t.id = ut.task_id
+                             WHERE ut.user_id = p.user_id
+                               AND t.task_code = 'T-WEEKLY-TEAM-10'
+                               AND ut.period_key = ?
+                               AND ut.status >= 3) AS current_week_claimed
+                    FROM user_profiles p
+                    """,
+                    Date.valueOf(start), Date.valueOf(end), bounds[0], bounds[1], weekKey);
+            for (Map<String, Object> row : rows) {
+                Long userId = number(row.get("user_id"));
+                if (userId == null) {
+                    continue;
+                }
+                facts.put(userId, new int[] {
+                        (int) numberOrZero(row.get("work_days")),
+                        (int) numberOrZero(row.get("weekly_claims")),
+                        numberOrZero(row.get("current_week_claimed")) > 0 ? 1 : 0
+                });
+            }
+        } catch (Exception e) {
+            log.warn("Skip projected high-pressure gold: {}", e.getMessage());
+        }
+        return new Projection(quota, openWeeks, facts);
+    }
+
+    private static Long number(Object raw) {
+        return raw instanceof Number number ? number.longValue() : null;
+    }
+
+    private static long numberOrZero(Object raw) {
+        return raw instanceof Number number ? number.longValue() : 0L;
+    }
+
+    private record Projection(int quota, int openWeeks, Map<Long, int[]> facts) {
+        boolean started(Long userId) {
+            return workDays(userId) > 0;
+        }
+
+        int workDays(Long userId) {
+            return fact(userId, 0);
+        }
+
+        int claims(Long userId) {
+            return fact(userId, 1);
+        }
+
+        boolean currentWeekClaimed(Long userId) {
+            return fact(userId, 2) > 0;
+        }
+
+        private int fact(Long userId, int index) {
+            int[] row = facts.get(userId);
+            if (row == null || index >= row.length) {
+                return 0;
+            }
+            return row[index];
+        }
+    }
+
     private UserProfile copyRankProfile(UserProfile source) {
         UserProfile copy = new UserProfile();
         copy.setUserId(source.getUserId());
@@ -332,131 +470,6 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         copy.setDrawCount(source.getDrawCount());
         copy.setMoneyReachedAt(source.getMoneyReachedAt());
         return copy;
-    }
-
-    private Map<Long, Long> pendingDailyGoldByUser() {
-        Map<Long, Long> extras = new HashMap<>();
-        String period = QuestPeriod.currentDailyDate().toString();
-        try {
-            Map<Integer, Long> matchGold = matchSlotGoldBySlot();
-            Map<Long, List<Map<String, Object>>> rowsByUser = new HashMap<>();
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                    SELECT ut.user_id AS user_id, t.task_code AS task_code,
-                           t.reward_value AS reward_value, ut.status AS status,
-                           ut.progress_value AS progress_value
-                    FROM user_tasks ut
-                    INNER JOIN tasks t ON t.id = ut.task_id
-                    WHERE ut.period_key = ?
-                      AND t.task_code IN (
-                        'T-DAILY-SLOT',
-                        'T-DAILY-MATCH-1','T-DAILY-MATCH-2','T-DAILY-MATCH-3',
-                        'T-DAILY-WIN-1','T-DAILY-WIN-2','T-DAILY-WIN-3')
-                    """, period);
-            for (Map<String, Object> row : rows) {
-                Object userRaw = row.get("user_id");
-                if (!(userRaw instanceof Number userNumber)) {
-                    continue;
-                }
-                rowsByUser.computeIfAbsent(userNumber.longValue(), id -> new ArrayList<>()).add(row);
-            }
-            for (Map.Entry<Long, List<Map<String, Object>>> entry : rowsByUser.entrySet()) {
-                Long userId = entry.getKey();
-                if (!goldPayable(userId)) {
-                    continue;
-                }
-                extras.put(userId, extraFromTaskRows(entry.getValue(), matchGold));
-            }
-            return extras;
-        } catch (Exception e) {
-            log.debug("Skip pending daily gold: {}", e.getMessage());
-            return extras;
-        }
-    }
-
-    private static long extraFromTaskRows(List<Map<String, Object>> rows, Map<Integer, Long> matchGold) {
-        long extra = 0L;
-        int slotProgress = 0;
-        Set<Integer> finishedMatchSlots = new HashSet<>();
-        for (Map<String, Object> row : rows) {
-            String code = String.valueOf(row.get("task_code"));
-            Object statusRaw = row.get("status");
-            int status = statusRaw instanceof Number statusNumber ? statusNumber.intValue() : 0;
-            if ("T-DAILY-SLOT".equals(code)) {
-                Object progressRaw = row.get("progress_value");
-                if (progressRaw instanceof Number progressNumber) {
-                    slotProgress = Math.max(progressNumber.intValue(), 0);
-                }
-                continue;
-            }
-            if (code.startsWith("T-DAILY-MATCH-") && status >= 2) {
-                try {
-                    finishedMatchSlots.add(Integer.parseInt(code.substring("T-DAILY-MATCH-".length())));
-                } catch (NumberFormatException ignored) {
-                    // skip malformed task codes
-                }
-            }
-            if (status == 2) {
-                extra += rewardAmount(row.get("reward_value"));
-            }
-        }
-        int nextSlot = slotProgress + 1;
-        if (nextSlot >= 1 && nextSlot <= 3 && !finishedMatchSlots.contains(nextSlot)) {
-            extra += matchGold.getOrDefault(nextSlot, 0L);
-        }
-        return extra;
-    }
-
-    private boolean goldPayable(Long userId) {
-        try {
-            if (workDayService == null) {
-                return true;
-            }
-            WorkDayService.Snapshot snap = workDayService.snapshot(userId);
-            return snap == null || !snap.restDay();
-        } catch (Exception e) {
-            return true;
-        }
-    }
-
-    private Map<Integer, Long> matchSlotGoldBySlot() {
-        Map<Integer, Long> amounts = new HashMap<>();
-        try {
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                    SELECT task_code, reward_value
-                    FROM tasks
-                    WHERE task_code IN ('T-DAILY-MATCH-1','T-DAILY-MATCH-2','T-DAILY-MATCH-3')
-                    """);
-            for (Map<String, Object> row : rows) {
-                String code = String.valueOf(row.get("task_code"));
-                if (!code.startsWith("T-DAILY-MATCH-")) {
-                    continue;
-                }
-                try {
-                    int slot = Integer.parseInt(code.substring("T-DAILY-MATCH-".length()));
-                    amounts.put(slot, rewardAmount(row.get("reward_value")));
-                } catch (NumberFormatException ignored) {
-                    // skip malformed task codes
-                }
-            }
-        } catch (Exception e) {
-            log.debug("Skip daily match gold catalog: {}", e.getMessage());
-        }
-        return amounts;
-    }
-
-    private static long rewardAmount(Object raw) {
-        if (raw == null) {
-            return 0L;
-        }
-        Matcher matcher = REWARD_AMOUNT.matcher(String.valueOf(raw));
-        if (!matcher.find()) {
-            return 0L;
-        }
-        try {
-            return Long.parseLong(matcher.group(1));
-        } catch (NumberFormatException e) {
-            return 0L;
-        }
     }
 
     private boolean isWinRateBoard(String type) {

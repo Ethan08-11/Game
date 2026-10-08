@@ -41,6 +41,12 @@ public final class WeeklyClaimLimit {
         return countThisMonth(jdbcTemplate, userId) < PER_MONTH;
     }
 
+    /** 与 {@link #countThisMonth} 相同的 claimed_at 字符串边界，供批量统计。 */
+    public static String[] claimedAtBounds(YearMonth month) {
+        LocalDateTime[] window = storedWindow(month, ZoneId.systemDefault());
+        return new String[] { STORED.format(window[0]), STORED.format(window[1]) };
+    }
+
     /** 北京时间该月起止，换成库里 claimed_at 使用的系统时区墙钟。用字符串比较，避免 JDBC 时区再加 8 小时。 */
     static LocalDateTime[] storedWindow(YearMonth month, ZoneId storedZone) {
         ZonedDateTime start = month.atDay(1).atStartOfDay(SHANGHAI);
