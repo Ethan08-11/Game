@@ -1969,28 +1969,37 @@ public class MatchServiceImpl implements MatchService {
             pending.setStatus("RESOLVED");
             matchPendingEffectsMapper.updateById(pending);
         }
-        List<MatchCards> pool = new ArrayList<>();
         List<MatchCards> deck = matchCardsMapper.selectList(Wrappers.<MatchCards>lambdaQuery()
                 .eq(MatchCards::getMatchId, matchId)
                 .eq(MatchCards::getUserId, userId)
                 .eq(MatchCards::getZone, "DECK"));
         Collections.shuffle(deck);
-        pool.addAll(deck);
-        int take = Math.min(count, pool.size());
-        List<MatchCards> picked = new ArrayList<>(pool.subList(0, take));
+        List<MatchCards> picked = new ArrayList<>();
+        int fromDeck = Math.min(count, deck.size());
+        picked.addAll(deck.subList(0, fromDeck));
+        if (picked.size() < count) {
+            List<MatchCards> discard = matchCardsMapper.selectList(Wrappers.<MatchCards>lambdaQuery()
+                    .eq(MatchCards::getMatchId, matchId)
+                    .eq(MatchCards::getUserId, userId)
+                    .eq(MatchCards::getZone, "DISCARD"));
+            Collections.shuffle(discard);
+            int need = count - picked.size();
+            picked.addAll(discard.subList(0, Math.min(need, discard.size())));
+        }
         StringBuilder json = new StringBuilder("{\"peekCards\":[");
+        boolean wrote = false;
         for (int i = 0; i < picked.size(); i++) {
             MatchCards card = picked.get(i);
-            if (!"DECK".equals(card.getZone())) {
-                continue;
+            if ("DECK".equals(card.getZone())) {
+                card.setDeckOrder(i + 1);
+                card.setVersion(value(card.getVersion()) + 1);
+                matchCardsMapper.updateById(card);
             }
-            card.setDeckOrder(i + 1);
-            card.setVersion(value(card.getVersion()) + 1);
-            matchCardsMapper.updateById(card);
-            Cards def = cardsMapper.selectById(card.getCardId());
-            if (i > 0) {
+            if (wrote) {
                 json.append(',');
             }
+            wrote = true;
+            Cards def = cardsMapper.selectById(card.getCardId());
             json.append("{\"instanceId\":").append(card.getId())
                     .append(",\"cardId\":").append(card.getCardId())
                     .append(",\"cardCode\":\"").append(jsonEscape(def == null ? null : def.getCardCode())).append('"')
@@ -2010,7 +2019,7 @@ public class MatchServiceImpl implements MatchService {
         pending.setEffectType("PEEK_NEXT_DRAW");
         pending.setTargetType("PLAYER");
         pending.setTargetUserId(userId);
-        pending.setEffectValue(take);
+        pending.setEffectValue(picked.size());
         pending.setTriggerRound(0);
         pending.setRemainingTriggers(1);
         pending.setStatus("PENDING");
