@@ -132,8 +132,10 @@ class LeaderboardServiceImplSortTest {
     @DisplayName("高压：周次不够领满时，没做完的只按还能领到的次数算")
     void unfinishedWeeklyCountsOnlyWhileWindowsRemain() {
         assertThat(LeaderboardServiceImpl.openWeeklyWindows(LocalDate.of(2026, 10, 8))).isEqualTo(4);
+        assertThat(LeaderboardServiceImpl.openWeeklyWindows(LocalDate.of(2026, 10, 12))).isEqualTo(3);
         assertThat(LeaderboardServiceImpl.openWeeklyWindows(LocalDate.of(2026, 10, 27))).isEqualTo(1);
         assertThat(LeaderboardServiceImpl.claimableWeeklyCount(4, 0, false)).isEqualTo(4);
+        assertThat(LeaderboardServiceImpl.claimableWeeklyCount(3, 0, false)).isEqualTo(3);
         assertThat(LeaderboardServiceImpl.claimableWeeklyCount(4, 2, true)).isEqualTo(2);
         assertThat(LeaderboardServiceImpl.claimableWeeklyCount(1, 0, false)).isEqualTo(1);
 
