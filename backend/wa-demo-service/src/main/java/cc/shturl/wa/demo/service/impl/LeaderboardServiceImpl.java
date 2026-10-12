@@ -49,6 +49,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     /** 周任务一次。本月最多 {@link WeeklyClaimLimit#PER_MONTH} 次。 */
     static final long WEEKLY_TASK_GOLD = 500L;
     private static final DateTimeFormatter WEEK_KEY = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter SQL_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final UserProfileMapper userProfileMapper;
     private final UserMapper userMapper;
@@ -156,7 +157,8 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         if (!dailyTopTableExists()) {
             return;
         }
-        Date day = Date.valueOf(LocalDate.now(LEADERBOARD_ZONE));
+        LocalDate today = LocalDate.now(LEADERBOARD_ZONE);
+        Date day = Date.valueOf(today);
         Integer existing = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM leaderboard_daily_top WHERE day_date = ?",
                 Integer.class,
@@ -164,23 +166,42 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         if (existing != null && existing > 0) {
             return;
         }
-        List<LeaderboardResp> top = listLeaderboard(null, "total", 1, 0).stream()
-                .filter(item -> item.userId() != null && item.money() != null && item.money() > 0)
-                .limit(HIGH_PRESSURE_CAP)
-                .toList();
+        int locked = writeLockedRoster(today, projectedRanking(today));
+        log.info("Locked {} projected top players for {}.", locked, today);
+    }
+
+    @Override
+    public int relockOpeningProjectedRoster(LocalDate day) {
+        if (day == null || !dailyTopTableExists()) {
+            return 0;
+        }
+        List<UserProfile> ranked = rankWith(loadOpeningProjection(day), goldClaimedOn(day));
+        jdbcTemplate.update("DELETE FROM leaderboard_daily_top WHERE day_date = ?", Date.valueOf(day));
+        int locked = writeLockedRoster(day, ranked);
+        log.info("Relocked opening projected roster for {} with {} players.", day, locked);
+        return locked;
+    }
+
+    private int writeLockedRoster(LocalDate day, List<UserProfile> ranked) {
         int rank = 1;
-        for (LeaderboardResp item : top) {
+        for (UserProfile profile : ranked) {
+            if (profile.getUserId() == null || safeMoney(profile) <= 0) {
+                continue;
+            }
             try {
                 jdbcTemplate.update(
                         "INSERT INTO leaderboard_daily_top(day_date, rank_no, user_id, money) VALUES (?, ?, ?, ?)",
-                        day, rank, item.userId(), item.money());
-                rank++;
+                        Date.valueOf(day), rank, profile.getUserId(), safeMoney(profile));
             } catch (Exception e) {
-                log.warn("Skip daily top snapshot row rank={} user={}: {}", rank, item.userId(), e.getMessage());
-                return;
+                log.warn("Skip locked roster row rank={} user={}: {}", rank, profile.getUserId(), e.getMessage());
+                return rank - 1;
+            }
+            rank++;
+            if (rank > HIGH_PRESSURE_CAP) {
+                break;
             }
         }
-        log.info("Snapshotted {} daily top leaderboard users for {}.", top.size(), day);
+        return rank - 1;
     }
 
     @Override
@@ -199,7 +220,27 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         if (team.isEmpty()) {
             return false;
         }
-        return highPressureRoster(today).stream().anyMatch(team::contains);
+        return lockedPressureRoster(today).stream().anyMatch(team::contains);
+    }
+
+    /** 当天 0 点锁定的潜在前五。白天不再按实时金币重算。 */
+    private Set<Long> lockedPressureRoster(LocalDate today) {
+        if (today == null) {
+            return Set.of();
+        }
+        try {
+            List<Long> ids = jdbcTemplate.query(
+                    "SELECT user_id FROM leaderboard_daily_top WHERE day_date = ? ORDER BY rank_no ASC",
+                    (rs, i) -> rs.getLong(1),
+                    Date.valueOf(today));
+            if (ids == null || ids.isEmpty()) {
+                return Set.of();
+            }
+            return new LinkedHashSet<>(ids);
+        } catch (Exception e) {
+            log.warn("Skip locked pressure roster for {}: {}", today, e.getMessage());
+            return Set.of();
+        }
     }
 
     /**
@@ -225,54 +266,44 @@ public class LeaderboardServiceImpl implements LeaderboardService {
      * 预测总金币 = 已到手金币 + 剩余工作日全胜 150 + 本月还来得及领的周任务。
      * 没开打的人不进名单。已经结束又没领的周次不能补，不计入。
      * 只算还没结束的周：本周没领也算一次。周次够领满剩余次数时计入；不够时按还能领到的最高次数。
+     * 这个结果只在每天 0 点写入锁定名单。对局高压读锁定名单，不读这里的实时排名。
      */
     Set<Long> highPressureRoster(LocalDate today) {
         LinkedHashSet<Long> roster = new LinkedHashSet<>();
-        Projection projection = loadProjection(today);
+        for (UserProfile profile : projectedRanking(today)) {
+            roster.add(profile.getUserId());
+            if (roster.size() >= HIGH_PRESSURE_CAP) {
+                return roster;
+            }
+        }
+        return roster;
+    }
+
+    private List<UserProfile> projectedRanking(LocalDate today) {
+        return rankWith(loadProjection(today), Map.of());
+    }
+
+    private List<UserProfile> rankWith(Projection projection, Map<Long, Long> spentSinceOpen) {
         List<UserProfile> eligible = new ArrayList<>();
         for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
             if (profile.getUserId() == null || !projection.started(profile.getUserId())) {
                 continue;
             }
             UserProfile row = copyRankProfile(profile);
+            long spent = spentSinceOpen.getOrDefault(profile.getUserId(), 0L);
+            row.setMoney(Math.max(0L, safeMoney(row) - spent));
             row.setMoney(projectedMoney(row, projection));
             eligible.add(row);
         }
         sortEligible(eligible, false);
+        List<UserProfile> ranked = new ArrayList<>();
         for (UserProfile profile : eligible) {
             if (safeMoney(profile) <= 0) {
                 continue;
             }
-            roster.add(profile.getUserId());
-            if (roster.size() >= HIGH_PRESSURE_CAP) {
-                return roster;
-            }
+            ranked.add(profile);
         }
-        ensureDailyTopSnapshot();
-        for (Long userId : snapshotUserIdsInRankOrder()) {
-            if (userId == null) {
-                continue;
-            }
-            roster.add(userId);
-            if (roster.size() >= HIGH_PRESSURE_CAP) {
-                break;
-            }
-        }
-        return roster;
-    }
-
-    private List<Long> snapshotUserIdsInRankOrder() {
-        if (!dailyTopTableExists()) {
-            return List.of();
-        }
-        try {
-            return jdbcTemplate.query(
-                    "SELECT user_id FROM leaderboard_daily_top WHERE day_date = ? ORDER BY rank_no ASC",
-                    (rs, i) -> rs.getLong(1),
-                    Date.valueOf(LocalDate.now(LEADERBOARD_ZONE)));
-        } catch (Exception e) {
-            return List.of();
-        }
+        return ranked;
     }
 
     private boolean dailyTopTableExists() {
@@ -380,6 +411,80 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 projection.claims(profile.getUserId()),
                 projection.currentWeekClaimed(profile.getUserId()));
         return safeMoney(profile) + daily + weeks * WEEKLY_TASK_GOLD;
+    }
+
+    /** 当天 0 点之后领走的金币。实领时间按库存的墙钟日期切，不把前一晚 20:00 的补记算进第二天。 */
+    private Map<Long, Long> goldClaimedOn(LocalDate day) {
+        String start = day.atStartOfDay().format(SQL_TIME);
+        String end = day.plusDays(1).atStartOfDay().format(SQL_TIME);
+        Map<Long, Long> spent = new HashMap<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT ut.user_id AS user_id,
+                       SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(t.reward_value, '$.amount')) AS SIGNED)) AS claimed
+                FROM user_tasks ut
+                INNER JOIN tasks t ON t.id = ut.task_id
+                WHERE ut.status >= 3
+                  AND LOWER(IFNULL(t.reward_type, '')) = 'money'
+                  AND ut.claimed_at >= ?
+                  AND ut.claimed_at < ?
+                GROUP BY ut.user_id
+                """, start, end);
+        for (Map<String, Object> row : rows) {
+            Long userId = number(row.get("user_id"));
+            if (userId != null) {
+                spent.put(userId, numberOrZero(row.get("claimed")));
+            }
+        }
+        return spent;
+    }
+
+    /** 当天 0 点之前的工作日和周任务，用来还原开盘时的预测排名。 */
+    private Projection loadOpeningProjection(LocalDate day) {
+        YearMonth month = YearMonth.from(day);
+        int quota = WorkDayQuota.days(month);
+        int openWeeks = openWeeklyWindows(day);
+        Map<Long, int[]> facts = new HashMap<>();
+        try {
+            LocalDate start = WorkDayQuota.countStart(month);
+            String[] bounds = WeeklyClaimLimit.claimedAtBounds(month);
+            String opening = day.atStartOfDay().format(SQL_TIME);
+            String claimEnd = opening.compareTo(bounds[1]) < 0 ? opening : bounds[1];
+            String weekKey = QuestPeriod.weeklyStart(day.atStartOfDay()).format(WEEK_KEY);
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT p.user_id AS user_id,
+                           (SELECT COUNT(*) FROM user_month_work_days w
+                             WHERE w.user_id = p.user_id AND w.day_date >= ? AND w.day_date < ?) AS work_days,
+                           (SELECT COUNT(*) FROM user_tasks ut
+                             INNER JOIN tasks t ON t.id = ut.task_id
+                             WHERE ut.user_id = p.user_id
+                               AND LOWER(t.task_type) = 'weekly'
+                               AND ut.status >= 3
+                               AND ut.claimed_at >= ? AND ut.claimed_at < ?) AS weekly_claims,
+                           (SELECT COUNT(*) FROM user_tasks ut
+                             INNER JOIN tasks t ON t.id = ut.task_id
+                             WHERE ut.user_id = p.user_id
+                               AND t.task_code = 'T-WEEKLY-TEAM-10'
+                               AND ut.period_key = ?
+                               AND ut.status >= 3
+                               AND ut.claimed_at < ?) AS current_week_claimed
+                    FROM user_profiles p
+                    """,
+                    Date.valueOf(start), Date.valueOf(day), bounds[0], claimEnd, weekKey, opening);
+            for (Map<String, Object> row : rows) {
+                Long userId = number(row.get("user_id"));
+                if (userId == null) {
+                    continue;
+                }
+                facts.put(userId, new int[] {
+                        (int) numberOrZero(row.get("work_days")),
+                        (int) numberOrZero(row.get("weekly_claims")),
+                        numberOrZero(row.get("current_week_claimed")) > 0 ? 1 : 0
+                });
+            }
+        } catch (Exception e) {
+            log.warn("Skip opening projected roster for {}: {}", day, e.getMessage());
+        }
+        return new Projection(quota, openWeeks, facts);
     }
 
     private Projection loadProjection(LocalDate today) {

@@ -11,7 +11,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
+import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -91,9 +93,21 @@ class LeaderboardServiceImplSortTest {
         stubProjection(8, 0, false);
 
         LocalDate today = LocalDate.of(2026, 10, 8);
-        assertThat(service.teamTouchesDailyTop(List.of(5L, 99L), today)).isTrue();
-        assertThat(service.teamTouchesDailyTop(List.of(6L, 99L), today)).isFalse();
         assertThat(service.highPressureRoster(today)).hasSize(5).containsExactly(1L, 2L, 3L, 4L, 5L);
+    }
+
+    @Test
+    @DisplayName("高压：对局认每天 0 点锁定的前五，不认白天挤进来的人")
+    void pressureUsesMidnightLockNotLiveProjection() {
+        stubSixPlayerBoard();
+        stubProjectionExcept(6L, 1, 0, false, 8, 0, false);
+        LocalDate today = LocalDate.of(2026, 10, 8);
+        assertThat(service.highPressureRoster(today)).contains(6L).doesNotContain(5L);
+        doReturn(List.of(1L, 2L, 3L, 4L, 5L)).when(jdbcTemplate)
+                .query(anyString(), any(RowMapper.class), any(Date.class));
+
+        assertThat(service.teamTouchesDailyTop(List.of(6L), today)).isFalse();
+        assertThat(service.teamTouchesDailyTop(List.of(5L, 99L), today)).isTrue();
     }
 
     @Test
@@ -114,7 +128,6 @@ class LeaderboardServiceImplSortTest {
         stubProjectionExcept(6L, 1, 0, false, 8, 0, false);
 
         LocalDate today = LocalDate.of(2026, 10, 8);
-        assertThat(service.teamTouchesDailyTop(List.of(6L), today)).isTrue();
         assertThat(service.highPressureRoster(today)).hasSize(5).contains(6L).doesNotContain(5L);
     }
 
@@ -124,7 +137,6 @@ class LeaderboardServiceImplSortTest {
         stubSixPlayerBoard();
         stubProjectionExcept(6L, 0, 0, false, 8, 0, false);
 
-        assertThat(service.teamTouchesDailyTop(List.of(6L), LocalDate.of(2026, 10, 8))).isFalse();
         assertThat(service.highPressureRoster(LocalDate.of(2026, 10, 8))).doesNotContain(6L);
     }
 
@@ -150,8 +162,6 @@ class LeaderboardServiceImplSortTest {
     @Test
     @DisplayName("高压：每月日历第一周不针对潜在前五")
     void firstWeekOfMonthDisablesHighPressure() {
-        stubSixPlayerBoard();
-
         assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 10, 1))).isZero();
         assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 10, 4))).isZero();
         assertThat(LeaderboardServiceImpl.calendarWeekOfMonth(LocalDate.of(2026, 10, 5))).isEqualTo(1);
@@ -164,7 +174,8 @@ class LeaderboardServiceImplSortTest {
 
         assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 4))).isFalse();
         assertThat(LeaderboardServiceImpl.highPressureEnabledOn(LocalDate.of(2026, 10, 5))).isTrue();
-        stubProjection(8, 0, false);
+        doReturn(List.of(1L)).when(jdbcTemplate)
+                .query(anyString(), any(RowMapper.class), any(Date.class));
         assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 2))).isFalse();
         assertThat(service.teamTouchesDailyTop(List.of(1L), LocalDate.of(2026, 10, 5))).isTrue();
     }
