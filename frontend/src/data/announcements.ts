@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-pressure-locked-at-midnight',
+    title: '难度：高压名单每天 0 点锁定',
+    date: '2026-10-12',
+    content: '潜在前五改为每天 0 点按预测总金币锁定，当天高压只认这份名单。白天对局和领金币不再把人挤进或挤出前五。预测算法不变：已到手金币 + 还没打的工作日 × 150 + 这个月还来得及领的周任务。房间里有这五人之一时，仍从胆小怕事、焦虑难安、刻薄尖客三人里平分抽取。',
+  },
+  {
     id: 'topic-weekly-windows-left',
     title: '难度：过期周任务不计入预测',
     date: '2026-10-12',

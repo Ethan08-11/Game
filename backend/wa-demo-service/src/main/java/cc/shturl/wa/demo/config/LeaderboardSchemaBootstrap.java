@@ -106,7 +106,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
         log.info("Added leaderboard_week.aligned_to_total column.");
     }
 
-    private static final String DAILY_TOP_COMMENT = "每日0点总榜前五快照，高压顾客奖池用";
+    private static final String DAILY_TOP_COMMENT = "每日0点锁定的潜在前五，当天高压顾客只认这份名单";
 
     private void ensureDailyTopTable() {
         if (tableExists("leaderboard_daily_top")) {
@@ -116,7 +116,7 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
                     WHERE table_schema = DATABASE() AND table_name = 'leaderboard_daily_top'
                     """,
                     String.class);
-            if (comment != null && comment.contains("20:00")) {
+            if (comment == null || !comment.equals(DAILY_TOP_COMMENT)) {
                 jdbcTemplate.execute("ALTER TABLE `leaderboard_daily_top` COMMENT='" + DAILY_TOP_COMMENT + "'");
             }
             return;
@@ -124,13 +124,13 @@ public class LeaderboardSchemaBootstrap implements ApplicationRunner {
         jdbcTemplate.execute("""
                 CREATE TABLE `leaderboard_daily_top` (
                   `day_date` date NOT NULL COMMENT '快照日期 Asia/Shanghai',
-                  `rank_no` int NOT NULL COMMENT '当日总榜名次',
+                  `rank_no` int NOT NULL COMMENT '当天0点潜在名次',
                   `user_id` bigint NOT NULL COMMENT '用户ID',
-                  `money` bigint NOT NULL DEFAULT 0 COMMENT '截榜时金币',
+                  `money` bigint NOT NULL DEFAULT 0 COMMENT '锁定时的预测总金币',
                   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                   PRIMARY KEY (`day_date`, `rank_no`),
                   KEY `idx_day_user` (`day_date`, `user_id`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日0点总榜前五快照，高压顾客奖池用'
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日0点锁定的潜在前五，当天高压顾客只认这份名单'
                 """);
         log.info("Created leaderboard_daily_top table.");
     }
