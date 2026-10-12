@@ -223,7 +223,8 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     /**
      * 预测总金币 = 已到手金币 + 剩余工作日全胜 150 + 本月还来得及领的周任务。
-     * 没开打的人不进名单。周次够领满剩余次数时，没做完的也计入；不够时按还能领到的最高次数。
+     * 没开打的人不进名单。已经结束又没领的周次不能补，不计入。
+     * 只算还没结束的周：本周没领也算一次。周次够领满剩余次数时计入；不够时按还能领到的最高次数。
      */
     Set<Long> highPressureRoster(LocalDate today) {
         LinkedHashSet<Long> roster = new LinkedHashSet<>();
@@ -338,7 +339,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return false;
     }
 
-    /** 从今天起、本月内还没结束、并且还能领到金币的周次数。 */
+    /** 还没结束的周次数。周日已经过去的周不能再领。本周还没结束就算一次。 */
     static int openWeeklyWindows(LocalDate today) {
         if (today == null) {
             return 0;
@@ -361,7 +362,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return windows;
     }
 
-    /** 剩余可领次数和还开着的周次，取较小的那个。本周已经领过就不再占一个窗口。 */
+    /** 本月剩余名额和还开着的周次，取较小的那个。已经错过的周不补。本周已经领过就不再占一个窗口。 */
     static int claimableWeeklyCount(int openWeeks, int claimedThisMonth, boolean currentWeekClaimed) {
         int slotsLeft = Math.max(0, WeeklyClaimLimit.PER_MONTH - Math.max(claimedThisMonth, 0));
         int windows = Math.max(openWeeks, 0);
