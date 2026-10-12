@@ -1837,7 +1837,7 @@ public class MatchServiceImpl implements MatchService {
                 MatchRounds round = currentRound(match);
                 int beforeTriggered = round == null ? 0 : value(round.getCustomerTriggered());
                 if (round != null && beforeTriggered == 1) {
-                    revertCustomerEffectThisRound(match, round, listPlayers(match.getId()));
+                    revertCustomerEffectThisRound(match, round, listPlayers(match.getId()), actor);
                     round.setCustomerTriggered(0);
                     matchRoundsMapper.updateById(round);
                     remaining = Math.max(remaining - 1, 0);
@@ -3675,7 +3675,8 @@ public class MatchServiceImpl implements MatchService {
         return true;
     }
 
-    private void revertCustomerEffectThisRound(Matches match, MatchRounds round, List<MatchPlayers> players) {
+    private void revertCustomerEffectThisRound(Matches match, MatchRounds round, List<MatchPlayers> players,
+                                                MatchPlayers liveActor) {
         String type = round.getCustomerEffectType();
         int val = value(round.getCustomerEffectValue());
         if ("bully_attack_down".equals(type) || "bully_attack_up".equals(type)) {
@@ -3695,21 +3696,37 @@ public class MatchServiceImpl implements MatchService {
                 if (value(player.getCurrentHp()) <= 0) {
                     continue;
                 }
-                player.setCurrentHp(Math.max(1, value(player.getCurrentHp()) - heal));
-                matchPlayersMapper.updateById(player);
+                MatchPlayers mutable = liveRow(liveActor, player);
+                mutable.setCurrentHp(Math.max(1, value(mutable.getCurrentHp()) - heal));
+                if (mutable != liveActor) {
+                    matchPlayersMapper.updateById(mutable);
+                }
             }
             return;
         }
         if ("player_action_up".equals(type)) {
-            revertCustomerActionBonus(match, round, players, Math.max(val, 0));
+            revertCustomerActionBonus(match, round, players, Math.max(val, 0), liveActor);
             return;
         }
         if ("player_action_hp_down".equals(type)) {
-            revertCustomerHarsh(match, round, players, Math.max(val, 0));
+            revertCustomerHarsh(match, round, players, Math.max(val, 0), liveActor);
         }
     }
 
-    private void revertCustomerHarsh(Matches match, MatchRounds round, List<MatchPlayers> players, int hpRestore) {
+    /**
+     * 出牌流程里的 actor 已经扣过费用，并且会在效果结算后整行写回。
+     * 顾客效果打在出牌者自己身上时，必须改这份内存对象，不能另写一份查询结果再被覆盖。
+     */
+    private MatchPlayers liveRow(MatchPlayers liveActor, MatchPlayers loaded) {
+        if (liveActor != null && loaded != null && loaded.getUserId() != null
+                && loaded.getUserId().equals(liveActor.getUserId())) {
+            return liveActor;
+        }
+        return loaded;
+    }
+
+    private void revertCustomerHarsh(Matches match, MatchRounds round, List<MatchPlayers> players, int hpRestore,
+                                     MatchPlayers liveActor) {
         if (players == null || players.isEmpty()) {
             return;
         }
@@ -3740,17 +3757,21 @@ public class MatchServiceImpl implements MatchService {
         if (target == null) {
             return;
         }
-        target.setActionPoints(value(target.getActionPoints()) + apRestore);
-        int hp = Math.min(value(target.getMaxHp()), value(target.getCurrentHp()) + hpRestore);
-        target.setCurrentHp(hp);
+        MatchPlayers mutable = liveRow(liveActor, target);
+        mutable.setActionPoints(value(mutable.getActionPoints()) + apRestore);
+        int hp = Math.min(value(mutable.getMaxHp()), value(mutable.getCurrentHp()) + hpRestore);
+        mutable.setCurrentHp(hp);
         if (hp > 0) {
-            target.setPlayerStatus("ACTIVE");
-            target.setReviveStatus(0);
+            mutable.setPlayerStatus("ACTIVE");
+            mutable.setReviveStatus(0);
         }
-        matchPlayersMapper.updateById(target);
+        if (mutable != liveActor) {
+            matchPlayersMapper.updateById(mutable);
+        }
     }
 
-    private void revertCustomerActionBonus(Matches match, MatchRounds round, List<MatchPlayers> players, int bonus) {
+    private void revertCustomerActionBonus(Matches match, MatchRounds round, List<MatchPlayers> players, int bonus,
+                                           MatchPlayers liveActor) {
         if (bonus <= 0 || players == null || players.isEmpty()) {
             return;
         }
@@ -3787,9 +3808,12 @@ public class MatchServiceImpl implements MatchService {
         if (target == null) {
             return;
         }
-        int next = Math.max(value(target.getBaseActionPoints()), value(target.getActionPoints()) - bonus);
-        target.setActionPoints(next);
-        matchPlayersMapper.updateById(target);
+        MatchPlayers mutable = liveRow(liveActor, target);
+        int next = Math.max(value(mutable.getBaseActionPoints()), value(mutable.getActionPoints()) - bonus);
+        mutable.setActionPoints(next);
+        if (mutable != liveActor) {
+            matchPlayersMapper.updateById(mutable);
+        }
     }
 
     private MatchPlayers pickLivingPlayer(List<MatchPlayers> players) {
