@@ -556,11 +556,11 @@ import { subscribeRoomEvent, sendRoomMessage } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
 import { formatPlayerName } from '@/utils/playerName'
 import bg1 from '@/assets/battle-background2.webp'
-import bg2 from '@/assets/battle-background2.webp'
-import bg3 from '@/assets/battle-background2.webp'
-import bg4 from '@/assets/battle-background2.webp'
-import bg5 from '@/assets/battle-background2.webp'
-import bg6 from '@/assets/battle-background2.webp'
+import bg2 from '@/assets/scenes/battle/rooftop.png'
+import bg3 from '@/assets/scenes/battle/courtyard.png'
+import bg4 from '@/assets/scenes/battle/airship.png'
+import bg5 from '@/assets/scenes/battle/shop-ledger.png'
+import bg6 from '@/assets/scenes/battle/shop-flowers.png'
 import choosePlayerBg from '@/assets/battle-playerchoose-bg.webp'
 import fundsIcon from '@/assets/battle/funds-icon.webp'
 import p1BtnBg from '@/assets/p1.webp'
@@ -3076,8 +3076,7 @@ watch(() => game.isGameOver, (over) => {
 onMounted(async () => {
   game.resetGameOver()
   battleReady.value = false
-  const hour = new Date().getHours()
-  bgImage.value = bgList[hour % bgList.length]
+  bgImage.value = bgList[Math.floor(Math.random() * bgList.length)]
   console.log('[BattlePage onMounted] route.matchId =', route.params.matchId)
   console.log('[BattlePage onMounted] room.matchId =', room.matchId)
   console.log('[BattlePage onMounted] localStorage =', sessionStorage.getItem('activeMatchId'))
