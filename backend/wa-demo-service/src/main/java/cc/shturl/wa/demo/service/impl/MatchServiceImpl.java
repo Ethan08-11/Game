@@ -2421,6 +2421,7 @@ public class MatchServiceImpl implements MatchService {
         Map<Long, MatchPendingEffects> guardByWard = loadAllyGuards(match.getId());
         Map<Long, Integer> extraAttack = new HashMap<>();
         Map<Long, GuardAbsorb> wardAbsorbs = new LinkedHashMap<>();
+        Map<Long, Integer> dodgedHit = new LinkedHashMap<>();
         Set<Long> redirectedWards = new HashSet<>();
         for (Long targetId : intended) {
             MatchPlayers player = byUserId.get(targetId);
@@ -2428,6 +2429,13 @@ public class MatchServiceImpl implements MatchService {
                 continue;
             }
             int hit = attack + (Objects.equals(targetId, revengeUserId) ? revengeBonus : 0);
+            // 躲避先于守护。否则伤害被转给守护者，躲避留到下一次攻击才消耗。
+            MatchPendingEffects dodge = findHookPending(match.getId(), player.getUserId(), "DODGE_NEXT_HIT");
+            if (dodge != null) {
+                consumePendingGuard(dodge);
+                dodgedHit.put(player.getUserId(), hit);
+                continue;
+            }
             MatchPendingEffects guard = guardByWard.get(player.getUserId());
             MatchPlayers guardian = guard == null ? null : byUserId.get(guard.getSourceUserId());
             if (guard != null && guardian != null && value(guardian.getCurrentHp()) > 0
@@ -2447,6 +2455,22 @@ public class MatchServiceImpl implements MatchService {
         List<BossAttackTargetResp> results = new ArrayList<>();
         Map<Long, Integer> hpLoss = new HashMap<>();
         for (MatchPlayers player : players) {
+            if (dodgedHit.containsKey(player.getUserId())) {
+                int hp = value(player.getCurrentHp());
+                int dodgedAttack = dodgedHit.get(player.getUserId());
+                insertBossAttackAction(match, round, player, hp, hp,
+                        "{\"attack\":" + dodgedAttack + ",\"dodged\":true,\"absorbedDamage\":0}");
+                results.add(new BossAttackTargetResp(player.getUserId(), dodgedAttack, value(player.getShield()),
+                        0, hp, 0, hp, false, true));
+                hpLoss.merge(player.getUserId(), 0, Integer::sum);
+                int overflow = extraAttack.getOrDefault(player.getUserId(), 0);
+                if (overflow > 0) {
+                    BossAttackTargetResp spill = applyBossHit(match, round, player, overflow, pierce);
+                    results.add(spill);
+                    hpLoss.merge(player.getUserId(), value(spill.hpDamage()), Integer::sum);
+                }
+                continue;
+            }
             if (redirectedWards.contains(player.getUserId())) {
                 int hp = value(player.getCurrentHp());
                 GuardAbsorb absorb = wardAbsorbs.getOrDefault(player.getUserId(),
