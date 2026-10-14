@@ -555,12 +555,6 @@ import type { PlayCardPayload, UnlockedCollectibleCard } from '@/api'
 import { subscribeRoomEvent, sendRoomMessage } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
 import { formatPlayerName } from '@/utils/playerName'
-import bg1 from '@/assets/battle-background2.webp'
-import bg2 from '@/assets/scenes/battle/rooftop.webp'
-import bg3 from '@/assets/scenes/battle/courtyard.webp'
-import bg4 from '@/assets/scenes/battle/airship.webp'
-import bg5 from '@/assets/scenes/battle/shop-ledger.webp'
-import bg6 from '@/assets/scenes/battle/shop-flowers.webp'
 import choosePlayerBg from '@/assets/battle-playerchoose-bg.webp'
 import fundsIcon from '@/assets/battle/funds-icon.webp'
 import p1BtnBg from '@/assets/p1.webp'
@@ -570,8 +564,6 @@ import bullyImg from '@/assets/battle/bully.webp'
 import playerImg from '@/assets/battle/player.webp'
 import purchaseImg from '@/assets/battle/purchase.webp'
 import salesImg from '@/assets/battle/sales.webp'
-import reviveAdVideoA from '@/assets/revive-ad.mp4'
-import reviveAdVideoB from '@/assets/简介 - 职员 - Kade.mp4'
 import resultLoseBg from '@/assets/result-lose-bg.webp'
 import resultWinBg from '@/assets/result-win-bg.webp'
 import bundledCardBack from '@/assets/cards/Card_Back.webp'
@@ -616,7 +608,14 @@ type BattlePlayer = {
   discardPile: BattleCard[]
 }
 
-const bgList = [bg1, bg2, bg3, bg4, bg5, bg6]
+const battleBackgroundLoaders = [
+  () => import('@/assets/battle-background2.webp'),
+  () => import('@/assets/scenes/battle/rooftop.webp'),
+  () => import('@/assets/scenes/battle/courtyard.webp'),
+  () => import('@/assets/scenes/battle/airship.webp'),
+  () => import('@/assets/scenes/battle/shop-ledger.webp'),
+  () => import('@/assets/scenes/battle/shop-flowers.webp'),
+]
 const MATCH_CHAT_PHRASES = [
   '这回合我来输出',
   '帮我补点血值',
@@ -786,13 +785,19 @@ const fallenDeptLabel = computed(() => {
 const reviveStatus = ref<any>(null)
 const reviveStatusLoading = ref(false)
 const reviveSubmitting = ref(false)
-const REVIVE_AD_VIDEOS = [reviveAdVideoA, reviveAdVideoB] as const
+const reviveAdLoaders = [
+  () => import('@/assets/revive-ad.mp4'),
+  () => import('@/assets/简介 - 职员 - Kade.mp4'),
+]
+let reviveVideoLoading = false
 
-function pickReviveAdVideo() {
-  return REVIVE_AD_VIDEOS[Math.floor(Math.random() * REVIVE_AD_VIDEOS.length)]
+async function loadReviveAdVideo() {
+  const loader = reviveAdLoaders[Math.floor(Math.random() * reviveAdLoaders.length)]
+  const mod = await loader()
+  return mod.default
 }
 
-const currentReviveAdVideo = ref(pickReviveAdVideo())
+const currentReviveAdVideo = ref('')
 const reviveVideoWatched = ref(false)
 const reviveVideoError = ref('')
 const reviveVideoRef = ref<HTMLVideoElement | null>(null)
@@ -2564,9 +2569,17 @@ async function submitRevive() {
   }
 }
 
-function openReviveDialog() {
-  if (showReviveDialog.value || game.isGameOver || reviveDialogDismissed.value) return
-  currentReviveAdVideo.value = pickReviveAdVideo()
+async function openReviveDialog() {
+  if (showReviveDialog.value || game.isGameOver || reviveDialogDismissed.value || reviveVideoLoading) return
+  reviveVideoLoading = true
+  try {
+    currentReviveAdVideo.value = await loadReviveAdVideo()
+  } catch {
+    return
+  } finally {
+    reviveVideoLoading = false
+  }
+  if (game.isGameOver || reviveDialogDismissed.value) return
   reviveVideoWatched.value = false
   reviveVideoError.value = ''
   reviveLastTime.value = 0
@@ -3076,7 +3089,8 @@ watch(() => game.isGameOver, (over) => {
 onMounted(async () => {
   game.resetGameOver()
   battleReady.value = false
-  bgImage.value = bgList[Math.floor(Math.random() * bgList.length)]
+  const loadBackground = battleBackgroundLoaders[Math.floor(Math.random() * battleBackgroundLoaders.length)]
+  void loadBackground().then((mod) => { bgImage.value = mod.default })
   console.log('[BattlePage onMounted] route.matchId =', route.params.matchId)
   console.log('[BattlePage onMounted] room.matchId =', room.matchId)
   console.log('[BattlePage onMounted] localStorage =', sessionStorage.getItem('activeMatchId'))
