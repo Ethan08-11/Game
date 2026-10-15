@@ -132,6 +132,20 @@ class LeaderboardServiceImplSortTest {
     }
 
     @Test
+    @DisplayName("高压：日历不够补的工作日不计入预测")
+    void missedWorkDaysBeyondTheCalendarDoNotCount() {
+        assertThat(LeaderboardServiceImpl.remainingCalendarDays(LocalDate.of(2026, 10, 15))).isEqualTo(17);
+        assertThat(LeaderboardServiceImpl.remainingCalendarDays(LocalDate.of(2026, 10, 27))).isEqualTo(5);
+        assertThat(LeaderboardServiceImpl.achievableWorkDays(24, 2, 17)).isEqualTo(17);
+        assertThat(LeaderboardServiceImpl.achievableWorkDays(24, 10, 17)).isEqualTo(14);
+        assertThat(LeaderboardServiceImpl.achievableWorkDays(24, 8, 5)).isEqualTo(5);
+
+        stubSixPlayerBoard();
+        stubProjectionExcept(6L, 1, 0, false, 8, 0, false);
+        assertThat(service.highPressureRoster(LocalDate.of(2026, 10, 27))).doesNotContain(6L);
+    }
+
+    @Test
     @DisplayName("高压：没开打的人不进潜在前五")
     void playerWhoHasNotStartedIsExcluded() {
         stubSixPlayerBoard();

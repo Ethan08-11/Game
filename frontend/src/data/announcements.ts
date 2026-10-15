@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-daily-days-left',
+    title: '难度：来不及打的工作日不计入预测',
+    date: '2026-10-15',
+    content: '预测总金币里的日任务和周任务一样，时间不够就扣除。从今天到月底还来得及打的天数，和定额里还没打的天数，取较少的那个，每个按全胜 150 计入。已经空过去、这个月补不回来的工作日不再预测。周任务规则不变。',
+  },
+  {
     id: 'topic-pressure-locked-at-midnight',
     title: '难度：高压名单每天 0 点锁定',
     date: '2026-10-12',
