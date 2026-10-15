@@ -263,9 +263,10 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     }
 
     /**
-     * 预测总金币 = 已到手金币 + 剩余工作日全胜 150 + 本月还来得及领的周任务。
+     * 预测总金币 = 已到手金币 + 还来得及打的工作日全胜 150 + 本月还来得及领的周任务。
      * 没开打的人不进名单。已经结束又没领的周次不能补，不计入。
      * 只算还没结束的周：本周没领也算一次。周次够领满剩余次数时计入；不够时按还能领到的最高次数。
+     * 工作日同样只算从今天到月底还来得及打的天数。定额还剩得更多、日历不够时，多出来的天数不计入。
      * 这个结果只在每天 0 点写入锁定名单。对局高压读锁定名单，不读这里的实时排名。
      */
     Set<Long> highPressureRoster(LocalDate today) {
@@ -370,6 +371,27 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return false;
     }
 
+    /** 从今天到统计窗口结束，含今天，还能新开工作日的日历天数。 */
+    static int remainingCalendarDays(LocalDate today) {
+        if (today == null) {
+            return 0;
+        }
+        YearMonth month = YearMonth.from(today);
+        LocalDate start = WorkDayQuota.countStart(month);
+        LocalDate end = month.atEndOfMonth();
+        LocalDate from = today.isBefore(start) ? start : today;
+        if (from.isAfter(end)) {
+            return 0;
+        }
+        return (int) (end.toEpochDay() - from.toEpochDay() + 1);
+    }
+
+    /** 定额里还没打的天数，和日历上还来得及打的天数，取较小的那个。 */
+    static int achievableWorkDays(int quota, int used, int daysLeft) {
+        int remainingQuota = Math.max(0, quota - Math.max(used, 0));
+        return Math.min(remainingQuota, Math.max(daysLeft, 0));
+    }
+
     /** 还没结束的周次数。周日已经过去的周不能再领。本周还没结束就算一次。 */
     static int openWeeklyWindows(LocalDate today) {
         if (today == null) {
@@ -405,7 +427,11 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
     private long projectedMoney(UserProfile profile, Projection projection) {
         int used = projection.workDays(profile.getUserId());
-        long daily = (long) Math.max(0, projection.quota - used) * FULL_CLEAR_DAY_GOLD;
+        int daysLeft = Math.max(projection.daysLeft, 0);
+        if (projection.playedToday(profile.getUserId())) {
+            daysLeft = Math.max(0, daysLeft - 1);
+        }
+        long daily = (long) achievableWorkDays(projection.quota, used, daysLeft) * FULL_CLEAR_DAY_GOLD;
         int weeks = claimableWeeklyCount(
                 projection.openWeeks,
                 projection.claims(profile.getUserId()),
@@ -484,7 +510,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         } catch (Exception e) {
             log.warn("Skip opening projected roster for {}: {}", day, e.getMessage());
         }
-        return new Projection(quota, openWeeks, facts);
+        return new Projection(quota, openWeeks, remainingCalendarDays(day), facts);
     }
 
     private Projection loadProjection(LocalDate today) {
@@ -497,6 +523,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             LocalDate end = month.plusMonths(1).atDay(1);
             String[] bounds = WeeklyClaimLimit.claimedAtBounds(month);
             String weekKey = QuestPeriod.weeklyStart(today.atStartOfDay()).format(WEEK_KEY);
+            String todayKey = today.format(WEEK_KEY);
             List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                     SELECT p.user_id AS user_id,
                            (SELECT COUNT(*) FROM user_month_work_days w
@@ -512,9 +539,11 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                              WHERE ut.user_id = p.user_id
                                AND t.task_code = 'T-WEEKLY-TEAM-10'
                                AND ut.period_key = ?
-                               AND ut.status >= 3) AS current_week_claimed
+                               AND ut.status >= 3) AS current_week_claimed,
+                           (SELECT COUNT(*) FROM user_month_work_days w
+                             WHERE w.user_id = p.user_id AND w.day_date = '%s') AS played_today
                     FROM user_profiles p
-                    """,
+                    """.formatted(todayKey),
                     Date.valueOf(start), Date.valueOf(end), bounds[0], bounds[1], weekKey);
             for (Map<String, Object> row : rows) {
                 Long userId = number(row.get("user_id"));
@@ -524,13 +553,14 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 facts.put(userId, new int[] {
                         (int) numberOrZero(row.get("work_days")),
                         (int) numberOrZero(row.get("weekly_claims")),
-                        numberOrZero(row.get("current_week_claimed")) > 0 ? 1 : 0
+                        numberOrZero(row.get("current_week_claimed")) > 0 ? 1 : 0,
+                        numberOrZero(row.get("played_today")) > 0 ? 1 : 0
                 });
             }
         } catch (Exception e) {
             log.warn("Skip projected high-pressure gold: {}", e.getMessage());
         }
-        return new Projection(quota, openWeeks, facts);
+        return new Projection(quota, openWeeks, remainingCalendarDays(today), facts);
     }
 
     private static Long number(Object raw) {
@@ -541,7 +571,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return raw instanceof Number number ? number.longValue() : 0L;
     }
 
-    private record Projection(int quota, int openWeeks, Map<Long, int[]> facts) {
+    private record Projection(int quota, int openWeeks, int daysLeft, Map<Long, int[]> facts) {
         boolean started(Long userId) {
             return workDays(userId) > 0;
         }
@@ -556,6 +586,10 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
         boolean currentWeekClaimed(Long userId) {
             return fact(userId, 2) > 0;
+        }
+
+        boolean playedToday(Long userId) {
+            return fact(userId, 3) > 0;
         }
 
         private int fact(Long userId, int index) {
