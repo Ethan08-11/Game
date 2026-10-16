@@ -310,7 +310,7 @@
             <h2>观看视频广告复活</h2>
             <p v-if="reviveStatusLoading">正在查询复活状态…</p>
             <template v-else>
-              <p>本局全队限复活 1 次（{{ reviveStatus?.reviveCount ?? 0 }}/1）</p>
+              <p>本局全队限复活 1 次（剩余 {{ reviveUsesLeft }} 次）</p>
               <p>当前血量：{{ reviveStatus?.currentHp ?? 0 }}/{{ reviveStatus?.maxHp ?? 0 }}</p>
               <p v-if="reviveStatus && !reviveStatus.canRevive" class="revive-hint">{{ reviveStatus.message || '当前无法复活' }}</p>
               <p v-else-if="reviveRemainingSeconds != null" class="revive-hint">请看完视频后确认复活，剩余 {{ reviveRemainingSeconds }} 秒</p>
@@ -809,6 +809,13 @@ const reviveRemainingSeconds = ref<number | null>(null)
 let reviveWatchHeartbeatTimer: ReturnType<typeof setInterval> | null = null
 let reviveCountdownTimer: ReturnType<typeof setInterval> | null = null
 
+const reviveUsesLeft = computed(() => {
+  const limit = Number(reviveStatus.value?.reviveLimit ?? 1)
+  const used = Number(reviveStatus.value?.reviveCount ?? 0)
+  const safeLimit = Number.isFinite(limit) ? limit : 1
+  const safeUsed = Number.isFinite(used) ? used : 0
+  return Math.max(0, safeLimit - safeUsed)
+})
 const canConfirmRevive = computed(() => {
   if (reviveStatusLoading.value) return false
   if (!reviveStatus.value?.canRevive) return false
@@ -2489,7 +2496,8 @@ function handleMatchChat(data: any, message?: any) {
 async function loadReviveStatus() {
   if (!activeMatchId.value || !user.userId) return
   reviveStatus.value = await getMatchReviveStatus(activeMatchId.value, user.userId)
-  const remaining = Number(reviveStatus.value?.remainingSeconds)
+  const rawRemaining = reviveStatus.value?.remainingSeconds
+  const remaining = rawRemaining == null || rawRemaining === '' ? Number.NaN : Number(rawRemaining)
   reviveRemainingSeconds.value = Number.isFinite(remaining) ? remaining : null
   return reviveStatus.value
 }
@@ -2564,6 +2572,8 @@ async function submitRevive() {
     stopReviveWatchHeartbeat()
     await refreshBattleState()
     justRevived.value = false
+  } catch (error: any) {
+    ElMessage.error(error?.message || '复活失败，请重试')
   } finally {
     reviveSubmitting.value = false
   }

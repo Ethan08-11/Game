@@ -3511,19 +3511,20 @@ public class MatchServiceImpl implements MatchService {
             matchRoundsMapper.updateById(round);
         }
         List<BossAttackTargetResp> targets = resolveBossAttack(match, round, players);
-        boolean anyDead = targets.stream().anyMatch(BossAttackTargetResp::dead);
+        // 出牌已经把自己打倒的人不会再出现在这次攻击目标里，也要进复活，不能直接开下一回合。
+        boolean anyDown = players.stream().anyMatch(player -> value(player.getCurrentHp()) <= 0);
         boolean allDead = players.stream().allMatch(player -> value(player.getCurrentHp()) <= 0);
         if (allDead) {
             finishMatch(match, 2);
             return new RoundSettleResult(true, true, targets);
         }
-        if (anyDead && teamReviveUsed(players)) {
+        if (anyDown && teamReviveUsed(players)) {
             finishMatch(match, 2);
             notifyPlayers(match.getId(), "match.ended", Map.of(
                     "matchId", match.getId(), "winnerType", 2, "reason", "second_down_after_revive"));
             return new RoundSettleResult(true, true, targets);
         }
-        if (anyDead) {
+        if (anyDown) {
             enterReviveWait(match, players);
             notifyPlayers(match.getId(), "match.revive.required", Map.of(
                     "matchId", match.getId(), "phase", "REVIVE_WAIT", "timeoutSeconds", REVIVE_TIMEOUT_MILLIS / 1000));
