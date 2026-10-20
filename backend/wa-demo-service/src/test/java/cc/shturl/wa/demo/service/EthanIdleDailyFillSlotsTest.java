@@ -19,6 +19,15 @@ class EthanIdleDailyFillSlotsTest {
     }
 
     @Test
+    @DisplayName("每日和每周都领完就不再补")
+    void stopsWhenDailyAndWeeklyAreBothClaimed() {
+        assertThat(EthanIdleDailyFillService.shouldFill(false, false)).isFalse();
+        assertThat(EthanIdleDailyFillService.shouldFill(true, false)).isTrue();
+        assertThat(EthanIdleDailyFillService.shouldFill(false, true)).isTrue();
+        assertThat(EthanIdleDailyFillService.shouldFill(true, true)).isTrue();
+    }
+
+    @Test
     @DisplayName("真实胜负在前，没打的名额补成胜利")
     void filledSlotsKeepRealResultsAheadOfAutoWins() {
         assertThat(EthanIdleDailyFillService.filledSlots(List.of(1, 1), 1)).containsExactly(1, 1, 1);
