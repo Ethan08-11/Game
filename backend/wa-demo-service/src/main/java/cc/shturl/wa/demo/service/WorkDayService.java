@@ -34,8 +34,22 @@ public class WorkDayService {
         return allowGold(userId, LocalDate.now(WorkDayQuota.ZONE));
     }
 
-    /** 指定自然日已是工作日，或当月还能新开一个工作日时，允许发金币。 */
+    /** 指定自然日已是工作日，或当月还能新开一个工作日时，允许发金币。会记下这一天。 */
     public boolean allowGold(Long userId, LocalDate day) {
+        if (!couldPayGold(userId, day)) {
+            return false;
+        }
+        if (userId == null || day == null || !tableReady() || exists(userId, day)) {
+            return true;
+        }
+        jdbcTemplate.update(
+                "INSERT IGNORE INTO user_month_work_days(user_id, day_date) VALUES (?, ?)",
+                userId, Date.valueOf(day));
+        return exists(userId, day);
+    }
+
+    /** 这一天还能发金币，但不占用新的工作日。 */
+    public boolean couldPayGold(Long userId, LocalDate day) {
         if (userId == null || day == null) {
             return false;
         }
@@ -49,13 +63,7 @@ public class WorkDayService {
         if (exists(userId, day)) {
             return true;
         }
-        if (countUsed(userId, month) >= WorkDayQuota.days(month)) {
-            return false;
-        }
-        jdbcTemplate.update(
-                "INSERT IGNORE INTO user_month_work_days(user_id, day_date) VALUES (?, ?)",
-                userId, Date.valueOf(day));
-        return exists(userId, day);
+        return countUsed(userId, month) < WorkDayQuota.days(month);
     }
 
     private int countUsed(Long userId, YearMonth month) {

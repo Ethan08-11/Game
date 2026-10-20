@@ -29,7 +29,8 @@ import java.util.Set;
 /**
  * Ethan 每天 20:00 把当天前 3 局里还没打完的局补成胜利，并领走对应每日金币。
  * 每补一局胜就写入一名新的周任务队友，凑满 10 人则领取周任务金币。
- * 已经打完的局不重复发。任务刷新是每天 0 点；补的仍是当天这一档。
+ * 当天每日金币和本周周任务都已经领完时不再补打。已经打完的局不重复发。
+ * 任务刷新是每天 0 点；补的仍是当天这一档。
  */
 @Component
 @Order(21)
@@ -101,6 +102,9 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         List<Integer> real = realResults(userId, day);
         int autoExisting = countedAuto(day);
         int missing = missingSlots(real.size(), autoExisting);
+        if (missing > 0 && !shouldFill(dailyGoldOpen(userId, day), weeklyOpen(userId, day))) {
+            missing = 0;
+        }
         int created = insertAutoWins(userId, day, missing);
         List<Integer> slots = filledSlots(real, autoExisting + created);
         if (created == 0 && !hasUnclaimed(userId, day, slots)) {
@@ -117,6 +121,33 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
         markPatch(patchId);
         log.warn("Ethan idle auto-fill {}: real={}, toppedUp={}, +{} gold, +{} exp, weekly +{}.",
                 day, real.size(), created, gold, exp, weeklyAdded);
+    }
+
+    /** 每日金币和周任务都领完了就不再补。还剩一边就继续补。 */
+    static boolean shouldFill(boolean dailyGoldOpen, boolean weeklyOpen) {
+        return dailyGoldOpen || weeklyOpen;
+    }
+
+    private boolean dailyGoldOpen(Long userId, LocalDate day) {
+        return workDayService.couldPayGold(userId, day);
+    }
+
+    /** 本周还没领，并且本月还没领满 4 次。 */
+    private boolean weeklyOpen(Long userId, LocalDate day) {
+        if (day == null || !WeeklyClaimLimit.allowed(jdbcTemplate, userId)) {
+            return false;
+        }
+        Map<String, Object> task = queryTask(WEEKLY_TEAM_CODE);
+        if (task == null) {
+            return false;
+        }
+        String period = QuestPeriod.weeklyStartForDaily(day).toString();
+        List<Integer> statuses = jdbcTemplate.query("""
+                SELECT status FROM user_tasks
+                WHERE user_id = ? AND task_id = ? AND period_key = ?
+                LIMIT 1
+                """, (rs, row) -> rs.getInt("status"), userId, ((Number) task.get("id")).longValue(), period);
+        return statuses.isEmpty() || statuses.get(0) < 3;
     }
 
     /** 前 3 局里，真实对局占掉的名额之外还要补几局。 */
