@@ -260,6 +260,10 @@
             放弃将记为失败，并占用今日任务局数，无法再刷该局奖励。
             若对局卡死、刷新后仍重连不上，请选「对局异常」（每人每天只能作废 1 局，不记胜负、不占今日和每周前三局）。只要局里有人当天已经作废过，其他人也不能再作废。
           </p>
+          <p v-if="stuckCancelRemainSeconds > 0" class="disconnect-countdown">
+            还不能作废，请再等 {{ formatStuckWait(stuckCancelRemainSeconds) }}。
+          </p>
+          <p v-else-if="voidWaitHint" class="disconnect-countdown">{{ voidWaitHint }}</p>
           <div class="leave-actions">
             <el-button type="danger" size="large" :loading="leavingMatch" @click="confirmAbandon">放弃对局</el-button>
             <el-button size="large" :loading="leavingMatch" @click="confirmVoidStuck">对局异常，取消本局</el-button>
@@ -759,9 +763,41 @@ const showLeaveDialog = ref(false)
 const leavingMatch = ref(false)
 const showVoidBlockedDialog = ref(false)
 const voidBlockedMessage = ref('')
+const voidWaitHint = ref('')
 const resultVoid = ref(false)
 const stuckCancelAvailable = ref(false)
+const stuckCancelRemainSeconds = ref(0)
+let stuckWaitTimer: ReturnType<typeof setInterval> | null = null
 const disconnectCountdown = ref(30)
+
+function formatStuckWait(total: number) {
+  const seconds = Math.max(0, Math.ceil(total))
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  if (minutes <= 0) return `${rest} 秒`
+  if (rest === 0) return `${minutes} 分钟`
+  return `${minutes} 分 ${rest} 秒`
+}
+
+function stopStuckWaitTimer() {
+  if (stuckWaitTimer) {
+    clearInterval(stuckWaitTimer)
+    stuckWaitTimer = null
+  }
+}
+
+function startStuckWaitTimer() {
+  stopStuckWaitTimer()
+  if (stuckCancelRemainSeconds.value <= 0) return
+  stuckWaitTimer = setInterval(() => {
+    if (stuckCancelRemainSeconds.value <= 1) {
+      stuckCancelRemainSeconds.value = 0
+      stopStuckWaitTimer()
+      return
+    }
+    stuckCancelRemainSeconds.value -= 1
+  }, 1000)
+}
 const showReviveDialog = ref(false)
 const resultRounds = ref(0)
 const settlementFetched = ref(false)
@@ -1264,6 +1300,10 @@ function syncToStore(detail: any) {
     activePhase.value = detail.phase
   }
   stuckCancelAvailable.value = detail.stuckCancelAvailable === true
+  const remain = Number(detail.stuckCancelRemainSeconds)
+  stuckCancelRemainSeconds.value = Number.isFinite(remain) && remain > 0 ? Math.ceil(remain) : 0
+  if (stuckCancelAvailable.value) voidWaitHint.value = ''
+  startStuckWaitTimer()
   // 复活后服务器返回非结束状态，重置客户端 game-over 标记
   if (detail.phase !== 'FINISHED' && !detail.matchEnded) {
     game.isGameOver = false
@@ -2674,22 +2714,36 @@ async function confirmAbandon() {
   }
 }
 
+function stuckWaitMessage(seconds: number) {
+  return `还不能作废，请再等 ${formatStuckWait(seconds)}。若确定退出请放弃（占用今日任务局数）。`
+}
+
 async function confirmVoidStuck() {
+  if (!stuckCancelAvailable.value && stuckCancelRemainSeconds.value > 0) {
+    showVoidWait(stuckWaitMessage(stuckCancelRemainSeconds.value))
+    return
+  }
   leavingMatch.value = true
   try {
     if (activeMatchId.value) {
       await cancelStuckMatch(activeMatchId.value)
     }
     showLeaveDialog.value = false
+    voidWaitHint.value = ''
     resultVoid.value = true
     game.isGameOver = true
     game.isVictory = false
     ElMessage.success('本局已作废，不占用今日任务局数和每周前三局')
   } catch (error: any) {
-    showVoidBlocked(error?.message || '暂不能按卡死取消')
+    showVoidWait(error?.message || '暂不能按卡死取消')
   } finally {
     leavingMatch.value = false
   }
+}
+
+function showVoidWait(message: string) {
+  voidWaitHint.value = message
+  showVoidBlocked(message)
 }
 
 function showVoidBlocked(message: string) {
@@ -3183,6 +3237,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopStuckWaitTimer()
   heroFxAlive = false
   handResizeObserver?.disconnect()
   handResizeObserver = null

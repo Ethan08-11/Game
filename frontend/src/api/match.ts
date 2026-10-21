@@ -83,6 +83,7 @@ export interface MatchDetailResp {
   bullyTarget?: string
   bossActionText?: string
   stuckCancelAvailable?: boolean
+  stuckCancelRemainSeconds?: number | null
 }
 
 export interface MatchSettlementPlayer {

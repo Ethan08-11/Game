@@ -257,6 +257,7 @@ public class MatchServiceImpl implements MatchService {
         }
         Bullies bully = match.getBullyId() == null ? null : bulliesMapper.selectById(match.getBullyId());
         BullyHud hud = describeBullyHud(match, bully, players);
+        StuckCheck stuck = evaluateStuck(match);
         return new MatchStateResp(match.getId(), match.getMatchCode(), match.getRoomId(), match.getStatus(),
                 match.getPhase(), match.getCurrentRound(), match.getVersion(), toCustomerResp(customer, bully),
                 match.getBullyId(), match.getBossName(), match.getBossMaxHp(), match.getBossCurrentHp(),
@@ -265,7 +266,8 @@ public class MatchServiceImpl implements MatchService {
                 round == null ? null : round.getFirstPlayerUserId(), round == null ? null : round.getChosenByUserId(),
                 waitingReconnect, reconnectRemainingSeconds, playerStates, hand, match.getWinnerType(),
                 hud.shield(), hud.skillType(), hud.summary(), hud.triggered(), hud.target(), hud.actionText(),
-                evaluateStuck(match).eligible(false));
+                stuck.eligible(false),
+                stuck.remainSeconds() > 0 ? stuck.remainSeconds() : null);
     }
 
     @Override
@@ -3071,34 +3073,46 @@ public class MatchServiceImpl implements MatchService {
         if ("REVIVE_WAIT".equals(phase)) {
             return StuckCheck.notEligible("正在等待复活，不能按卡死取消。若放弃复活将记为失败并占用今日任务局数。");
         }
-        if (isReconnectWindowActive(match)) {
-            return StuckCheck.notEligible("正在等待重连。请稍候；若直接放弃将占用今日任务局数。");
-        }
         long idle = idleMillis(match);
-        long remainCancel = Math.max(STUCK_CANCEL_IDLE_MILLIS - idle, 0L);
-        if (remainCancel > 0) {
-            int seconds = (int) Math.ceil(remainCancel / 1000.0);
-            return StuckCheck.notEligible("对局尚未确认卡死，请约再等 " + seconds + " 秒。若确定退出请放弃（占用今日任务局数）。");
+        long remainMillis = Math.max(STUCK_CANCEL_IDLE_MILLIS - idle, 0L);
+        remainMillis = Math.max(remainMillis, reconnectWindowRemainMillis(match));
+        if (remainMillis > 0) {
+            int seconds = (int) Math.ceil(remainMillis / 1000.0);
+            return StuckCheck.notEligible(
+                    "还不能作废，请再等 " + formatWait(seconds) + "。若确定退出请放弃（占用今日任务局数）。",
+                    seconds);
         }
         boolean reconnectTried = hasReconnectAttempt(match.getId());
         boolean stuckPhase = "SELECT_FIRST_PLAYER".equals(phase)
                 || "BOSS_ACTION".equals(phase)
                 || "RECONNECT_WAIT".equals(phase);
-        return new StuckCheck(true, idle, stuckPhase || reconnectTried, "");
+        return new StuckCheck(true, idle, stuckPhase || reconnectTried, "", 0);
     }
 
-    private boolean isReconnectWindowActive(Matches match) {
-        List<MatchPlayers> players = listPlayers(match.getId());
+    private static String formatWait(int seconds) {
+        int safe = Math.max(seconds, 0);
+        int minutes = safe / 60;
+        int rest = safe % 60;
+        if (minutes <= 0) {
+            return rest + " 秒";
+        }
+        if (rest == 0) {
+            return minutes + " 分钟";
+        }
+        return minutes + " 分 " + rest + " 秒";
+    }
+
+    private long reconnectWindowRemainMillis(Matches match) {
+        long remain = 0L;
         LocalDateTime now = LocalDateTime.now();
-        for (MatchPlayers player : players) {
+        for (MatchPlayers player : listPlayers(match.getId())) {
             if (!"RECONNECTING".equals(player.getPlayerStatus()) || player.getUpdatedAt() == null) {
                 continue;
             }
-            if (java.time.Duration.between(player.getUpdatedAt(), now).toMillis() < RECONNECT_TIMEOUT_MILLIS) {
-                return true;
-            }
+            long elapsed = java.time.Duration.between(player.getUpdatedAt(), now).toMillis();
+            remain = Math.max(remain, Math.max(RECONNECT_TIMEOUT_MILLIS - elapsed, 0L));
         }
-        return false;
+        return remain;
     }
 
     private boolean hasReconnectAttempt(Long matchId) {
@@ -3118,6 +3132,11 @@ public class MatchServiceImpl implements MatchService {
 
     private LocalDateTime lastActivityAt(Matches match) {
         LocalDateTime latest = match.getUpdatedAt();
+        Matches stored = matchesMapper.selectById(match.getId());
+        if (stored != null && stored.getUpdatedAt() != null
+                && (latest == null || stored.getUpdatedAt().isAfter(latest))) {
+            latest = stored.getUpdatedAt();
+        }
         if (match.getStartedAt() != null && (latest == null || match.getStartedAt().isAfter(latest))) {
             latest = match.getStartedAt();
         }
@@ -3142,9 +3161,13 @@ public class MatchServiceImpl implements MatchService {
         return latest;
     }
 
-    private record StuckCheck(boolean ready, long idleMillis, boolean autoOk, String rejectMessage) {
+    private record StuckCheck(boolean ready, long idleMillis, boolean autoOk, String rejectMessage, int remainSeconds) {
         static StuckCheck notEligible(String message) {
-            return new StuckCheck(false, 0L, false, message);
+            return new StuckCheck(false, 0L, false, message, 0);
+        }
+
+        static StuckCheck notEligible(String message, int remainSeconds) {
+            return new StuckCheck(false, 0L, false, message, Math.max(remainSeconds, 0));
         }
 
         boolean eligible(boolean auto) {

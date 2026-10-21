@@ -33,6 +33,7 @@ public record MatchStateResp(
         Integer bullySkillTriggered,
         String bullyTarget,
         String bossActionText,
-        Boolean stuckCancelAvailable
+        Boolean stuckCancelAvailable,
+        Integer stuckCancelRemainSeconds
 ) {
 }
