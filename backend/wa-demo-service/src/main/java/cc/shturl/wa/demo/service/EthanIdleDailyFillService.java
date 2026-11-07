@@ -27,10 +27,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Ethan 每天 20:00 把当天前 3 局里还没打完的局补成胜利，并领走对应每日金币。
- * 每补一局胜就写入一名新的周任务队友，凑满 10 人则领取周任务金币。
- * 当天每日金币和本周周任务都已经领完时不再补打。已经打完的局不重复发。
- * 任务刷新是每天 0 点；补的仍是当天这一档。
+ * Ethan 的 20:00 自动补打已取消。定时和启动补跑都不再写入对局或金币。
+ * 下面的名额计算仍留给原有单测，避免把已停用的规则重新接回调度。
  */
 @Component
 @Order(21)
@@ -59,43 +57,21 @@ public class EthanIdleDailyFillService implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        catchUpIdleFills();
+        // 补打已取消，启动时不再补昨天或今天。
     }
 
     @Scheduled(cron = "0 0 20 * * *", zone = "Asia/Shanghai")
     public void fillTodayAtEightPm() {
-        fillIfIdle(QuestPeriod.currentDailyDate());
+        // 补打已取消。
     }
 
     @Scheduled(cron = "0 10 20 * * *", zone = "Asia/Shanghai")
     public void fillTodayIfMissed() {
-        fillIfIdle(QuestPeriod.currentDailyDate());
-    }
-
-    private void catchUpIdleFills() {
-        LocalDate today = QuestPeriod.currentDailyDate();
-        fillIfIdle(today.minusDays(1));
-        if (!QuestPeriod.now().toLocalTime().isBefore(QuestPeriod.ETHAN_FILL_AT)) {
-            fillIfIdle(today);
-        }
+        // 补打已取消。
     }
 
     public void fillIfIdle(LocalDate day) {
-        if (day == null || day.isBefore(FIRST_DAY)) {
-            return;
-        }
-        if (!tableExists("users") || !tableExists("matches") || !tableExists("tasks")) {
-            return;
-        }
-        ensurePatchTable();
-        Long userId = findEthanId();
-        if (userId == null) {
-            log.warn("Ethan idle daily fill skipped; user not found.");
-            return;
-        }
-        String patchId = patchId(day);
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        tx.executeWithoutResult(status -> doFill(userId, day, patchId));
+        log.info("Ethan idle auto-fill is disabled; skip {}.", day);
     }
 
     private void doFill(Long userId, LocalDate day, String patchId) {
