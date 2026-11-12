@@ -1800,15 +1800,31 @@ function resolveTargetSeats(effect: any, actorUserId: unknown) {
   const targetType = String(effect?.targetType ?? effect?.target_type ?? '').toUpperCase()
   const targetUserId = effect?.targetUserId ?? effect?.target_user_id
   if (targetType === 'BOSS') return [] as number[]
-  if (targetType === 'ALL_PLAYERS') {
-    return players.value.map((_, index) => index).filter((index) => players.value[index])
-  }
   if (targetUserId != null && String(targetUserId) !== '') {
     const seat = players.value.findIndex((item) => sameBattleUserId(item.userId, targetUserId))
     if (seat >= 0) return [seat]
   }
+  if (targetType === 'ALL_PLAYERS') {
+    return players.value.map((_, index) => index).filter((index) => players.value[index])
+  }
   const actorSeat = players.value.findIndex((item) => sameBattleUserId(item.userId, actorUserId))
   return actorSeat >= 0 ? [actorSeat] : [0]
+}
+
+function splitBossHit(effect: any) {
+  const extra = parseEffectExtra(effect)
+  const shieldFromExtra = Number(extra.shieldAbsorbed ?? extra.shield_absorbed)
+  const hpFromExtra = Number(extra.hpLoss ?? extra.hp_loss)
+  const before = fxNum(effect, 'beforeValue', 'before_value')
+  const after = fxNum(effect, 'afterValue', 'after_value')
+  const landed = Math.max(0, Math.round(fxActual(effect)))
+  const hpLoss = Number.isFinite(hpFromExtra)
+    ? Math.max(0, Math.round(hpFromExtra))
+    : (Number.isFinite(before) && Number.isFinite(after) ? Math.max(0, Math.round(before - after)) : landed)
+  const shieldHit = Number.isFinite(shieldFromExtra)
+    ? Math.max(0, Math.round(shieldFromExtra))
+    : Math.max(0, Math.min(landed, landed - hpLoss))
+  return { hpLoss, shieldHit, landed, before, after }
 }
 
 function pulseGlow(seats: number[], mode: string, ms = 480) {
@@ -1948,37 +1964,20 @@ function enrichHeroFxPayload(res: any, card?: BattleCard | null) {
 async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLElement | null; bullyEl: HTMLElement | null; actorTone: string }) {
   const { fromEl, bullyEl, actorTone, payload } = ctx
   if (!fromEl || !bullyEl) return
-  const landed = Math.max(0, Math.round(fxActual(effect)))
-  const before = fxNum(effect, 'beforeValue', 'before_value')
-  const after = fxNum(effect, 'afterValue', 'after_value')
-  const hpLoss = Number.isFinite(before) && Number.isFinite(after) ? Math.max(0, Math.round(before - after)) : landed
-  const shieldHit = Math.max(0, landed - hpLoss)
+  const { hpLoss, shieldHit, landed, before, after } = splitBossHit(effect)
   const pierce = isPierceEffect(payload, effect)
   const base = fxNum(effect, 'baseValue', 'base_value')
   const extra = parseEffectExtra(effect)
   const chance = Number(extra.chance)
   const rollable = Number.isFinite(chance) && chance < 100
-  const bossDown = Number.isFinite(before) && before <= 0 && Number.isFinite(after) && after <= 0
-  if (landed <= 0) {
-    if (!rollable && Number.isFinite(base) && base > 0) {
-      spawnHeroBolt(fromEl, bullyEl, actorTone, 260)
-      await waitFx(260)
-      if (!heroFxAlive) return
-      if (bossDown) {
-        spawnHeroBurst(bullyEl, actorTone)
-        spawnHeroFloat(bullyEl, `−${Math.round(base)}`, actorTone)
-      } else {
-        spawnHeroBurst(bullyEl, 'tone-shield')
-        spawnHeroFloat(bullyEl, `−${Math.round(base)}`, 'tone-shield')
-      }
-      flashBullyHit(true)
-      await waitFx(180)
-      return
-    }
+  const nothingLanded = hpLoss <= 0 && shieldHit <= 0
+  if (nothingLanded) {
     spawnHeroBolt(fromEl, bullyEl, 'tone-miss', 240)
     await waitFx(240)
     if (!heroFxAlive) return
-    spawnHeroMark(bullyEl, '未中', 'tone-miss', 0.22)
+    if (rollable || landed > 0 || (Number.isFinite(base) && base > 0)) {
+      spawnHeroMark(bullyEl, '未中', 'tone-miss', 0.22)
+    }
     await waitFx(220)
     return
   }
@@ -1989,7 +1988,7 @@ async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLEl
     if (!heroFxAlive) return
     spawnHeroBurst(bullyEl, 'tone-pierce')
     flashBullyHit(true)
-    spawnHeroFloat(bullyEl, `−${hpLoss || landed}`, 'tone-pierce')
+    if (hpLoss > 0) spawnHeroFloat(bullyEl, `−${hpLoss}`, 'tone-pierce')
     spawnHeroMark(bullyEl, '无视护盾', 'tone-pierce', 0.12)
     await waitFx(180)
     return
@@ -1997,16 +1996,17 @@ async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLEl
   spawnHeroBolt(fromEl, bullyEl, actorTone, 260)
   await waitFx(260)
   if (!heroFxAlive) return
-  if (shieldHit > 0 && !bossDown) {
+  const bossAlreadyDown = Number.isFinite(before) && before <= 0 && Number.isFinite(after) && after <= 0
+  if (shieldHit > 0 && !bossAlreadyDown) {
     spawnHeroBurst(bullyEl, 'tone-shield')
     spawnHeroFloat(bullyEl, `−${shieldHit}`, 'tone-shield', hpLoss > 0 ? 0.16 : 0.28)
     flashBullyHit(hpLoss <= 0)
     if (hpLoss > 0) await waitFx(140)
   }
-  if (hpLoss > 0 || (bossDown && landed > 0)) {
+  if (hpLoss > 0) {
     spawnHeroBurst(bullyEl, actorTone)
     flashBullyHit(true)
-    spawnHeroFloat(bullyEl, `−${hpLoss || landed}`, actorTone)
+    spawnHeroFloat(bullyEl, `−${hpLoss}`, actorTone)
   }
   await waitFx(base > 1 ? 140 : 160)
 }
@@ -2078,6 +2078,7 @@ async function playEffectClip(effect: any, ctx: {
     case 'DAMAGE_BOSS':
     case 'CHASE_ALLY_ATTACK':
     case 'ON_BOSS_HP_LOSS':
+    case 'CONVERT_SHIELD_TO_DAMAGE':
       await playDamageBossFx(effect, ctx)
       return
     case 'ADD_SHIELD': {
@@ -2207,6 +2208,14 @@ async function playEffectClip(effect: any, ctx: {
     case 'MULTIPLY_CURRENT_SHIELD': {
       const dest = ctx.fromEl
       if (dest) spawnHeroMark(dest, '当前防御 ×2', 'tone-mult', 0.12)
+      if (actual !== 0) {
+        await playPlayerValueFx(
+          effect,
+          actorUserId,
+          'shield',
+          `+${Math.max(0, Math.round(actual))}`,
+        )
+      }
       await waitFx(280)
       return
     }
@@ -2229,6 +2238,8 @@ async function playEffectClip(effect: any, ctx: {
     }
     case 'CLEAR_BOSS_SHIELD': {
       const dest = ctx.hudEl || ctx.bullyEl || ctx.fromEl
+      const cleared = Math.max(0, Math.round(Math.abs(actual)))
+      if (dest && cleared > 0) spawnHeroFloat(dest, `−${cleared}`, 'tone-shield', 0.28)
       if (dest) spawnHeroMark(dest, '护盾清除', 'tone-mult', 0.12)
       await waitFx(280)
       return
@@ -2313,28 +2324,48 @@ async function strikeSeat(seat: number, target: any) {
   const toEl = playerRectBySeat(seat)
   const fromEl = bullyRectRef.value
   if (!fromEl || !toEl) return
-  const hpDamage = Math.max(0, Number(target?.hpDamage ?? target?.hp_damage ?? 0))
-  const absorbed = Math.max(0, Number(target?.absorbedDamage ?? target?.absorbed_damage ?? 0))
+  const reportedHp = Number(target?.hpDamage ?? target?.hp_damage)
+  const hpBefore = Number(target?.hpBefore ?? target?.hp_before)
+  const hpAfter = Number(target?.hpAfter ?? target?.hp_after)
+  const hpDamage = Number.isFinite(reportedHp)
+    ? Math.max(0, reportedHp)
+    : (Number.isFinite(hpBefore) && Number.isFinite(hpAfter) ? Math.max(0, hpBefore - hpAfter) : 0)
+  const absorbed = Math.max(0, Number(target?.absorbedDamage ?? target?.absorbed_damage ?? 0) || 0)
   const attack = Math.max(0, Number(target?.attack ?? 0))
   const dodged = Boolean(target?.dodged) || (hpDamage <= 0 && absorbed <= 0 && attack > 0)
+  if (!dodged && hpDamage <= 0 && absorbed <= 0) return
   const blocked = hpDamage <= 0 && absorbed > 0
   bullySlash.value = { style: slashStyle(fromEl, toEl), blocked: blocked || dodged }
   bullyImpact.value = !dodged
   struckSeats.value = [...new Set([...struckSeats.value, seat])]
   flashSeats.value = [...new Set([...flashSeats.value, seat])]
-  bullyFloatSeq += 1
-  bullyFloats.value = [
-    ...bullyFloats.value,
-    {
-      id: bullyFloatSeq,
-      text: dodged ? '躲避' : blocked ? '格挡' : `-${hpDamage || attack}`,
-      blocked: blocked || dodged,
-      style: floatStyle(toEl),
-    },
-  ]
-  const floatId = bullyFloatSeq
+  const baseStyle = floatStyle(toEl)
+  const floats: Array<{ text: string; blocked: boolean; dy: number }> = dodged
+    ? [{ text: '躲避', blocked: true, dy: 0 }]
+    : [
+        ...(absorbed > 0 ? [{ text: `−${absorbed}`, blocked: true, dy: hpDamage > 0 ? -28 : 0 }] : []),
+        ...(hpDamage > 0 ? [{ text: `−${hpDamage}`, blocked: false, dy: 0 }] : []),
+      ]
+  const floatIds: number[] = []
+  for (const item of floats) {
+    bullyFloatSeq += 1
+    floatIds.push(bullyFloatSeq)
+    const top = Number.parseFloat(String(baseStyle.top))
+    bullyFloats.value = [
+      ...bullyFloats.value,
+      {
+        id: bullyFloatSeq,
+        text: item.text,
+        blocked: item.blocked,
+        style: {
+          ...baseStyle,
+          top: `${(Number.isFinite(top) ? top : 0) + item.dy}px`,
+        },
+      },
+    ]
+  }
   window.setTimeout(() => {
-    bullyFloats.value = bullyFloats.value.filter((item) => item.id !== floatId)
+    bullyFloats.value = bullyFloats.value.filter((item) => !floatIds.includes(item.id))
   }, 900)
   await waitFx(240)
   bullySlash.value = null
