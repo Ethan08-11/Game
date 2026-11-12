@@ -1702,12 +1702,11 @@ public class MatchServiceImpl implements MatchService {
         int actualValue = applyTriggerChance(effect.getExtraData(), baseValue * typeMult);
         switch (effect.getEffectType()) {
             case "DAMAGE_BOSS" -> {
-                actualValue = applyTurnDamageModifiers(match.getId(), actor.getUserId(), actualValue);
-                int hpBefore = value(match.getBossCurrentHp());
-                dealBossHp(match, actor, actualValue, parseIgnoreShield(effect.getExtraData()),
+                actualValue = applyTurnDamageModifiers(match.getId(), actualValue);
+                int at = results.size();
+                BossHit hit = dealBossHp(match, actor, actualValue, parseIgnoreShield(effect.getExtraData()),
                         BossDmgKind.CARD, results);
-                results.add(effectResult(effect, "BOSS", null, baseValue, actualValue,
-                        hpBefore, value(match.getBossCurrentHp()), match.getCurrentRound()));
+                results.add(at, bossHitResult(effect, "BOSS", null, baseValue, actualValue, hit, match.getCurrentRound()));
             }
             case "REDUCE_BOSS_ATTACK" -> {
                 int beforeValue = value(match.getBossCurrentAttack());
@@ -1860,12 +1859,17 @@ public class MatchServiceImpl implements MatchService {
                         pending.getId(), effect.getExtraData()));
             }
             case "CONVERT_SHIELD_TO_DAMAGE" -> {
-                int converted = value(actor.getShield());
+                int shieldBefore = value(actor.getShield());
                 actor.setShield(0);
-                int hpBefore = value(match.getBossCurrentHp());
-                dealBossHp(match, actor, converted, true, BossDmgKind.CONVERT, results);
-                results.add(effectResult(effect, "BOSS", null, converted, converted,
-                        hpBefore, value(match.getBossCurrentHp()), match.getCurrentRound()));
+                if (shieldBefore > 0) {
+                    results.add(new CardEffectResp("ADD_SHIELD", "IMMEDIATE", "PLAYER", actor.getUserId(),
+                            shieldBefore, -shieldBefore, shieldBefore, 0, false, match.getCurrentRound(),
+                            null, effect.getExtraData()));
+                }
+                int at = results.size();
+                BossHit hit = dealBossHp(match, actor, shieldBefore, true, BossDmgKind.CONVERT, results);
+                results.add(at, bossHitResult(effect, "BOSS", null, shieldBefore, hit.hpLoss(), hit,
+                        match.getCurrentRound()));
             }
             default -> throw new BusinessException("不支持的立即效果类型：" + effect.getEffectType());
         }
@@ -1935,14 +1939,16 @@ public class MatchServiceImpl implements MatchService {
         return types;
     }
 
-    private int applyTurnDamageModifiers(Long matchId, Long userId, int amount) {
+    private int applyTurnDamageModifiers(Long matchId, int amount) {
         int damage = Math.max(amount, 0);
-        MatchPendingEffects add = findHookPending(matchId, userId, "ADD_TURN_DAMAGE");
-        if (add != null) {
+        if (damage <= 0) {
+            return 0;
+        }
+        // 「本回合所有攻击」算上双方本回合打出的每一段，不限出牌者自己。未命中不加。
+        for (MatchPendingEffects add : listHookPendings(matchId, "ADD_TURN_DAMAGE")) {
             damage += Math.max(value(add.getEffectValue()), 0);
         }
-        MatchPendingEffects mul = findHookPending(matchId, userId, "MULTIPLY_TURN_DAMAGE");
-        if (mul != null) {
+        for (MatchPendingEffects mul : listHookPendings(matchId, "MULTIPLY_TURN_DAMAGE")) {
             damage *= Math.max(value(mul.getEffectValue()), 1);
         }
         return damage;
@@ -2137,6 +2143,28 @@ public class MatchServiceImpl implements MatchService {
                                         int actualValue, int beforeValue, int afterValue, Integer triggerRound) {
         return new CardEffectResp(effect.getEffectType(), effect.getTriggerTiming(), targetType, targetUserId,
                 baseValue, actualValue, beforeValue, afterValue, false, triggerRound, null, effect.getExtraData());
+    }
+
+    private CardEffectResp bossHitResult(CardEffects effect, String targetType, Long targetUserId, int baseValue,
+                                         int actualValue, BossHit hit, Integer triggerRound) {
+        return new CardEffectResp(effect.getEffectType(), effect.getTriggerTiming(), targetType, targetUserId,
+                baseValue, actualValue, hit.hpBefore(), hit.hpAfter(), false, triggerRound, null,
+                withBossHitExtra(effect.getExtraData(), hit));
+    }
+
+    private String withBossHitExtra(String extra, BossHit hit) {
+        String fields = "\"shieldAbsorbed\":" + hit.shieldAbsorbed() + ",\"hpLoss\":" + hit.hpLoss();
+        if (extra == null || extra.isBlank()) {
+            return "{" + fields + "}";
+        }
+        String trimmed = extra.trim();
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            if (trimmed.length() <= 2) {
+                return "{" + fields + "}";
+            }
+            return trimmed.substring(0, trimmed.length() - 1) + "," + fields + "}";
+        }
+        return "{" + fields + "}";
     }
 
     private List<MatchPlayers> resolveEffectTargets(Long matchId, MatchPlayers actor, MatchPlayers selected, CardEffects effect) {
@@ -2775,7 +2803,7 @@ public class MatchServiceImpl implements MatchService {
                                 .eq(MatchPlayers::getUserId, pending.getSourceUserId())
                                 .last("LIMIT 1"));
                 int hpLoss = dealBossHp(match, source, rolled, parseIgnoreShield(pending.getExtraData()),
-                        BossDmgKind.CARD, null);
+                        BossDmgKind.CARD, null).hpLoss();
                 if (hpLoss > 0 && pending.getSourceUserId() != null) {
                     try {
                         taskService.recordBattleAction(pending.getSourceUserId(), null, 0, hpLoss);
@@ -3893,24 +3921,28 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
-    private int dealBossHp(Matches match, MatchPlayers credited, int amount, boolean ignoreShield,
-                           BossDmgKind kind, List<CardEffectResp> results) {
+    private BossHit dealBossHp(Matches match, MatchPlayers credited, int amount, boolean ignoreShield,
+                               BossDmgKind kind, List<CardEffectResp> results) {
         int damage = Math.max(amount, 0);
+        int hpNow = value(match.getBossCurrentHp());
         if (damage <= 0) {
-            return 0;
+            return new BossHit(0, 0, hpNow, hpNow);
         }
-        int hpLoss = applyBossHpDamage(match, damage, ignoreShield);
-        if (hpLoss > 0 && credited != null) {
-            credited.setDamageDealt(value(credited.getDamageDealt()) + hpLoss);
+        if (kind != BossDmgKind.CARD) {
+            damage = applyTurnDamageModifiers(match.getId(), damage);
+        }
+        BossHit hit = applyBossHpDamage(match, damage, ignoreShield);
+        if (hit.hpLoss() > 0 && credited != null) {
+            credited.setDamageDealt(value(credited.getDamageDealt()) + hit.hpLoss());
             persistHookPlayer(credited);
         }
         if (kind != BossDmgKind.CHASE && kind != BossDmgKind.HP_LOSS_EXTRA && credited != null) {
             resolveChaseAllyAttack(match, results);
         }
-        if (kind != BossDmgKind.HP_LOSS_EXTRA && hpLoss > 0) {
+        if (kind != BossDmgKind.HP_LOSS_EXTRA && hit.hpLoss() > 0) {
             resolveBossHpLossExtras(match, results);
         }
-        return hpLoss;
+        return hit;
     }
 
     private void persistHookPlayer(MatchPlayers player) {
@@ -3929,12 +3961,12 @@ public class MatchServiceImpl implements MatchService {
                 continue;
             }
             int extra = Math.max(value(hook.getEffectValue()), 0);
-            int hpBefore = value(match.getBossCurrentHp());
-            dealBossHp(match, owner, extra, false, BossDmgKind.CHASE, results);
+            int at = results == null ? 0 : results.size();
+            BossHit hit = dealBossHp(match, owner, extra, false, BossDmgKind.CHASE, results);
             if (results != null && extra > 0) {
-                results.add(new CardEffectResp("CHASE_ALLY_ATTACK", "IMMEDIATE", "BOSS", null,
-                        extra, extra, hpBefore, value(match.getBossCurrentHp()), false,
-                        match.getCurrentRound(), hook.getId(), hook.getExtraData()));
+                results.add(at, new CardEffectResp("CHASE_ALLY_ATTACK", "IMMEDIATE", "BOSS", null,
+                        extra, extra, hit.hpBefore(), hit.hpAfter(), false,
+                        match.getCurrentRound(), hook.getId(), withBossHitExtra(hook.getExtraData(), hit)));
             }
         }
     }
@@ -3949,12 +3981,12 @@ public class MatchServiceImpl implements MatchService {
                 continue;
             }
             int extra = Math.max(value(hook.getEffectValue()), 1);
-            int hpBefore = value(match.getBossCurrentHp());
-            dealBossHp(match, owner, extra, true, BossDmgKind.HP_LOSS_EXTRA, results);
+            int at = results == null ? 0 : results.size();
+            BossHit hit = dealBossHp(match, owner, extra, true, BossDmgKind.HP_LOSS_EXTRA, results);
             if (results != null && extra > 0) {
-                results.add(new CardEffectResp("ON_BOSS_HP_LOSS", "IMMEDIATE", "BOSS", null,
-                        extra, extra, hpBefore, value(match.getBossCurrentHp()), false,
-                        match.getCurrentRound(), hook.getId(), hook.getExtraData()));
+                results.add(at, new CardEffectResp("ON_BOSS_HP_LOSS", "IMMEDIATE", "BOSS", null,
+                        extra, extra, hit.hpBefore(), hit.hpAfter(), false,
+                        match.getCurrentRound(), hook.getId(), withBossHitExtra(hook.getExtraData(), hit)));
             }
         }
     }
@@ -3969,21 +4001,22 @@ public class MatchServiceImpl implements MatchService {
         dealBossHp(match, player, extra, false, BossDmgKind.COUNTER, null);
     }
 
-    private int applyBossHpDamage(Matches match, int rawDamage) {
-        return applyBossHpDamage(match, rawDamage, false);
-    }
-
-    private int applyBossHpDamage(Matches match, int rawDamage, boolean ignoreShield) {
+    private BossHit applyBossHpDamage(Matches match, int rawDamage, boolean ignoreShield) {
         int damage = Math.max(rawDamage, 0);
+        int shieldAbsorbed = 0;
         if (!ignoreShield) {
             int shield = value(match.getBossCurrentShield());
-            int blocked = Math.min(shield, damage);
-            match.setBossCurrentShield(shield - blocked);
-            damage = damage - blocked;
+            shieldAbsorbed = Math.min(shield, damage);
+            match.setBossCurrentShield(shield - shieldAbsorbed);
+            damage = damage - shieldAbsorbed;
         }
         int before = value(match.getBossCurrentHp());
-        match.setBossCurrentHp(Math.max(0, before - damage));
-        return before - value(match.getBossCurrentHp());
+        int after = Math.max(0, before - damage);
+        match.setBossCurrentHp(after);
+        return new BossHit(before - after, shieldAbsorbed, before, after);
+    }
+
+    private record BossHit(int hpLoss, int shieldAbsorbed, int hpBefore, int hpAfter) {
     }
 
     private void applyBullyRoundSkills(Matches match, List<MatchPlayers> players) {
