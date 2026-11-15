@@ -1151,6 +1151,7 @@ watch(battleReady, async (ready) => {
 const customerStatusText = computed(() => {
   if (customerTriggered.value === null) return '顾客机制：等待判定'
   if (!customerTriggered.value) return '顾客机制：本回合未触发'
+  if (customerEffectType.value === 'player_draw') return '顾客机制：两名存活护卫各抽 1 张牌'
   return `顾客机制：${effectLabel(customerEffectType.value)} ${formatSignedValue(customerEffectValue.value)}`
 })
 const actionOrderText = computed(() => {
@@ -1230,7 +1231,7 @@ function effectLabel(effectType?: string) {
     bully_hp_up: '霸凌者血量提升',
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
-    player_draw: '一名玩家抽牌',
+    player_draw: '两名玩家抽牌',
     player_action_hp_down: '一名玩家调用机会-1且失血3',
     bully_defense_up: '霸凌者防御提升',
     ADD_BOSS_SHIELD: '霸凌者防御提升',

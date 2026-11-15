@@ -76,7 +76,7 @@ function effectLabel(effectType?: string) {
     bully_attack_up: '霸凌者攻击提升',
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
-    player_draw: '一名玩家抽牌',
+    player_draw: '两名玩家抽牌',
     player_action_hp_down: '一名玩家调用机会减少并失血',
     bully_defense_up: '霸凌者防御提升',
     hp: '血量变化',

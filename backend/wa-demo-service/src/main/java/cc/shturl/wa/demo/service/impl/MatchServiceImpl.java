@@ -2730,13 +2730,24 @@ public class MatchServiceImpl implements MatchService {
                 drawCards(match.getId(), player.getUserId(), nextRoundNo, need);
             }
         }
-        MatchPlayers drawTarget = null;
-        Long drawnInstanceId = null;
+        List<MatchActions> customerDraws = new ArrayList<>();
         if (triggered && customer != null && "player_draw".equals(customer.getEffectType())) {
-            drawTarget = pickLivingPlayer(players);
-            if (drawTarget != null) {
-                List<Long> drawn = drawCardInstanceIds(match.getId(), drawTarget.getUserId(), nextRoundNo, 1);
-                drawnInstanceId = drawn.isEmpty() ? null : drawn.get(0);
+            for (MatchPlayers player : players) {
+                if (player == null || player.getUserId() == null || value(player.getCurrentHp()) <= 0) {
+                    continue;
+                }
+                List<Long> drawn = drawCardInstanceIds(match.getId(), player.getUserId(), nextRoundNo, 1);
+                if (drawn.isEmpty()) {
+                    continue;
+                }
+                MatchActions draw = new MatchActions();
+                draw.setMatchId(match.getId());
+                draw.setActorType("customer");
+                draw.setActionType("customer_draw");
+                draw.setTargetUserId(player.getUserId());
+                draw.setDeltaValue(1);
+                draw.setExtraData("{\"instanceId\":" + drawn.get(0) + "}");
+                customerDraws.add(draw);
             }
         }
         MatchRounds nextRound = new MatchRounds();
@@ -2782,15 +2793,8 @@ public class MatchServiceImpl implements MatchService {
             harsh.setExtraData("{\"apDelta\":" + actionDelta + ",\"hpLoss\":" + playerHpLoss + "}");
             matchActionsMapper.insert(harsh);
         }
-        if (drawTarget != null && drawnInstanceId != null) {
-            MatchActions draw = new MatchActions();
-            draw.setMatchId(match.getId());
+        for (MatchActions draw : customerDraws) {
             draw.setRoundId(nextRound.getId());
-            draw.setActorType("customer");
-            draw.setActionType("customer_draw");
-            draw.setTargetUserId(drawTarget.getUserId());
-            draw.setDeltaValue(1);
-            draw.setExtraData("{\"instanceId\":" + drawnInstanceId + "}");
             matchActionsMapper.insert(draw);
         }
     }
@@ -3925,28 +3929,30 @@ public class MatchServiceImpl implements MatchService {
         if (round == null || round.getId() == null) {
             return;
         }
-        MatchActions draw = matchActionsMapper.selectOne(Wrappers.<MatchActions>lambdaQuery()
+        List<MatchActions> draws = matchActionsMapper.selectList(Wrappers.<MatchActions>lambdaQuery()
                 .eq(MatchActions::getMatchId, match.getId())
                 .eq(MatchActions::getRoundId, round.getId())
-                .eq(MatchActions::getActionType, "customer_draw")
-                .last("LIMIT 1"));
-        if (draw == null) {
-            return;
+                .eq(MatchActions::getActionType, "customer_draw"));
+        Set<Long> reindexedUsers = new HashSet<>();
+        for (MatchActions draw : draws) {
+            Long instanceId = parseInstanceId(draw.getExtraData());
+            if (instanceId == null) {
+                continue;
+            }
+            MatchCards card = matchCardsMapper.selectById(instanceId);
+            if (card == null || !"HAND".equals(card.getZone()) || card.getUserId() == null
+                    || !match.getId().equals(card.getMatchId())) {
+                continue;
+            }
+            card.setZone("DECK");
+            card.setDrawnRound(null);
+            card.setVersion(value(card.getVersion()) + 1);
+            matchCardsMapper.updateById(card);
+            reindexedUsers.add(card.getUserId());
         }
-        Long instanceId = parseInstanceId(draw.getExtraData());
-        if (instanceId == null) {
-            return;
+        for (Long userId : reindexedUsers) {
+            reindexDeckOrder(match.getId(), userId);
         }
-        MatchCards card = matchCardsMapper.selectById(instanceId);
-        if (card == null || !"HAND".equals(card.getZone()) || card.getUserId() == null
-                || !match.getId().equals(card.getMatchId())) {
-            return;
-        }
-        card.setZone("DECK");
-        card.setDrawnRound(null);
-        card.setVersion(value(card.getVersion()) + 1);
-        matchCardsMapper.updateById(card);
-        reindexDeckOrder(match.getId(), card.getUserId());
     }
 
     private Long parseInstanceId(String extraData) {
