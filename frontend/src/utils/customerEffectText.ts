@@ -14,6 +14,6 @@ export function customerEffectSummary(input: {
 }): string | null {
   const ranged = rangedCustomerEffectText(input)
   if (ranged) return ranged
-  if (input.effectType === 'player_draw') return '随机一名存活护卫抽 1 张牌'
+  if (input.effectType === 'player_draw') return '两名存活护卫各抽 1 张牌'
   return null
 }

@@ -1247,7 +1247,7 @@ function effectLabel(effectType?: string) {
     bully_hp_up: '霸凌者血量提升',
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
-    player_draw: '一名玩家抽牌',
+    player_draw: '两名玩家抽牌',
     player_action_hp_down: '一名玩家调用机会-1且失血3',
     bully_defense_up: '霸凌者防御提升',
     ADD_BOSS_SHIELD: '霸凌者防御提升',
@@ -2293,7 +2293,7 @@ function customerResultPhrase(effectType: string, value: number) {
     case 'player_hp_up': return `双方血 +${n || 1}`
     case 'player_action_up': return `调用 +${n || 1}`
     case 'player_action_hp_down': return `调用 −1，血 −${n || 3}`
-    case 'player_draw': return `抽 +${n || 1}`
+    case 'player_draw': return '双方各抽 1'
     default: return effectLabel(effectType)
   }
 }
