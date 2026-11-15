@@ -26,7 +26,7 @@ export const announcements: Announcement[] = [
     id: 'topic-november-workdays-21',
     title: '出勤：11 月每人 21 天能领金币',
     date: '2026-11-07',
-    content: '2026 年 11 月每人可领金币的工作日改为 21 天。领满后本月其余日子为休息日，每日任务和周常都不发金币，对局仍可开。Ethan 每天 20:00 的自动补打已取消，不再补胜、不再自动领金币。',
+    content: '2026 年 11 月每人可领金币的工作日改为 21 天。领满后本月其余日子为休息日，每日任务和周常都不发金币，对局仍可开。',
   },
   {
     id: 'topic-daily-days-left',
@@ -110,7 +110,7 @@ export const announcements: Announcement[] = [
     id: 'topic-quest-reset-midnight',
     title: '每日任务：刷新改为每天 0 点',
     date: '2026-10-02',
-    content: '每日任务和周常改为每天 0 点（Asia/Shanghai）刷新，任务页倒计时与之一致。Ethan 每天 20:00 的自动补打已于 2026-11-07 取消。',
+    content: '每日任务和周常改为每天 0 点（Asia/Shanghai）刷新，任务页倒计时与之一致。',
   },
   {
     id: 'topic-daily-top5-customer-pool',
