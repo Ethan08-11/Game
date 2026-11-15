@@ -145,5 +145,5 @@ export const PRESET_AVATARS: AvatarPreset[] = [
   { id: 'customer-3', name: '红巾客官', url: '/images/customer/p3.webp' },
   { id: 'customer-5', name: '阔绰金客', url: '/images/customer/p5.webp' },
   { id: 'customer-6', name: '刻薄尖客', url: '/images/customer/p6.webp' },
-  { id: 'customer-7', name: 'Clement', url: '/images/customer/p7.webp' },
+  { id: 'customer-7', name: '爽快应客', url: '/images/customer/p7.webp' },
 ]
