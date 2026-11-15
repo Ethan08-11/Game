@@ -9,7 +9,7 @@
           <div class="turn-info">回合 {{ turnNumber }}</div>
           <div class="battle-status-row">
             <div class="status-col">
-              <span class="status-pill">{{ customerStatusText }}</span>
+              <span class="status-pill" :class="{ 'is-customer-live': !!customerPortraitClass }">{{ customerStatusText }}</span>
               <span class="status-pill">{{ actionOrderText }}</span>
             </div>
             <span v-if="activePhase === 'REVIVE_WAIT'" class="status-pill revive-wait-tag">等待复活中…</span>
@@ -330,7 +330,12 @@
     </Teleport>
 
     <div class="position-rects" :class="{ 'is-impact': bullyImpact }">
-      <div class="pos-rect pos-rect-customer" :style="{ width: '188px', height: '289px', left: '50%', top: '58%' }">
+      <div
+        ref="customerRectRef"
+        class="pos-rect pos-rect-customer"
+        :class="customerPortraitClass"
+        :style="{ width: '188px', height: '289px', left: '50%', top: '58%' }"
+      >
         <img :src="customerImage" alt="顾客" />
       </div>
       <div
@@ -751,6 +756,12 @@ function markBattleReady() {
 const customerTriggered = ref<number | null>(null)
 const customerEffectType = ref('')
 const customerEffectValue = ref<number | null>(null)
+const customerRectRef = ref<HTMLElement | null>(null)
+const customerPortraitClass = ref('')
+const customerFxPlaying = ref(false)
+const playedCustomerFxKeys = new Set<string>()
+let customerFxChain: Promise<void> = Promise.resolve()
+let customerFxJobs = 0
 const bullyDefense = ref(0)
 const bullyActionText = ref('')
 const unsubscribeFns: Array<() => void> = []
@@ -1149,10 +1160,15 @@ watch(battleReady, async (ready) => {
   bindHandResizeObserver()
 })
 const customerStatusText = computed(() => {
-  if (customerTriggered.value === null) return '顾客机制：等待判定'
-  if (!customerTriggered.value) return '顾客机制：本回合未触发'
-  if (customerEffectType.value === 'player_draw') return '顾客机制：两名存活护卫各抽 1 张牌'
-  return `顾客机制：${effectLabel(customerEffectType.value)} ${formatSignedValue(customerEffectValue.value)}`
+  const triggered = customerTriggered.value
+  const round = Number(turnNumber.value)
+  if (triggered === null || !customerEffectType.value || !Number.isFinite(round) || round < 2) {
+    return '顾客机制：等待判定'
+  }
+  if (triggered === 2) return '顾客无法行动'
+  if (!triggered) return '本回合未触发'
+  const name = game.employerName || '顾客'
+  return `${name}：${customerResultPhrase(customerEffectType.value, Number(customerEffectValue.value ?? 0))}`
 })
 const actionOrderText = computed(() => {
   if (isSelectingFirstPlayer.value) return '阶段：选择先手'
@@ -1252,11 +1268,6 @@ function effectLabel(effectType?: string) {
     SKIP_BULLY_ATTACK: '霸凌者不出手',
   }
   return map[effectType || ''] || effectType || '未知效果'
-}
-
-function formatSignedValue(value?: number | null) {
-  if (value == null) return ''
-  return value >= 0 ? `+${value}` : `${value}`
 }
 
 function mapCard(card: any): BattleCard {
@@ -1401,6 +1412,7 @@ function syncToStore(detail: any) {
   }
 
   turnEnded.value = backendPlayers.map((item: any) => Boolean(item.endedTurn)) as [boolean, boolean]
+  queueCustomerTriggerFx(detail)
 }
 
 async function refreshBattleState() {
@@ -1424,7 +1436,7 @@ async function refreshBattleState() {
   // 对局已结束 → 不向 room store 同步 match 数据，避免覆盖 App.vue 已执行的房间清理
   // REVIVE_WAIT 阶段不要当成终局，否则会盖掉复活弹窗
   if ((detail.phase === 'FINISHED' || detail.matchEnded) && detail.phase !== 'REVIVE_WAIT' && !justRevived.value) {
-    if (bullyFxPlaying.value || queuedFx) {
+    if (bullyFxPlaying.value || queuedFx || customerFxPlaying.value) {
       pendingGameOverAfterFx.value = true
       pendingGameOverDetail = detail
       return
@@ -1480,7 +1492,7 @@ async function refreshBattleState() {
   activePlayerState.discardCount = myState?.discardCount ?? detail.players?.[activeSeat]?.discardCount ?? activePlayerState.discardCount
 
   if (localCurrentHp.value <= 0 && !game.isGameOver && !reviveDialogDismissed.value) {
-    if (bullyFxPlaying.value || queuedFx) {
+    if (bullyFxPlaying.value || queuedFx || customerFxPlaying.value) {
       pendingReviveAfterFx.value = true
     } else {
       openReviveDialog()
@@ -2257,6 +2269,184 @@ async function playEffectClip(effect: any, ctx: {
     default:
       return
   }
+}
+
+function customerFxKind(effectType: string) {
+  switch (effectType) {
+    case 'bully_attack_down': return 'kind'
+    case 'bully_hp_up': return 'timid'
+    case 'bully_attack_up': return 'anxious'
+    case 'player_hp_up': return 'window'
+    case 'player_action_up': return 'wealthy'
+    case 'player_action_hp_down': return 'harsh'
+    case 'player_draw': return 'clement'
+    default: return ''
+  }
+}
+
+function customerResultPhrase(effectType: string, value: number) {
+  const n = Math.abs(Math.round(Number.isFinite(value) ? value : 0))
+  switch (effectType) {
+    case 'bully_attack_down': return `攻 −${n || 1}`
+    case 'bully_hp_up': return `血 +${n}`
+    case 'bully_attack_up': return `攻 +${n}`
+    case 'player_hp_up': return `双方血 +${n || 1}`
+    case 'player_action_up': return `调用 +${n || 1}`
+    case 'player_action_hp_down': return `调用 −1，血 −${n || 3}`
+    case 'player_draw': return '双方各抽 1'
+    default: return effectLabel(effectType)
+  }
+}
+
+function seatsForUserIds(ids: unknown[]) {
+  const seats: number[] = []
+  for (const id of ids) {
+    const seat = players.value.findIndex((item) => sameBattleUserId(item.userId, id))
+    if (seat >= 0 && !seats.includes(seat)) seats.push(seat)
+  }
+  return seats
+}
+
+function queueCustomerTriggerFx(detail: any) {
+  const round = Number(detail?.currentRound ?? detail?.roundNo ?? 0)
+  const phase = String(detail?.phase ?? '')
+  const effectType = String(detail?.customerEffectType ?? '')
+  const triggered = Number(detail?.customerTriggered)
+  if (!Number.isFinite(round) || round < 2 || phase === 'SELECT_FIRST_PLAYER' || !effectType) return
+  if (!Number.isFinite(triggered)) return
+  const key = `${detail?.matchId ?? activeMatchId.value}:${round}`
+  if (playedCustomerFxKeys.has(key)) return
+  playedCustomerFxKeys.add(key)
+  customerFxJobs += 1
+  customerFxPlaying.value = true
+  customerFxChain = customerFxChain.then(async () => {
+    try {
+      await playCustomerTriggerFx({
+        effectType,
+        triggered,
+        value: Number(detail?.customerEffectValue ?? 0),
+        targetUserIds: Array.isArray(detail?.customerTargetUserIds) ? detail.customerTargetUserIds : [],
+      })
+    } catch {
+      // 特效失败不打断对局
+    } finally {
+      customerFxJobs = Math.max(0, customerFxJobs - 1)
+      if (customerFxJobs === 0) {
+        customerFxPlaying.value = false
+        customerPortraitClass.value = ''
+        finishPendingAfterBullyFx()
+      }
+    }
+  })
+}
+
+async function playCustomerTriggerFx(spec: {
+  effectType: string
+  triggered: number
+  value: number
+  targetUserIds: unknown[]
+}) {
+  await nextTick()
+  for (let i = 0; i < 16; i += 1) {
+    if (customerRectRef.value && bullyFxLayerRef.value) break
+    await waitFx(50)
+  }
+  const from = customerRectRef.value
+  if (!from || !heroFxAlive) return
+  const kind = customerFxKind(spec.effectType)
+  if (spec.triggered === 2) {
+    customerPortraitClass.value = 'is-customer-fx is-silenced'
+    spawnHeroMark(from, '无法行动', 'tone-customer-silenced', 0.08)
+    await waitFx(980)
+    return
+  }
+  if (spec.triggered !== 1 || !kind) {
+    customerPortraitClass.value = 'is-customer-fx is-miss'
+    spawnHeroMark(from, '未发作', 'tone-customer-miss', 0.08)
+    await waitFx(860)
+    return
+  }
+  const tone = `tone-customer-${kind}`
+  customerPortraitClass.value = `is-customer-fx is-${kind}`
+  spawnHeroBurst(from, tone, 0.5, 0.42)
+  await waitFx(220)
+  if (!heroFxAlive) return
+  const magnitude = Math.abs(Math.round(Number.isFinite(spec.value) ? spec.value : 0))
+  if (kind === 'kind' || kind === 'anxious' || kind === 'timid') {
+    const dest = bullyHudRef.value || bullyRectRef.value
+    if (!dest) return
+    spawnHeroBolt(from, dest, tone, 680, 0.3, 0.42)
+    await waitFx(680)
+    if (!heroFxAlive) return
+    spawnHeroBurst(dest, tone, 0.5, 0.55)
+    if (kind === 'timid') {
+      flashBullyHit(true)
+      if (bullyRectRef.value) spawnHeroBurst(bullyRectRef.value, tone, 0.5, 0.4)
+      spawnHeroFloat(dest, `血 +${magnitude}`, tone, 0.16, 58)
+    } else if (kind === 'kind') {
+      flashBullyAttack('down')
+      spawnHeroFloat(dest, `攻 −${magnitude || 1}`, tone, 0.16, 58)
+    } else {
+      flashBullyAttack('up')
+      spawnHeroFloat(dest, `攻 +${magnitude}`, tone, 0.16, 58)
+    }
+    await waitFx(820)
+    return
+  }
+  let seats = seatsForUserIds(spec.targetUserIds)
+  if (!seats.length && kind === 'window') {
+    seats = players.value
+      .map((player, index) => ((player.hp || 0) > 0 ? index : -1))
+      .filter((index) => index >= 0)
+  }
+  const destOf = (seat: number) => {
+    if (kind === 'wealthy') return apDestEl(seat)
+    if (kind === 'clement') return drawDestEl(seat)
+    return playerRectBySeat(seat)
+  }
+  const dests = seats
+    .map((seat) => ({ seat, el: destOf(seat) }))
+    .filter((item): item is { seat: number; el: HTMLElement } => !!item.el)
+  if (!dests.length) {
+    spawnHeroFloat(from, customerResultPhrase(spec.effectType, spec.value), tone, 0.1, 48)
+    await waitFx(820)
+    return
+  }
+  for (const item of dests) {
+    spawnHeroBolt(from, item.el, tone, 680, 0.28, 0.38)
+  }
+  await waitFx(680)
+  if (!heroFxAlive) return
+  for (const item of dests) {
+    spawnHeroBurst(item.el, tone, 0.5, 0.36)
+    if (kind === 'window') {
+      pulseGlow([item.seat], 'heal', 860)
+      spawnHeroFloat(item.el, `+${magnitude || 1}`, tone, 0.18, 58)
+    } else if (kind === 'wealthy') {
+      spawnHeroFloat(item.el, `调用 +${magnitude || 1}`, tone, 0.12, 50)
+    } else if (kind === 'clement') {
+      spawnHeroFloat(item.el, `抽 +${magnitude || 1}`, tone, 0.12, 50)
+    } else if (kind === 'harsh') {
+      pulseGlow([item.seat], 'harm', 980)
+      spawnHeroFloat(item.el, '调用 −1', tone, 0.06, 44)
+    }
+  }
+  if (kind === 'harsh') {
+    await waitFx(460)
+    if (!heroFxAlive) return
+    const hpLoss = magnitude || 3
+    const hitSeats = dests.map((item) => item.seat)
+    flashSeats.value = [...new Set([...flashSeats.value, ...hitSeats])]
+    for (const item of dests) {
+      spawnHeroFloat(item.el, `血 −${hpLoss}`, tone, 0.4, 58)
+    }
+    window.setTimeout(() => {
+      if (!heroFxAlive) return
+      const hit = new Set(hitSeats)
+      flashSeats.value = flashSeats.value.filter((seat) => !hit.has(seat))
+    }, 720)
+  }
+  await waitFx(860)
 }
 
 async function playHeroCardFx(payload: any) {
@@ -3149,7 +3339,7 @@ async function handleReviveAvailable(data: any) {
   if (eventMatchId && eventMatchId !== activeMatchId.value) return
   await refreshBattleState()
   if (localCurrentHp.value <= 0 && !game.isGameOver) {
-    if (bullyFxPlaying.value) {
+    if (bullyFxPlaying.value || customerFxPlaying.value) {
       pendingReviveAfterFx.value = true
     } else {
       openReviveDialog()
@@ -3361,6 +3551,13 @@ onUnmounted(() => {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 232, 180, 0.16);
   white-space: nowrap;
+}
+.status-pill.is-customer-live {
+  color: #ffe7a8;
+  border-color: rgba(255, 214, 110, 0.95);
+  background: rgba(48, 28, 6, 0.92);
+  box-shadow: 0 0 18px rgba(255, 186, 48, 0.85), inset 0 0 12px rgba(255, 210, 90, 0.28);
+  transform: scale(1.06);
 }
 .revive-wait-tag {
   color: #ffe08a;
@@ -4718,6 +4915,151 @@ onUnmounted(() => {
 }
 .funds-indicator {
   font-size: calc(var(--text-base) * 2);
+}
+.pos-rect-customer.is-customer-fx {
+  overflow: visible;
+  z-index: 6;
+}
+.pos-rect-customer.is-customer-fx img {
+  animation: customer-fx-pop 0.9s ease-out;
+  filter: drop-shadow(0 0 18px var(--customer-glow, #ffe08a));
+}
+.pos-rect-customer.is-customer-fx::after {
+  content: '';
+  position: absolute;
+  inset: -16px;
+  border: 4px solid var(--customer-glow, #ffe08a);
+  border-radius: 16px;
+  box-shadow: 0 0 28px 8px var(--customer-glow, #ffe08a);
+  animation: customer-fx-ring 0.95s ease-out forwards;
+  pointer-events: none;
+}
+.pos-rect-customer.is-kind { --customer-glow: #ffd45a; }
+.pos-rect-customer.is-timid { --customer-glow: #d5e4ff; }
+.pos-rect-customer.is-anxious { --customer-glow: #ff5a3a; }
+.pos-rect-customer.is-window { --customer-glow: #7dff9a; }
+.pos-rect-customer.is-wealthy { --customer-glow: #ffcc33; }
+.pos-rect-customer.is-harsh { --customer-glow: #ff4d4d; }
+.pos-rect-customer.is-clement { --customer-glow: #f3e2b0; }
+.pos-rect-customer.is-miss { --customer-glow: #c8c2b4; }
+.pos-rect-customer.is-silenced {
+  --customer-glow: #6e6a64;
+  filter: grayscale(0.9) brightness(0.62);
+}
+.pos-rect-customer.is-miss img {
+  animation: customer-fx-shake 0.55s ease-in-out;
+}
+@keyframes customer-fx-pop {
+  0% { transform: scale(1); }
+  18% { transform: scale(1.18); }
+  46% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes customer-fx-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-12px) rotate(-2deg); }
+  45% { transform: translateX(12px) rotate(2deg); }
+  70% { transform: translateX(-7px); }
+}
+@keyframes customer-fx-ring {
+  0% { opacity: 0; transform: scale(0.84); }
+  22% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.16); }
+}
+.hero-bolt.tone-customer-kind,
+.hero-bolt.tone-customer-timid,
+.hero-bolt.tone-customer-anxious,
+.hero-bolt.tone-customer-window,
+.hero-bolt.tone-customer-wealthy,
+.hero-bolt.tone-customer-harsh,
+.hero-bolt.tone-customer-clement {
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+}
+.hero-bolt.tone-customer-kind {
+  background: radial-gradient(circle, #fff8d0 0%, #ffd45a 36%, #e09a18 72%, transparent 80%);
+  box-shadow: 0 0 22px 10px rgba(255, 196, 48, 0.98), 0 0 46px 18px rgba(255, 150, 20, 0.55);
+}
+.hero-bolt.tone-customer-timid {
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  background: radial-gradient(circle, #fff 0%, #e7f0ff 32%, #9eb6d8 70%, transparent 80%);
+  box-shadow: 0 0 26px 12px rgba(210, 226, 255, 0.98);
+}
+.hero-bolt.tone-customer-anxious {
+  background: radial-gradient(circle, #fff 0%, #ff5a3c 34%, #c41818 72%, transparent 82%);
+  box-shadow: 0 0 20px 10px rgba(255, 50, 24, 0.98), 0 0 42px 16px rgba(160, 0, 0, 0.5);
+}
+.hero-bolt.tone-customer-window {
+  background: radial-gradient(circle, #f4ffe8 0%, #7dff9a 38%, #1f9a48 74%, transparent 82%);
+  box-shadow: 0 0 20px 10px rgba(70, 230, 110, 0.98);
+}
+.hero-bolt.tone-customer-wealthy {
+  background: radial-gradient(circle at 35% 30%, #fff6c8, #ffcc33 42%, #b8860b 78%, #6a4a08 100%);
+  box-shadow: 0 0 18px 8px rgba(255, 196, 40, 0.98);
+}
+.hero-bolt.tone-customer-harsh {
+  background: radial-gradient(circle, #fff 0%, #ffd0d0 18%, #2a2a2a 46%, #050505 78%, transparent 86%);
+  box-shadow: 0 0 16px 6px rgba(0, 0, 0, 0.9), 0 0 0 4px rgba(255, 60, 60, 0.95), 0 0 28px 10px rgba(255, 40, 40, 0.45);
+}
+.hero-bolt.tone-customer-clement {
+  width: 28px;
+  height: 40px;
+  margin: -20px 0 0 -14px;
+  border-radius: 4px;
+  border: 3px solid #8a6a32;
+  background: linear-gradient(180deg, #fff6df, #e4d2a4 42%, #c4a46a);
+  box-shadow: 0 0 16px 6px rgba(230, 200, 120, 0.95);
+}
+.hero-burst.tone-customer-kind,
+.hero-burst.tone-customer-timid,
+.hero-burst.tone-customer-anxious,
+.hero-burst.tone-customer-window,
+.hero-burst.tone-customer-wealthy,
+.hero-burst.tone-customer-harsh,
+.hero-burst.tone-customer-clement {
+  width: 150px;
+  height: 150px;
+  margin: -75px 0 0 -75px;
+}
+.hero-float.tone-customer-kind,
+.hero-float.tone-customer-wealthy {
+  color: #ffe08a;
+  -webkit-text-stroke: 2px #5a3a08;
+  text-shadow: 0 0 18px rgba(255, 190, 40, 1), 0 4px 0 #2a1600;
+}
+.hero-float.tone-customer-timid {
+  color: #eef4ff;
+  -webkit-text-stroke: 2px #243044;
+  text-shadow: 0 0 18px rgba(190, 214, 255, 1), 0 4px 0 #101820;
+}
+.hero-float.tone-customer-anxious,
+.hero-float.tone-customer-harsh {
+  color: #ff5a3a;
+  -webkit-text-stroke: 2px #3a0808;
+  text-shadow: 0 0 18px rgba(255, 40, 20, 1), 0 4px 0 #180202;
+}
+.hero-float.tone-customer-window {
+  color: #b6ff9a;
+  -webkit-text-stroke: 2px #0c3a18;
+  text-shadow: 0 0 18px rgba(80, 255, 120, 1), 0 4px 0 #062010;
+}
+.hero-float.tone-customer-clement {
+  color: #fff4d2;
+  -webkit-text-stroke: 2px #4a3818;
+  text-shadow: 0 0 16px rgba(255, 220, 140, 1), 0 4px 0 #241808;
+}
+.hero-mark.tone-customer-miss,
+.hero-mark.tone-customer-silenced {
+  padding: 10px 18px;
+  font-size: 28px;
+  letter-spacing: 0.12em;
+  color: #fff8e8;
+  background: rgba(18, 12, 8, 0.9);
+  border: 3px solid rgba(240, 210, 140, 0.92);
+  box-shadow: 0 0 22px rgba(240, 190, 80, 0.55);
 }
 
 </style>

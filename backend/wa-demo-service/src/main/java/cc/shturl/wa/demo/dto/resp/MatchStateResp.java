@@ -34,6 +34,7 @@ public record MatchStateResp(
         String bullyTarget,
         String bossActionText,
         Boolean stuckCancelAvailable,
-        Integer stuckCancelRemainSeconds
+        Integer stuckCancelRemainSeconds,
+        List<Long> customerTargetUserIds
 ) {
 }
