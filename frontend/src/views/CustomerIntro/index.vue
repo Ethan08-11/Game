@@ -56,7 +56,7 @@ import bg2 from '@/assets/hall-bg2.webp'
 import cardBg from '@/assets/customer-card-bg.webp'
 import avatarImg from '@/assets/customer-avatar-intro.webp'
 import { getImageUrl } from '@/utils/imageUrl'
-import { rangedCustomerEffectText } from '@/utils/customerEffectText'
+import { customerEffectSummary } from '@/utils/customerEffectText'
 
 const bgDay = bg2
 const bgNight = bg1
@@ -76,6 +76,7 @@ function effectLabel(effectType?: string) {
     bully_attack_up: '霸凌者攻击提升',
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
+    player_draw: '一名玩家抽牌',
     player_action_hp_down: '一名玩家调用机会减少并失血',
     bully_defense_up: '霸凌者防御提升',
     hp: '血量变化',
@@ -99,11 +100,12 @@ function effectLabel(effectType?: string) {
 }
 
 function formatEffectValue(customer: CustomerApiItem) {
-  const ranged = rangedCustomerEffectText({
+  const summary = customerEffectSummary({
     id: customer.customerCode,
     name: customer.customerName,
+    effectType: customer.effectType,
   })
-  if (ranged) return ranged
+  if (summary) return summary
   const effectType = customer.effectType
   const num = customer.effectValue ?? 0
   const prefix = num >= 0 ? '+' : ''

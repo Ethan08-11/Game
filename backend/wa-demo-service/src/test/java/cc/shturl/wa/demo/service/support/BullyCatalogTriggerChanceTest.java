@@ -28,6 +28,8 @@ class BullyCatalogTriggerChanceTest {
                 .isEqualTo(50);
         assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_WEALTHY", "player_action_up", 50)))
                 .isEqualTo(50);
+        assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_CLEMENT", "player_draw", 50)))
+                .isEqualTo(50);
     }
 
     private static CustomerTypes customer(String code, String effectType, int triggerChance) {

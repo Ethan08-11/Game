@@ -2730,6 +2730,15 @@ public class MatchServiceImpl implements MatchService {
                 drawCards(match.getId(), player.getUserId(), nextRoundNo, need);
             }
         }
+        MatchPlayers drawTarget = null;
+        Long drawnInstanceId = null;
+        if (triggered && customer != null && "player_draw".equals(customer.getEffectType())) {
+            drawTarget = pickLivingPlayer(players);
+            if (drawTarget != null) {
+                List<Long> drawn = drawCardInstanceIds(match.getId(), drawTarget.getUserId(), nextRoundNo, 1);
+                drawnInstanceId = drawn.isEmpty() ? null : drawn.get(0);
+            }
+        }
         MatchRounds nextRound = new MatchRounds();
         nextRound.setMatchId(match.getId());
         nextRound.setRoundNo(nextRoundNo);
@@ -2772,6 +2781,17 @@ public class MatchServiceImpl implements MatchService {
             harsh.setDeltaValue(-playerHpLoss);
             harsh.setExtraData("{\"apDelta\":" + actionDelta + ",\"hpLoss\":" + playerHpLoss + "}");
             matchActionsMapper.insert(harsh);
+        }
+        if (drawTarget != null && drawnInstanceId != null) {
+            MatchActions draw = new MatchActions();
+            draw.setMatchId(match.getId());
+            draw.setRoundId(nextRound.getId());
+            draw.setActorType("customer");
+            draw.setActionType("customer_draw");
+            draw.setTargetUserId(drawTarget.getUserId());
+            draw.setDeltaValue(1);
+            draw.setExtraData("{\"instanceId\":" + drawnInstanceId + "}");
+            matchActionsMapper.insert(draw);
         }
     }
 
@@ -2867,10 +2887,14 @@ public class MatchServiceImpl implements MatchService {
      * 牌库仍有牌时绝不触碰弃牌堆。
      */
     private int drawCards(Long matchId, Long userId, int roundNo, int count) {
-        int drawn = 0;
+        return drawCardInstanceIds(matchId, userId, roundNo, count).size();
+    }
+
+    private List<Long> drawCardInstanceIds(Long matchId, Long userId, int roundNo, int count) {
+        List<Long> drawnIds = new ArrayList<>();
         MatchPendingEffects peek = findHookPending(matchId, userId, "PEEK_NEXT_DRAW");
         Set<Long> reserved = new HashSet<>(parsePeekInstanceIds(peek == null ? null : peek.getExtraData()));
-        while (drawn < count) {
+        while (drawnIds.size() < count) {
             int deckCount = countCards(matchId, userId, "DECK");
             if (deckCount <= 0) {
                 // 牌库已空 = 当前牌库中的牌都抽完了，才洗弃牌堆
@@ -2890,7 +2914,7 @@ public class MatchServiceImpl implements MatchService {
             }
             Collections.shuffle(deck);
             // 本轮最多抽完当前牌库，不够的等牌库空了再洗弃牌
-            int need = Math.min(count - drawn, deck.size());
+            int need = Math.min(count - drawnIds.size(), deck.size());
             for (int i = 0; i < need; i++) {
                 MatchCards card = deck.get(i);
                 card.setZone("HAND");
@@ -2898,11 +2922,11 @@ public class MatchServiceImpl implements MatchService {
                 card.setDrawnRound(roundNo);
                 card.setVersion(value(card.getVersion()) + 1);
                 matchCardsMapper.updateById(card);
-                drawn++;
+                drawnIds.add(card.getId());
             }
             reindexDeckOrder(matchId, userId);
         }
-        return drawn;
+        return drawnIds;
     }
 
     /** @return true 若成功将弃牌洗入牌库；false 若弃牌也为空 */
@@ -3786,6 +3810,10 @@ public class MatchServiceImpl implements MatchService {
         }
         if ("player_action_hp_down".equals(type)) {
             revertCustomerHarsh(match, round, players, Math.max(val, 0), liveActor);
+            return;
+        }
+        if ("player_draw".equals(type)) {
+            revertCustomerDraw(match, round);
         }
     }
 
@@ -3889,6 +3917,52 @@ public class MatchServiceImpl implements MatchService {
         mutable.setActionPoints(next);
         if (mutable != liveActor) {
             matchPlayersMapper.updateById(mutable);
+        }
+    }
+
+    /** 抽到的牌还在手里才收回牌库。已经打出的不追回。 */
+    private void revertCustomerDraw(Matches match, MatchRounds round) {
+        if (round == null || round.getId() == null) {
+            return;
+        }
+        MatchActions draw = matchActionsMapper.selectOne(Wrappers.<MatchActions>lambdaQuery()
+                .eq(MatchActions::getMatchId, match.getId())
+                .eq(MatchActions::getRoundId, round.getId())
+                .eq(MatchActions::getActionType, "customer_draw")
+                .last("LIMIT 1"));
+        if (draw == null) {
+            return;
+        }
+        Long instanceId = parseInstanceId(draw.getExtraData());
+        if (instanceId == null) {
+            return;
+        }
+        MatchCards card = matchCardsMapper.selectById(instanceId);
+        if (card == null || !"HAND".equals(card.getZone()) || card.getUserId() == null
+                || !match.getId().equals(card.getMatchId())) {
+            return;
+        }
+        card.setZone("DECK");
+        card.setDrawnRound(null);
+        card.setVersion(value(card.getVersion()) + 1);
+        matchCardsMapper.updateById(card);
+        reindexDeckOrder(match.getId(), card.getUserId());
+    }
+
+    private Long parseInstanceId(String extraData) {
+        if (extraData == null || extraData.isBlank()) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("\"instanceId\"\\s*:\\s*(\\d+)")
+                .matcher(extraData);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(matcher.group(1));
+        } catch (NumberFormatException ignored) {
+            return null;
         }
     }
 

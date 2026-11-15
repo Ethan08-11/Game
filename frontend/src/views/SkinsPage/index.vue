@@ -30,7 +30,7 @@ import { ref, onMounted } from 'vue'
 import { getCustomers } from '@/api'
 import type { EmployerTrait } from '@/types/gameEntities'
 import BackButton from '@/components/BackButton.vue'
-import { rangedCustomerEffectText } from '@/utils/customerEffectText'
+import { customerEffectSummary } from '@/utils/customerEffectText'
 
 const customers = ref<EmployerTrait[]>([])
 
@@ -40,8 +40,8 @@ function formatRate(value?: number) {
 }
 
 function getEffectText(customer: EmployerTrait) {
-  const ranged = rangedCustomerEffectText({ id: customer.id, name: customer.name })
-  if (ranged) return ranged
+  const summary = customerEffectSummary({ id: customer.id, name: customer.name, effectType: customer.effectType })
+  if (summary) return summary
   const value = customer.effectValue ?? 0
   if (customer.effectType === 'player_harsh') {
     const amount = Math.abs(value)

@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-clement-draw',
+    title: '顾客：Clement 进铺，触发就送一张牌',
+    date: '2026-11-15',
+    content: '图鉴新增好顾客 Clement。随和爽快，笑起来就说 OK。正常对局里七位顾客登场权重平分。若抽到他，半数回合会随机给一名存活护卫多抽 1 张牌。已经倒下的不会抽到。高压名单仍只从胆小怕事、焦虑难安、刻薄尖客里抽。',
+  },
+  {
     id: 'topic-november-workdays-21',
     title: '出勤：11 月每人 21 天能领金币',
     date: '2026-11-07',

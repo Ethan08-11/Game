@@ -7,7 +7,7 @@ export interface EmployerTrait {
   helpMax: number
   hinderMin: number
   hinderMax: number
-  effectType?: 'attack' | 'hp' | 'player_hp' | 'player_action' | 'player_harsh'
+  effectType?: 'attack' | 'hp' | 'player_hp' | 'player_action' | 'player_harsh' | 'player_draw'
   effectValue?: number
   typeTriggerRate?: number
   effectTriggerRate?: number
