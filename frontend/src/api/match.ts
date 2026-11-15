@@ -69,6 +69,7 @@ export interface MatchDetailResp {
   customerTriggered?: number
   customerEffectType?: string
   customerEffectValue?: number
+  customerTargetUserIds?: Array<number | string>
   firstPlayerUserId?: number | string
   secondPlayerUserId?: number | string
   matchEnded?: boolean

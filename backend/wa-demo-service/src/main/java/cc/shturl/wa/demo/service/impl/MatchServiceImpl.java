@@ -267,7 +267,25 @@ public class MatchServiceImpl implements MatchService {
                 waitingReconnect, reconnectRemainingSeconds, playerStates, hand, match.getWinnerType(),
                 hud.shield(), hud.skillType(), hud.summary(), hud.triggered(), hud.target(), hud.actionText(),
                 stuck.eligible(false),
-                stuck.remainSeconds() > 0 ? stuck.remainSeconds() : null);
+                stuck.remainSeconds() > 0 ? stuck.remainSeconds() : null,
+                customerTargetUserIds(matchId, round));
+    }
+
+    /** 本回合顾客打中的护卫。2 表示被「顾客无法行动」压住，没有目标。 */
+    private List<Long> customerTargetUserIds(Long matchId, MatchRounds round) {
+        if (round == null || round.getId() == null || value(round.getCustomerTriggered()) != 1) {
+            return List.of();
+        }
+        return matchActionsMapper.selectList(Wrappers.<MatchActions>lambdaQuery()
+                        .eq(MatchActions::getMatchId, matchId)
+                        .eq(MatchActions::getRoundId, round.getId())
+                        .in(MatchActions::getActionType, List.of(
+                                "customer_grant_ap", "customer_harsh", "customer_draw", "customer_heal")))
+                .stream()
+                .map(MatchActions::getTargetUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
     @Override
@@ -2656,6 +2674,7 @@ public class MatchServiceImpl implements MatchService {
                 && BullyCatalog.roll(BullyCatalog.combatTriggerChance(customer));
         int attack = value(match.getBossBaseAttack());
         int rolledEffect = triggered && customer != null ? rollCustomerEffect(customer) : 0;
+        List<Long> healedUserIds = new ArrayList<>();
         if (triggered && customer != null) {
             if ("bully_attack_down".equals(customer.getEffectType()) || "bully_attack_up".equals(customer.getEffectType())) {
                 attack = Math.max(0, attack + rolledEffect);
@@ -2666,9 +2685,10 @@ public class MatchServiceImpl implements MatchService {
             } else if ("player_hp_up".equals(customer.getEffectType())) {
                 int heal = Math.max(rolledEffect, 0);
                 for (MatchPlayers player : players) {
-                    if (value(player.getCurrentHp()) <= 0) {
+                    if (value(player.getCurrentHp()) <= 0 || player.getUserId() == null) {
                         continue;
                     }
+                    healedUserIds.add(player.getUserId());
                     int before = value(player.getCurrentHp());
                     player.setCurrentHp(Math.min(value(player.getMaxHp()), before + heal));
                 }
@@ -2745,7 +2765,7 @@ public class MatchServiceImpl implements MatchService {
         nextRound.setRoundStatus(0);
         nextRound.setPhase(PLAYER_ACTION);
         nextRound.setBossAttack(match.getBossCurrentAttack());
-        nextRound.setCustomerTriggered(triggered ? 1 : 0);
+        nextRound.setCustomerTriggered(skipCustomer ? 2 : (triggered ? 1 : 0));
         nextRound.setCustomerEffectType(customer == null ? null : customer.getEffectType());
         nextRound.setCustomerEffectValue(triggered ? rolledEffect : (customer == null ? 0 : value(customer.getEffectValue())));
         nextRound.setBossRageValue(0);
@@ -2792,6 +2812,16 @@ public class MatchServiceImpl implements MatchService {
             draw.setDeltaValue(1);
             draw.setExtraData("{\"instanceId\":" + drawnInstanceId + "}");
             matchActionsMapper.insert(draw);
+        }
+        for (Long healedUserId : healedUserIds) {
+            MatchActions heal = new MatchActions();
+            heal.setMatchId(match.getId());
+            heal.setRoundId(nextRound.getId());
+            heal.setActorType("customer");
+            heal.setActionType("customer_heal");
+            heal.setTargetUserId(healedUserId);
+            heal.setDeltaValue(Math.max(rolledEffect, 0));
+            matchActionsMapper.insert(heal);
         }
     }
 
