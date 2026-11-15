@@ -96,6 +96,7 @@ function normalizeRate(value?: number) {
 
 function normalizeEffectType(customer: CustomerApiItem): EmployerTrait['effectType'] {
   const raw = `${customer.effectType || ''}`
+  if (/player_draw|draw_cards/i.test(raw)) return 'player_draw'
   if (/player_action_hp|harsh/i.test(raw)) return 'player_harsh'
   if (/player_action|action_points|调用机会/i.test(raw)) return 'player_action'
   if (/player_hp|heal_player/i.test(raw)) return 'player_hp'

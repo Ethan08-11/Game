@@ -65,7 +65,7 @@ import bg2 from '@/assets/hall-bg2.webp'
 import panelBg from '@/assets/customer-panel-bg.webp'
 import titleBanner from '@/assets/title-banner.webp'
 import { getImageUrl } from '@/utils/imageUrl'
-import { rangedCustomerEffectText } from '@/utils/customerEffectText'
+import { customerEffectSummary } from '@/utils/customerEffectText'
 
 const bgDay = bg2
 const bgNight = bg1
@@ -82,8 +82,8 @@ const customerReady = computed(() => {
 const customerAvatar = computed(() => getImageUrl(trait.value?.imageUrl) || '')
 const effectText = computed(() => {
   if (!trait.value) return ''
-  const ranged = rangedCustomerEffectText({ id: trait.value.id, name: trait.value.name })
-  if (ranged) return ranged
+  const summary = customerEffectSummary({ id: trait.value.id, name: trait.value.name, effectType: trait.value.effectType })
+  if (summary) return summary
   const value = trait.value.effectValue ?? 0
   if (trait.value.effectType === 'player_harsh') {
     const amount = Math.abs(value)

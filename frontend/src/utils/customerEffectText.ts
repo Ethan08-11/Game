@@ -6,3 +6,14 @@ export function rangedCustomerEffectText(input: { id?: string | null; name?: str
   if (id === 'CUSTOMER_ANXIOUS' || name.includes('焦虑难安')) return '霸凌者基础攻击+2～4'
   return null
 }
+
+export function customerEffectSummary(input: {
+  id?: string | null
+  name?: string | null
+  effectType?: string | null
+}): string | null {
+  const ranged = rangedCustomerEffectText(input)
+  if (ranged) return ranged
+  if (input.effectType === 'player_draw') return '随机一名存活护卫抽 1 张牌'
+  return null
+}

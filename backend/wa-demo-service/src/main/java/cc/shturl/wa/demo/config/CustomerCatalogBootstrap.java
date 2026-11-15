@@ -44,6 +44,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         runScript("db/044_timid_attack.sql");
         runScript("db/045_customer_trigger_50.sql");
         runScript("db/046_timid_anxious_range.sql");
+        runScript("db/047_clement_customer.sql");
         runScript("db/019_customer_bound_bullies.sql");
         runScript("db/023_bully_focus_no_pierce.sql");
         runScript("db/024_all_customers_hard_shield.sql");
@@ -73,6 +74,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
                 """, "结伴闲逛却从不落单。效果触发时，给两名存活护卫各恢复 1 点血值。");
         update("CUSTOMER_WEALTHY", 1, 50, 10);
         update("CUSTOMER_HARSH", 3, 50, 10);
+        update("CUSTOMER_CLEMENT", 1, 50, 10);
         log.info("Customer catalog difficulty tuned.");
     }
 

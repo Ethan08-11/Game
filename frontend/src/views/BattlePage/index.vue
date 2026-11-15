@@ -1230,6 +1230,7 @@ function effectLabel(effectType?: string) {
     bully_hp_up: '霸凌者血量提升',
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
+    player_draw: '一名玩家抽牌',
     player_action_hp_down: '一名玩家调用机会-1且失血3',
     bully_defense_up: '霸凌者防御提升',
     ADD_BOSS_SHIELD: '霸凌者防御提升',
@@ -1342,7 +1343,9 @@ function syncToStore(detail: any) {
     helpMax: 0,
     hinderMin: 0,
     hinderMax: 0,
-    effectType: /player_action_hp|harsh/i.test(detail.customer.effectType || '')
+    effectType: /player_draw|draw_cards/i.test(detail.customer.effectType || '')
+      ? 'player_draw'
+      : /player_action_hp|harsh/i.test(detail.customer.effectType || '')
       ? 'player_harsh'
       : detail.customer.effectType?.includes('player_action')
         ? 'player_action'
