@@ -2362,7 +2362,7 @@ async function playCustomerTriggerFx(spec: {
   }
   if (spec.triggered !== 1 || !kind) {
     customerPortraitClass.value = 'is-customer-fx is-miss'
-    spawnHeroMark(from, '未发作', 'tone-customer-miss', 0.08)
+    spawnHeroMark(from, '未出手', 'tone-customer-miss', 0.08)
     await waitFx(860)
     return
   }
