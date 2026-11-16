@@ -3,7 +3,7 @@
     <div class="friend-list-container">
       <div class="friend-scroll-area">
         <div v-if="friends.length === 0" class="empty-tip">
-          暂无好友
+          {{ t('暂无好友') }}
         </div>
         <div v-for="f in friends" :key="f.id" class="friend-row">
           <PlayerAvatar class="friend-avatar" :src="f.avatarUrl" :alt="f.displayName || f.username" />
@@ -19,6 +19,7 @@
 import { computed } from 'vue'
 import { useUserStore, type Friend } from '@/store/user'
 import { formatPlayerName } from '@/utils/playerName'
+import { t } from '@/i18n'
 import PlayerAvatar from '@/components/PlayerAvatar.vue'
 import statusOnlineIcon from '@/assets/status-online.webp'
 import statusOfflineIcon from '@/assets/status-offline.webp'

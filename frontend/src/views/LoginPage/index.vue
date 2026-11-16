@@ -1,30 +1,31 @@
 <template>
   <div class="login-page" :class="{ 'is-password-tab': activeTab === 'password' }" :style="{ '--login-bg': `url(${bgImage})` }">
+    <LangSwitch class="login-lang" />
     <div class="parchment-layer" :style="{ '--parchment': `url(${parchmentBg})` }"></div>
-    <h1 class="logo">这单我们护了！！！！</h1>
+    <h1 class="logo">{{ t('这单我们护了！！！！') }}</h1>
     <div class="login-card" @keydown.enter="onEnterKey">
       <el-tabs v-model="activeTab">
-        <el-tab-pane label="登录" name="login">
+        <el-tab-pane :label="t('登录')" name="login">
           <el-form @submit.prevent="onPanelLogin">
-            <el-form-item><el-input :model-value="loginForm.username" placeholder="用户名" @update:model-value="onLoginUsername" /></el-form-item>
-            <el-form-item><el-input v-model="loginForm.password" type="password" placeholder="密码" /></el-form-item>
-            <el-form-item><el-button type="primary" @click="onPanelLogin" style="width:100%">登录</el-button></el-form-item>
+            <el-form-item><el-input :model-value="loginForm.username" :placeholder="t('用户名')" @update:model-value="onLoginUsername" /></el-form-item>
+            <el-form-item><el-input v-model="loginForm.password" type="password" :placeholder="t('密码')" /></el-form-item>
+            <el-form-item><el-button type="primary" @click="onPanelLogin" style="width:100%">{{ t('登录') }}</el-button></el-form-item>
           </el-form>
         </el-tab-pane>
-        <el-tab-pane label="注册" name="register">
+        <el-tab-pane :label="t('注册')" name="register">
           <el-form @submit.prevent="handleRegister">
-            <el-form-item><el-input :model-value="regForm.username" placeholder="用户名（4-50位字母、数字或下划线）" @update:model-value="onRegUsername" /></el-form-item>
-            <el-form-item><el-input v-model="regForm.password" type="password" placeholder="密码（至少3位）" /></el-form-item>
-            <el-form-item><el-button type="success" @click="handleRegister" style="width:100%">注册</el-button></el-form-item>
+            <el-form-item><el-input :model-value="regForm.username" :placeholder="t('用户名（4-50位字母、数字或下划线）')" @update:model-value="onRegUsername" /></el-form-item>
+            <el-form-item><el-input v-model="regForm.password" type="password" :placeholder="t('密码（至少3位）')" /></el-form-item>
+            <el-form-item><el-button type="success" @click="handleRegister" style="width:100%">{{ t('注册') }}</el-button></el-form-item>
           </el-form>
         </el-tab-pane>
-        <el-tab-pane label="修改密码" name="password">
+        <el-tab-pane :label="t('修改密码')" name="password">
           <el-form @submit.prevent="handleChangePassword">
-            <el-form-item><el-input :model-value="pwdForm.username" placeholder="用户名" @update:model-value="onPwdUsername" /></el-form-item>
-            <el-form-item><el-input v-model="pwdForm.oldPassword" type="password" placeholder="原密码" show-password /></el-form-item>
-            <el-form-item><el-input v-model="pwdForm.newPassword" type="password" placeholder="新密码（至少3位）" show-password /></el-form-item>
-            <el-form-item><el-input v-model="pwdForm.confirmPassword" type="password" placeholder="再输入一次新密码" show-password /></el-form-item>
-            <el-form-item><el-button type="primary" @click="handleChangePassword" style="width:100%">确认修改</el-button></el-form-item>
+            <el-form-item><el-input :model-value="pwdForm.username" :placeholder="t('用户名')" @update:model-value="onPwdUsername" /></el-form-item>
+            <el-form-item><el-input v-model="pwdForm.oldPassword" type="password" :placeholder="t('原密码')" show-password /></el-form-item>
+            <el-form-item><el-input v-model="pwdForm.newPassword" type="password" :placeholder="t('新密码（至少3位）')" show-password /></el-form-item>
+            <el-form-item><el-input v-model="pwdForm.confirmPassword" type="password" :placeholder="t('再输入一次新密码')" show-password /></el-form-item>
+            <el-form-item><el-button type="primary" @click="handleChangePassword" style="width:100%">{{ t('确认修改') }}</el-button></el-form-item>
           </el-form>
         </el-tab-pane>
       </el-tabs>
@@ -42,6 +43,8 @@ import { changePassword } from '@/api'
 
 import { connectRoomSocket } from '@/utils/roomSocket'
 import { capitalizeUsername } from '@/utils/playerName'
+import { t } from '@/i18n'
+import LangSwitch from '@/components/LangSwitch.vue'
 import bgImage from '@/assets/login-bg2.webp'
 import parchmentBg from '@/assets/login-parchment-bg.webp'
 
@@ -183,6 +186,12 @@ async function handleChangePassword() {
   padding-bottom: 180px;
   padding-left: 160px;
   isolation: isolate;
+}
+.login-lang {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 5;
 }
 .login-page.is-password-tab {
   padding-bottom: 108px;

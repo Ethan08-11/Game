@@ -1,27 +1,27 @@
 <template>
   <div v-if="game.employerTrait" class="employer-card" tabindex="0">
     <div class="employer-trait">
-      {{ game.employerTrait.name }}
+      {{ shownEmployer.name }}
       <span class="info-dot" aria-hidden="true">i</span>
     </div>
     <div class="employer-attrs" role="tooltip">
-      <p class="attr-name">{{ game.employerTrait.name }}</p>
-      <p v-if="game.employerTrait.description" class="attr-desc">{{ game.employerTrait.description }}</p>
+      <p class="attr-name">{{ shownEmployer.name }}</p>
+      <p v-if="shownEmployer.description" class="attr-desc">{{ shownEmployer.description }}</p>
       <p class="attr-row">
-        <span>顾客类型触发概率</span>
+        <span>{{ t('顾客类型触发概率') }}</span>
         <strong>{{ formatRate(game.employerTrait.typeTriggerRate) }}</strong>
       </p>
       <p class="attr-row">
-        <span>效果触发概率</span>
+        <span>{{ t('效果触发概率') }}</span>
         <strong>{{ formatRate(game.employerTrait.effectTriggerRate) }}</strong>
       </p>
       <p class="attr-row">
-        <span>顾客效果</span>
+        <span>{{ t('顾客效果') }}</span>
         <strong>{{ effectText }}</strong>
       </p>
       <p v-if="game.employerTrait.bullyName" class="attr-row">
-        <span>对应霸凌者</span>
-        <strong>{{ game.employerTrait.bullyName }}</strong>
+        <span>{{ t('对应霸凌者') }}</span>
+        <strong>{{ t(game.employerTrait.bullyName) }}</strong>
       </p>
       <p v-if="game.employerTrait.bullySkillSummary" class="attr-desc">{{ game.employerTrait.bullySkillSummary }}</p>
     </div>
@@ -32,18 +32,26 @@
 import { computed } from 'vue'
 import { useGameStore } from '@/store/game'
 import { customerEffectSummary } from '@/utils/customerEffectText'
+import { t } from '@/i18n'
+import { localizeCustomer, localizeEffect } from '@/i18n/catalog'
 
 const game = useGameStore()
 
+const shownEmployer = computed(() => {
+  const trait = game.employerTrait
+  if (!trait) return { name: '', description: '' }
+  return localizeCustomer({ code: trait.id, name: trait.name, description: trait.description })
+})
+
 const effectText = computed(() => {
   const trait = game.employerTrait
-  if (!trait) return '加载中'
+  if (!trait) return t('加载中')
   const summary = customerEffectSummary({ id: trait.id, name: trait.name, effectType: trait.effectType })
-  if (summary) return summary
+  if (summary) return localizeEffect(summary)
   const value = trait.effectValue ?? 0
   if (trait.effectType === 'player_harsh') {
     const amount = Math.abs(value)
-    return `一名玩家调用机会-1且失血${amount}`
+    return localizeEffect(`一名玩家调用机会-1且失血${amount}`)
   }
   const target = trait.effectType === 'player_hp'
     ? '我方血值'
@@ -52,11 +60,11 @@ const effectText = computed(() => {
       : trait.effectType === 'hp'
         ? '霸凌者血量'
         : '霸凌者基础攻击'
-  return `${target}${value >= 0 ? '+' : ''}${value}`
+  return localizeEffect(`${target}${value >= 0 ? '+' : ''}${value}`)
 })
 
 function formatRate(value?: number) {
-  if (value == null) return '未配置'
+  if (value == null) return t('未配置')
   return `${Math.round(value * 100)}%`
 }
 </script>

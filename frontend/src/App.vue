@@ -1,18 +1,23 @@
 <template>
-  <div class="app-shell">
-    <router-view v-slot="{ Component }">
-      <transition name="page-fade" mode="out-in">
-        <component :is="Component" />
-      </transition>
-    </router-view>
-    <MagicTrail />
-  </div>
+  <el-config-provider :locale="elementLocale">
+    <div class="app-shell">
+      <router-view v-slot="{ Component }">
+        <transition name="page-fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
+      <MagicTrail />
+    </div>
+  </el-config-provider>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import en from 'element-plus/es/locale/lang/en'
+import { lang } from '@/i18n'
 import { acceptRoomInvite, extractRoomId, getPendingRoomInvites, getRoomDetail, getCurrentRoom, getCurrentMatch, leaveRoom as leaveRoomApi, rejectRoomInvite } from '@/api'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
@@ -21,6 +26,7 @@ import { ACTIVE_MATCH_KEY, clearMatchCache, isClosedRoom } from '@/utils/matchCa
 import { formatPlayerName } from '@/utils/playerName'
 import MagicTrail from '@/components/MagicTrail.vue'
 
+const elementLocale = computed(() => (lang.value === 'en' ? en : zhCn))
 const route = useRoute()
 const router = useRouter()
 const room = useRoomStore()

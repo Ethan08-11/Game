@@ -5,8 +5,8 @@
     <Teleport to="body">
     <div v-if="showDeptModal" class="dept-modal-overlay" @click.self="">
       <div class="dept-modal">
-        <h2 class="dept-modal-title">选择你的部门</h2>
-        <p class="dept-modal-sub">选择后将决定你在本局游戏中的卡牌池</p>
+        <h2 class="dept-modal-title">{{ t('选择你的部门') }}</h2>
+        <p class="dept-modal-sub">{{ t('选择后将决定你在本局游戏中的卡牌池') }}</p>
         <div class="dept-cards">
           <div
             v-for="dept in room.depts"
@@ -16,8 +16,8 @@
             :style="{ backgroundImage: `url(${deptCardBg})` }"
             @click="pendingDept = dept"
           >
-            <div class="dept-card-name">{{ dept }}</div>
-            <div class="dept-card-desc">{{ getDeptDesc(dept) }}</div>
+            <div class="dept-card-name">{{ t(dept) }}</div>
+            <div class="dept-card-desc">{{ t(getDeptDesc(dept)) }}</div>
             <div v-if="pendingDept === dept" class="dept-card-check">
               <el-icon :size="20"><Check /></el-icon>
             </div>
@@ -25,17 +25,17 @@
         </div>
         <div class="dept-actions">
           <button class="dept-back-btn" @click="showDeptModal = false">
-            返回
+            {{ t('返回') }}
           </button>
           <button class="dept-confirm-btn" :disabled="!pendingDept" @click="confirmDept">
-            确定
+            {{ t('确定') }}
           </button>
         </div>
       </div>
     </div>
   </Teleport>
 
-    <BackButton to="" text="返回大厅" @click="leaveCurrentRoom" />
+    <BackButton to="" :text="t('返回大厅')" @click="leaveCurrentRoom" />
 
     <div class="left-panel" :style="{ '--friend-list-bg': `url(${matchBg})` }">
       <h3 class="panel-title">好友列表</h3>
@@ -117,6 +117,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { QuestionFilled, Check } from '@element-plus/icons-vue'
+import { t } from '@/i18n'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
 import { extractRoomId, getRoomDetail, getCurrentRoom, leaveRoom as leaveRoomApi, abandonMatch, sendRoomInvite, setRoomDepartment, setRoomReady } from '@/api'

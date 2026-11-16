@@ -1,19 +1,20 @@
 <template>
   <div class="battle-page" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '' }">
-    <BackButton to="" text="放弃对战" @click="handleLeave" />
+    <BackButton to="" :text="t('放弃对战')" @click="handleLeave" />
+    <LangSwitch class="battle-lang" />
 
     <template v-if="battleReady">
     <div class="battle-main">
       <section class="battle-stage">
         <div class="stage-bg">
-          <div class="turn-info">回合 {{ turnNumber }}</div>
+          <div class="turn-info">{{ t('回合') }} {{ turnNumber }}</div>
           <div class="battle-status-row">
             <div class="status-col">
               <span class="status-pill" :class="{ 'is-customer-live': !!customerPortraitClass }">{{ customerStatusText }}</span>
               <span class="status-pill">{{ actionOrderText }}</span>
             </div>
-            <span v-if="activePhase === 'REVIVE_WAIT'" class="status-pill revive-wait-tag">等待复活中…</span>
-            <span v-if="stuckCancelAvailable" class="status-pill revive-wait-tag">可申请卡死取消</span>
+            <span v-if="activePhase === 'REVIVE_WAIT'" class="status-pill revive-wait-tag">{{ t('等待复活中…') }}</span>
+            <span v-if="stuckCancelAvailable" class="status-pill revive-wait-tag">{{ t('可申请卡死取消') }}</span>
             <span v-if="statusBullyActionText" class="status-pill">{{ statusBullyActionText }}</span>
             <span v-if="isSelectingFirstPlayer" class="status-pill">先手状态：{{ firstPlayerStatusText }}</span>
           </div>
@@ -25,9 +26,9 @@
             <BullyCard />
           </div>
           <div class="action-log-panel">
-            <div class="action-log-title">战斗记录</div>
+            <div class="action-log-title">{{ t('战斗记录') }}</div>
             <div ref="actionLogListRef" class="action-log-list">
-              <div v-if="actionLog.length === 0" class="action-log-empty">等待行动…</div>
+              <div v-if="actionLog.length === 0" class="action-log-empty">{{ t('等待行动…') }}</div>
               <div v-for="entry in actionLog" :key="entry.key" class="action-log-item">{{ entry.text }}</div>
             </div>
           </div>
@@ -38,8 +39,8 @@
 
     <div v-if="isSelectingFirstPlayer" class="first-player-overlay">
       <div class="first-player-card">
-        <h2>{{ room.isHost ? '选择本局先手' : '等待房主选择先手' }}</h2>
-        <p>双方查看手牌后，由房主决定谁先出牌。队友当前手牌显示在其吉祥物下方。</p>
+        <h2>{{ room.isHost ? t('选择本局先手') : t('等待房主选择先手') }}</h2>
+        <p>{{ t('双方查看手牌后，由房主决定谁先出牌。队友当前手牌显示在其吉祥物下方。') }}</p>
         <div class="first-player-actions">
           <el-button
             v-for="player in players"
@@ -48,7 +49,7 @@
             type="primary"
             @click="chooseFirst(player.userId)"
           >
-            {{ player.dept || '玩家' }} 先手
+            {{ t(player.dept || '玩家') }} {{ t('先手') }}
           </el-button>
         </div>
       </div>
@@ -59,15 +60,15 @@
         <div ref="drawPileRef" class="draw-pile card-area-highlight" :class="{ 'is-pulse': pilePulse }" @click="showDeckModal = true">
           <div class="pile-back" :style="cardBackStyle" aria-hidden="true" />
           <span class="pile-count">{{ activeDeckCount }}</span>
-          <span class="pile-label">牌库</span>
+          <span class="pile-label">{{ t('牌库') }}</span>
         </div>
 
         <div class="center-stack">
           <div ref="fundsWrapRef" class="funds-indicator-wrap funds-indicator-highlight" :class="{ 'is-pulse': fundsPulse }" :style="fundsIndicatorStyle">
-            <div class="funds-indicator"><img class="funds-icon" :src="fundsIcon" alt="" />调用机会 {{ currentFunds }}/{{ fundsCap }}</div>
+            <div class="funds-indicator"><img class="funds-icon" :src="fundsIcon" alt="" />{{ t('调用机会') }} {{ currentFunds }}/{{ fundsCap }}</div>
           </div>
           <div class="hand-actions-row">
-            <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying || heroFxPlaying" @click="endTurn" aria-label="结束回合" />
+            <button class="finish-btn" type="button" :style="finishBtnStyle" :disabled="!canActWithActivePlayer || bullyFxPlaying || heroFxPlaying" @click="endTurn" :aria-label="t('结束回合')" />
           </div>
 
           <div
@@ -102,7 +103,7 @@
                   </div>
                 </div>
               </div>
-              <div v-if="activeHandCount === 0" class="hand-empty">当前回合手牌已用完</div>
+              <div v-if="activeHandCount === 0" class="hand-empty">{{ t('当前回合手牌已用完') }}</div>
             </template>
             <template v-else>
               <div
@@ -112,7 +113,7 @@
                 :style="cardBackStyle"
                 aria-hidden="true"
               />
-              <div class="hand-wait-hint">等待自己的回合</div>
+              <div class="hand-wait-hint">{{ t('等待自己的回合') }}</div>
             </template>
           </div>
         </div>
@@ -120,20 +121,20 @@
         <div class="discard-pile">
           <el-icon :size="20"><Delete /></el-icon>
           <span class="pile-count">{{ activeDiscardCount }}</span>
-          <span class="pile-label">弃牌</span>
+          <span class="pile-label">{{ t('弃牌') }}</span>
         </div>
       </div>
     </footer>
 
     <el-dialog
       v-model="showDeckModal"
-      :title="`P${currentUserSeat + 1} 本局卡牌`"
+      :title="lang === 'en' ? `P${currentUserSeat + 1} deck` : `P${currentUserSeat + 1} 本局卡牌`"
       width="960px"
       class="deck-dialog"
       append-to-body
       :z-index="200000"
     >
-      <div v-if="matchDeckCards.length === 0" class="deck-empty">暂无牌组数据</div>
+      <div v-if="matchDeckCards.length === 0" class="deck-empty">{{ t('暂无牌组数据') }}</div>
       <template v-else>
         <p class="deck-privacy-hint">本局牌组已抽取完成，可查看全部 {{ matchDeckCards.length }} 张卡牌信息。</p>
         <div class="deck-grid" style="--card-width: 168px">
@@ -564,6 +565,9 @@ import type { PlayCardPayload, UnlockedCollectibleCard } from '@/api'
 import { subscribeRoomEvent, sendRoomMessage } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
 import { formatPlayerName } from '@/utils/playerName'
+import { lang, t } from '@/i18n'
+import { localizeCustomer } from '@/i18n/catalog'
+import LangSwitch from '@/components/LangSwitch.vue'
 import choosePlayerBg from '@/assets/battle-playerchoose-bg.webp'
 import fundsIcon from '@/assets/battle/funds-icon.webp'
 import p1BtnBg from '@/assets/p1.webp'
@@ -1162,17 +1166,25 @@ watch(battleReady, async (ready) => {
 const customerStatusText = computed(() => {
   const triggered = customerTriggered.value
   const round = Number(turnNumber.value)
-  if (triggered === null || !customerEffectType.value || !Number.isFinite(round) || round < 2) {
-    return '顾客机制：等待判定'
+  const waiting = triggered === null || !customerEffectType.value || !Number.isFinite(round) || round < 2
+  if (lang.value === 'en') {
+    if (waiting) return t('顾客机制：等待判定')
+    if (triggered === 2) return t('顾客无法行动')
+    if (!triggered) return t('本回合未触发')
+    const named = localizeCustomer({ code: game.employerTrait?.id, name: game.employerName || '顾客' })
+    return `${named.name}: ${customerResultPhrase(customerEffectType.value, Number(customerEffectValue.value ?? 0))}`
   }
+  if (waiting) return '顾客机制：等待判定'
   if (triggered === 2) return '顾客无法行动'
   if (!triggered) return '本回合未触发'
   const name = game.employerName || '顾客'
   return `${name}：${customerResultPhrase(customerEffectType.value, Number(customerEffectValue.value ?? 0))}`
 })
 const actionOrderText = computed(() => {
-  if (isSelectingFirstPlayer.value) return '阶段：选择先手'
-  return currentTurnPlayer.value ? `当前行动：${currentTurnPlayer.value.dept || '玩家'}` : '当前行动：等待回合结算'
+  if (isSelectingFirstPlayer.value) return t('阶段：选择先手')
+  if (!currentTurnPlayer.value) return t('当前行动：等待回合结算')
+  const who = t(currentTurnPlayer.value.dept || '玩家')
+  return lang.value === 'en' ? `Turn: ${who}` : `当前行动：${currentTurnPlayer.value.dept || '玩家'}`
 })
 const statusBullyActionText = computed(() => {
   const text = String(bullyActionText.value || '').trim()
@@ -1992,7 +2004,7 @@ async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLEl
     await waitFx(240)
     if (!heroFxAlive) return
     if (rollable || landed > 0 || (Number.isFinite(base) && base > 0)) {
-      spawnHeroMark(bullyEl, '未中', 'tone-miss', 0.22)
+      spawnHeroMark(bullyEl, t('未中'), 'tone-miss', 0.22)
     }
     await waitFx(220)
     return
@@ -2005,7 +2017,7 @@ async function playDamageBossFx(effect: any, ctx: { payload: any; fromEl: HTMLEl
     spawnHeroBurst(bullyEl, 'tone-pierce')
     flashBullyHit(true)
     if (hpLoss > 0) spawnHeroFloat(bullyEl, `−${hpLoss}`, 'tone-pierce')
-    spawnHeroMark(bullyEl, '无视护盾', 'tone-pierce', 0.12)
+    spawnHeroMark(bullyEl, t('无视护盾'), 'tone-pierce', 0.12)
     await waitFx(180)
     return
   }
@@ -2068,7 +2080,7 @@ async function playEffectClip(effect: any, ctx: {
       const seats = resolveTargetSeats(effect, actorUserId)
       for (const seat of seats) {
         const el = apDestEl(seat)
-        if (el) spawnHeroMark(el, '下回合', 'tone-delay', 0.2)
+        if (el) spawnHeroMark(el, t('下回合'), 'tone-delay', 0.2)
       }
       await waitFx(260)
       return
@@ -2078,7 +2090,7 @@ async function playEffectClip(effect: any, ctx: {
       ? [ctx.bullyEl]
       : seats.map((seat) => playerRectBySeat(seat))
     for (const el of els) {
-      if (el) spawnHeroMark(el, '下回合', 'tone-delay', 0.16)
+      if (el) spawnHeroMark(el, t('下回合'), 'tone-delay', 0.16)
     }
     await waitFx(260)
     return
@@ -2128,7 +2140,7 @@ async function playEffectClip(effect: any, ctx: {
         const el = playerRectBySeat(seat)
         if (!el) continue
         spawnHeroBurst(el, 'tone-guard', 0.5, 0.42)
-        spawnHeroMark(el, '守护', 'tone-guard', 0.2)
+        spawnHeroMark(el, t('守护'), 'tone-guard', 0.2)
       }
       await waitFx(300)
       return
@@ -2223,7 +2235,7 @@ async function playEffectClip(effect: any, ctx: {
     }
     case 'MULTIPLY_CURRENT_SHIELD': {
       const dest = ctx.fromEl
-      if (dest) spawnHeroMark(dest, '当前防御 ×2', 'tone-mult', 0.12)
+      if (dest) spawnHeroMark(dest, t('当前防御 ×2'), 'tone-mult', 0.12)
       if (actual !== 0) {
         await playPlayerValueFx(
           effect,
@@ -2242,13 +2254,13 @@ async function playEffectClip(effect: any, ctx: {
         : []
       if (cards.length) applyPeekHand(ctx.actorUserId, cards.map(mapCard))
       const dest = ctx.fromEl
-      if (dest) spawnHeroMark(dest, '锁定下回合抽牌', 'tone-delay', 0.15)
+      if (dest) spawnHeroMark(dest, t('锁定下回合抽牌'), 'tone-delay', 0.15)
       await waitFx(300)
       return
     }
     case 'SKIP_CUSTOMER_EFFECT': {
       const dest = ctx.hudEl || ctx.bullyEl || ctx.fromEl
-      if (dest) spawnHeroMark(dest, '顾客无法行动', 'tone-delay', 0.12)
+      if (dest) spawnHeroMark(dest, t('顾客无法行动'), 'tone-delay', 0.12)
       await waitFx(280)
       return
     }
@@ -2256,13 +2268,13 @@ async function playEffectClip(effect: any, ctx: {
       const dest = ctx.hudEl || ctx.bullyEl || ctx.fromEl
       const cleared = Math.max(0, Math.round(Math.abs(actual)))
       if (dest && cleared > 0) spawnHeroFloat(dest, `−${cleared}`, 'tone-shield', 0.28)
-      if (dest) spawnHeroMark(dest, '护盾清除', 'tone-mult', 0.12)
+      if (dest) spawnHeroMark(dest, t('护盾清除'), 'tone-mult', 0.12)
       await waitFx(280)
       return
     }
     case 'SKIP_BULLY_ATTACK': {
       const dest = ctx.bullyEl || ctx.hudEl || ctx.fromEl
-      if (dest) spawnHeroMark(dest, '霸凌者不出手', 'tone-delay', 0.12)
+      if (dest) spawnHeroMark(dest, t('霸凌者不出手'), 'tone-delay', 0.12)
       await waitFx(280)
       return
     }
@@ -2286,6 +2298,18 @@ function customerFxKind(effectType: string) {
 
 function customerResultPhrase(effectType: string, value: number) {
   const n = Math.abs(Math.round(Number.isFinite(value) ? value : 0))
+  if (lang.value === 'en') {
+    switch (effectType) {
+      case 'bully_attack_down': return `ATK −${n || 1}`
+      case 'bully_hp_up': return `HP +${n}`
+      case 'bully_attack_up': return `ATK +${n}`
+      case 'player_hp_up': return `Both +${n || 1} HP`
+      case 'player_action_up': return `Call +${n || 1}`
+      case 'player_action_hp_down': return `Call −1, HP −${n || 3}`
+      case 'player_draw': return 'Each draws 1'
+      default: return effectLabel(effectType)
+    }
+  }
   switch (effectType) {
     case 'bully_attack_down': return `攻 −${n || 1}`
     case 'bully_hp_up': return `血 +${n}`
@@ -2356,13 +2380,13 @@ async function playCustomerTriggerFx(spec: {
   const kind = customerFxKind(spec.effectType)
   if (spec.triggered === 2) {
     customerPortraitClass.value = 'is-customer-fx is-silenced'
-    spawnHeroMark(from, '无法行动', 'tone-customer-silenced', 0.08)
+    spawnHeroMark(from, t('无法行动'), 'tone-customer-silenced', 0.08)
     await waitFx(980)
     return
   }
   if (spec.triggered !== 1 || !kind) {
     customerPortraitClass.value = 'is-customer-fx is-miss'
-    spawnHeroMark(from, '未出手', 'tone-customer-miss', 0.08)
+    spawnHeroMark(from, t('未出手'), 'tone-customer-miss', 0.08)
     await waitFx(860)
     return
   }
@@ -2382,13 +2406,13 @@ async function playCustomerTriggerFx(spec: {
     if (kind === 'timid') {
       flashBullyHit(true)
       if (bullyRectRef.value) spawnHeroBurst(bullyRectRef.value, tone, 0.5, 0.4)
-      spawnHeroFloat(dest, `血 +${magnitude}`, tone, 0.16, 58)
+      spawnHeroFloat(dest, lang.value === 'en' ? `HP +${magnitude}` : `血 +${magnitude}`, tone, 0.16, 58)
     } else if (kind === 'kind') {
       flashBullyAttack('down')
-      spawnHeroFloat(dest, `攻 −${magnitude || 1}`, tone, 0.16, 58)
+      spawnHeroFloat(dest, lang.value === 'en' ? `ATK −${magnitude || 1}` : `攻 −${magnitude || 1}`, tone, 0.16, 58)
     } else {
       flashBullyAttack('up')
-      spawnHeroFloat(dest, `攻 +${magnitude}`, tone, 0.16, 58)
+      spawnHeroFloat(dest, lang.value === 'en' ? `ATK +${magnitude}` : `攻 +${magnitude}`, tone, 0.16, 58)
     }
     await waitFx(820)
     return
@@ -2423,12 +2447,12 @@ async function playCustomerTriggerFx(spec: {
       pulseGlow([item.seat], 'heal', 860)
       spawnHeroFloat(item.el, `+${magnitude || 1}`, tone, 0.18, 58)
     } else if (kind === 'wealthy') {
-      spawnHeroFloat(item.el, `调用 +${magnitude || 1}`, tone, 0.12, 50)
+      spawnHeroFloat(item.el, lang.value === 'en' ? `Call +${magnitude || 1}` : `调用 +${magnitude || 1}`, tone, 0.12, 50)
     } else if (kind === 'clement') {
-      spawnHeroFloat(item.el, `抽 +${magnitude || 1}`, tone, 0.12, 50)
+      spawnHeroFloat(item.el, lang.value === 'en' ? `Draw +${magnitude || 1}` : `抽 +${magnitude || 1}`, tone, 0.12, 50)
     } else if (kind === 'harsh') {
       pulseGlow([item.seat], 'harm', 980)
-      spawnHeroFloat(item.el, '调用 −1', tone, 0.06, 44)
+      spawnHeroFloat(item.el, t('调用 −1'), tone, 0.06, 44)
     }
   }
   if (kind === 'harsh') {
@@ -2438,7 +2462,7 @@ async function playCustomerTriggerFx(spec: {
     const hitSeats = dests.map((item) => item.seat)
     flashSeats.value = [...new Set([...flashSeats.value, ...hitSeats])]
     for (const item of dests) {
-      spawnHeroFloat(item.el, `血 −${hpLoss}`, tone, 0.4, 58)
+      spawnHeroFloat(item.el, lang.value === 'en' ? `HP −${hpLoss}` : `血 −${hpLoss}`, tone, 0.4, 58)
     }
     window.setTimeout(() => {
       if (!heroFxAlive) return
@@ -2535,7 +2559,7 @@ async function strikeSeat(seat: number, target: any) {
   flashSeats.value = [...new Set([...flashSeats.value, seat])]
   const baseStyle = floatStyle(toEl)
   const floats: Array<{ text: string; blocked: boolean; dy: number }> = dodged
-    ? [{ text: '躲避', blocked: true, dy: 0 }]
+    ? [{ text: t('躲避'), blocked: true, dy: 0 }]
     : [
         ...(absorbed > 0 ? [{ text: `−${absorbed}`, blocked: true, dy: hpDamage > 0 ? -28 : 0 }] : []),
         ...(hpDamage > 0 ? [{ text: `−${hpDamage}`, blocked: false, dy: 0 }] : []),
@@ -3490,6 +3514,12 @@ onUnmounted(() => {
   height: 100%;
   overflow: hidden;
   isolation: isolate;
+}
+.battle-lang {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  z-index: 30;
 }
 .battle-page::before {
   content: '';

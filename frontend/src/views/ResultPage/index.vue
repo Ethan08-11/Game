@@ -1,23 +1,23 @@
 <template>
   <div class="result-page">
-    <BackButton to="/game-hall" text="返回大厅" />
+    <BackButton to="/game-hall" :text="t('返回大厅')" />
     <template v-if="resultReady">
     <div class="result-header">
       <el-icon :size="48" :color="isVictory ? 'var(--color-accent)' : 'var(--color-text-tertiary)'">
         <component :is="isVictory ? Present : CircleCloseFilled" />
       </el-icon>
       <h1 :class="isVictory ? 'win' : 'lose'">
-        {{ isVictory ? '击败霸凌者！雇主安全了' : '保护失败' }}
+        {{ isVictory ? t('击败霸凌者！雇主安全了') : t('保护失败') }}
       </h1>
     </div>
     <div class="stats-panel">
-      <p>对局回合：{{ rounds }}</p>
-      <p>对局结果：{{ isVictory ? '胜利' : '失败' }}</p>
-      <p>霸凌者剩余 HP：{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
-      <p v-if="rewardMoney > 0" class="points-reward">获得酬劳：+{{ rewardMoney }} 金币</p>
+      <p>{{ t('对局回合：') }}{{ rounds }}</p>
+      <p>{{ t('对局结果：') }}{{ isVictory ? t('胜利') : t('失败') }}</p>
+      <p>{{ t('霸凌者剩余 HP：') }}{{ game.bullyHP }}/{{ game.maxBullyHP }}</p>
+      <p v-if="rewardMoney > 0" class="points-reward">{{ lang === 'en' ? `Pay: +${rewardMoney} gold` : `获得酬劳：+${rewardMoney} 金币` }}</p>
     </div>
     <div v-if="isVictory && unlockedCard" class="unlock-panel">
-      <p class="unlock-title">本局解锁</p>
+      <p class="unlock-title">{{ t('本局解锁') }}</p>
       <div class="unlock-card-wrap">
         <CardItem
           :name="unlockedCard.name"
@@ -31,11 +31,11 @@
         />
       </div>
       <p class="unlock-name">{{ unlockedCard.name }}</p>
-      <p class="unlock-hint">已加入卡牌图鉴，下次对局可被抽到</p>
+      <p class="unlock-hint">{{ t('已加入卡牌图鉴，下次对局可被抽到') }}</p>
     </div>
     <div v-else-if="collectionComplete" class="unlock-panel unlock-complete">
-      <p class="unlock-title">图鉴已集齐</p>
-      <p class="unlock-hint">本局没有新的收藏卡</p>
+      <p class="unlock-title">{{ t('图鉴已集齐') }}</p>
+      <p class="unlock-hint">{{ t('本局没有新的收藏卡') }}</p>
     </div>
     <div v-if="!isVictory" class="revive-section">
       <el-button class="revive-btn" type="primary" :loading="reviving" @click="handleRevive">
@@ -56,6 +56,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Present, CircleCloseFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { lang, t } from '@/i18n'
 import { useGameStore } from '@/store/game'
 import { useUserStore } from '@/store/user'
 import { useRoomStore } from '@/store/room'

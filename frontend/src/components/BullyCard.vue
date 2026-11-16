@@ -6,17 +6,17 @@
           <div class="bully-hp-fill" :style="{ width: hpPercent + '%' }" />
           <span class="bully-hp-text">HP: {{ game.bullyHP }}/{{ game.maxBullyHP }}</span>
         </div>
-        <div class="bully-shield" :class="{ 'is-empty': game.bullyDefense <= 0 }" title="本回合护盾">
-          <img :src="shieldIcon" alt="护盾" class="shield-icon" />
+        <div class="bully-shield" :class="{ 'is-empty': game.bullyDefense <= 0 }" :title="t('本回合护盾')">
+          <img :src="shieldIcon" :alt="t('护盾')" class="shield-icon" />
           <span>{{ game.bullyDefense }}</span>
         </div>
       </div>
     </div>
 
-    <div class="bully-name">{{ game.bullyName }}</div>
+    <div class="bully-name">{{ t(game.bullyName) }}</div>
     <div class="bully-damage">
-      <img :src="attackIcon" alt="攻击" class="attack-icon" />
-      <span>攻击力: {{ game.bullyMinDamage }}-{{ game.bullyMaxDamage }}</span>
+      <img :src="attackIcon" :alt="t('攻击')" class="attack-icon" />
+      <span>{{ t('攻击力:') }} {{ game.bullyMinDamage }}-{{ game.bullyMaxDamage }}</span>
     </div>
     <div v-if="game.bullyTarget" class="bully-target">
       <el-icon :size="12"><WarningFilled /></el-icon>
@@ -33,6 +33,7 @@ import attackIcon from '@/assets/Boss-attack.webp'
 import panelBg from '@/assets/bully-panel-bg.webp'
 import { useGameStore } from '@/store/game'
 import { useRoomStore } from '@/store/room'
+import { t } from '@/i18n'
 
 const game = useGameStore()
 const room = useRoomStore()
@@ -43,24 +44,24 @@ const hpPercent = computed(() => {
 
 const targetText = computed(() => {
   const target = String(game.bullyTarget || '').trim()
-  if (target === 'self') return '防御自身'
+  if (target === 'self') return t('防御自身')
   if (target === 'all') {
     const both = bothDeptLabel()
-    return both ? `目标: ${both}` : '目标: 护卫'
+    return both ? `${t('目标:')} ${both.split('、').map((item) => t(item)).join(' / ')}` : t('目标: 护卫')
   }
   if (target === 'player1' || target === 'player2') {
     const seat = target === 'player1' ? 0 : 1
     const dept = seatDept(seat)
-    return dept ? `目标: ${dept}` : '目标: 护卫'
+    return dept ? `${t('目标:')} ${t(dept)}` : t('目标: 护卫')
   }
   if (/^p[12]$/i.test(target)) {
     const seat = target.toLowerCase() === 'p1' ? 0 : 1
     const dept = seatDept(seat)
-    return dept ? `目标: ${dept}` : '目标: 护卫'
+    return dept ? `${t('目标:')} ${t(dept)}` : t('目标: 护卫')
   }
-  if (target === 'sales' || target === '销售' || target === '销售部') return '目标: 销售部'
-  if (target === 'purchase' || target === '采购' || target === '采购部') return '目标: 采购部'
-  return `目标: ${target}`
+  if (target === 'sales' || target === '销售' || target === '销售部') return t('目标: 销售部')
+  if (target === 'purchase' || target === '采购' || target === '采购部') return t('目标: 采购部')
+  return `${t('目标:')} ${t(target)}`
 })
 
 function bothDeptLabel() {

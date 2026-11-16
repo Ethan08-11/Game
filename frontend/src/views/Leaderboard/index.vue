@@ -1,12 +1,12 @@
 <template>
   <div class="page" :style="{ '--page-bg': `url(${pageBg})`, '--hall-bg': `url(${hallBg})` }">
-    <BackButton to="/game-hall" text="返回大厅" />
-    <div class="title-bar" :style="{ '--title-bg': `url(${titleBg})` }">排行榜</div>
+    <BackButton to="/game-hall" :text="t('返回大厅')" />
+    <div class="title-bar" :style="{ '--title-bg': `url(${titleBg})` }">{{ t('排行榜') }}</div>
     <div class="tabs">
-      <button :class="{ active: tab === 'total' }" @click="tab = 'total'">总榜</button>
-      <button :class="{ active: tab === 'winrate' }" @click="tab = 'winrate'">胜率榜</button>
+      <button :class="{ active: tab === 'total' }" @click="tab = 'total'">{{ t('总榜') }}</button>
+      <button :class="{ active: tab === 'winrate' }" @click="tab = 'winrate'">{{ t('胜率榜') }}</button>
     </div>
-    <p class="week-hint">{{ tab === 'total' ? '本月金币 · 每月 1 日清零' : '本月精确胜率 · 满 20 场起算 · 每月 1 日清零' }}</p>
+    <p class="week-hint">{{ tab === 'total' ? t('本月金币 · 每月 1 日清零') : t('本月精确胜率 · 满 20 场起算 · 每月 1 日清零') }}</p>
     <div ref="listRef" class="list" :key="tab">
       <div v-for="(item, idx) in list" :key="item.userId" class="row" :style="{ backgroundImage: `url(${rowBg})`, animationDelay: `${Math.min(idx * 0.03, 0.4)}s` }">
         <span class="rank" :class="{ top: item.rank <= 3 }">{{ item.rank }}</span>
@@ -14,16 +14,16 @@
         <span class="name">{{ item.displayName || item.username }}</span>
         <div class="stats">
           <template v-if="tab === 'total'">
-            <span class="pts">{{ item.money }} 金币</span>
-            <span class="rate">胜率 {{ Math.round(item.winRate) }}%</span>
+            <span class="pts">{{ item.money }} {{ t('金币') }}</span>
+            <span class="rate">{{ t('胜率') }} {{ Math.round(item.winRate) }}%</span>
           </template>
           <template v-else>
-            <span class="pts">胜率 {{ formatWinRate(item.winRate) }}%</span>
-            <span class="rate">{{ item.winCount }}胜 {{ item.loseCount }}负</span>
+            <span class="pts">{{ t('胜率') }} {{ formatWinRate(item.winRate) }}%</span>
+            <span class="rate">{{ item.winCount }}{{ t('胜') }} {{ item.loseCount }}{{ t('负') }}</span>
           </template>
         </div>
       </div>
-      <div v-if="list.length === 0" class="empty">暂无排行数据</div>
+      <div v-if="list.length === 0" class="empty">{{ t('暂无排行数据') }}</div>
     </div>
   </div>
 </template>
@@ -34,6 +34,7 @@ import { getLeaderboard } from '@/api'
 import type { LeaderboardEntry } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import PlayerAvatar from '@/components/PlayerAvatar.vue'
+import { t } from '@/i18n'
 import titleBg from '@/assets/title-bg-leaderboard.webp'
 import rowBg from '@/assets/row-bg-leaderboard.webp'
 import pageBg from '@/assets/beijing0.webp'

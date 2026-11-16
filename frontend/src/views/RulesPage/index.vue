@@ -2,12 +2,13 @@
   <div class="rules-page" :style="{ '--rules-bg': bgImage ? `url(${bgImage})` : '' }">
     <button class="back-btn" @click="$router.push('/game-hall')">
       <span class="back-arrow">←</span>
-      <span>返回大厅</span>
+      <span>{{ t('返回大厅') }}</span>
     </button>
+    <LangSwitch class="rules-lang" />
 
     <div class="rules-content">
-      <h1 class="rules-title">规则说明</h1>
-      <div class="rules-body">
+      <h1 class="rules-title">{{ t('规则说明') }}</h1>
+      <div v-if="lang !== 'en'" class="rules-body">
         <section class="rule-section">
           <h3>游戏目标</h3>
           <p>两位玩家合作保护顾客，打出卡牌将霸凌者血值降到 0 即可获胜。玩家与霸凌者都使用血值：我方血值为 0 会倒下；任意一名玩家倒下时，若队友仍存活，可尝试复活。双方都倒下、放弃复活或复活超时，则保护失败。</p>
@@ -81,6 +82,80 @@
           </ul>
         </section>
       </div>
+      <div v-else class="rules-body">
+        <section class="rule-section">
+          <h3>Goal</h3>
+          <p>Two players protect the customer together. Play cards until the Bully’s HP is 0. Both sides use HP. A guard at 0 is down. If one is down and the other is still up, that guard may try to revive. If both are down, a revive is refused, or the revive timer runs out, the customer is lost.</p>
+        </section>
+        <section class="rule-section">
+          <h3>Flow</h3>
+          <ul>
+            <li>Each deck aims for 30 cards: 2 copies of each department basic card, 1 of each unlocked department collectible, then public basics to fill. Public collectibles enter only after a win unlocks them. Neutral cards are retired. You do not bring the other department. A short collection may be under 30; once you have enough, the deck must be 30.</li>
+            <li>Both sides see their hands, then the host chooses who plays first.</li>
+            <li>Each round draws back up to 5 cards.</li>
+            <li>Players take turns spending Calls. Cards still in hand are discarded at the end of the turn.</li>
+            <li>After both have finished, the Hard Bully hits both guards. The panel shows departments, not P1 / P2.</li>
+            <li>Bring the Bully to 0 HP and the customer is saved.</li>
+          </ul>
+        </section>
+        <section class="rule-section">
+          <h3>Card types</h3>
+          <ul>
+            <li><strong>Attack</strong>: lower the Bully’s HP.</li>
+            <li><strong>Shield</strong>: give yourself or your partner Shield.</li>
+            <li><strong>Draw</strong>: draw extra cards this round. Unplayed cards are still discarded when the turn ends.</li>
+            <li><strong>Heal</strong>: restore your HP or your partner’s.</li>
+            <li><strong>Aid</strong>: Calls, draws, or other help.</li>
+            <li><strong>Suppress</strong>: lower the Bully’s attack this round.</li>
+          </ul>
+        </section>
+        <section class="rule-section">
+          <h3>Calls</h3>
+          <p>Each guard has 3 Calls a round. Cards cost 0 to 3. Unused Calls do not carry over. Some cards add Calls this round or next round.</p>
+        </section>
+        <section class="rule-section">
+          <h3>HP and Shield</h3>
+          <ul>
+            <li>Sales starts at 50 HP. Purchase starts at 75.</li>
+            <li>The Bully starts at 180 HP in every pairing. Reduce it to 0 to save the customer.</li>
+            <li>After both sides finish, the Hard Bully attacks for 17–20. About 85% of rounds are a full swing. About 15% the Bully gains 14 Shield and halves its attack, but still swings. From round 2 the customer may change that attack. Shield can block it.</li>
+            <li>Shield is spent before HP, then cleared.</li>
+            <li>HP at 20 or below is danger.</li>
+          </ul>
+        </section>
+        <section class="rule-section">
+          <h3>Revive</h3>
+          <ul>
+            <li>When one guard is down and the partner is up, that guard may watch an ad to revive. Only one revive per match. The match still counts by its final result.</li>
+            <li>Revive HP is a random 16–22, and never above that guard’s maximum.</li>
+            <li>If both guards revive, the customer is lost at once and it counts as a loss. The same happens if the timer runs out, a revive is refused, or both are down together.</li>
+          </ul>
+        </section>
+        <section class="rule-section">
+          <h3>Rewards</h3>
+          <p>Matches no longer pay gold. Gold comes from quests. A win also unlocks one collectible card you do not own yet. Locked cards do not appear in matches. Department basics are always in the deck. Unlocked collectibles have their own slots, and cards that have sat out are drawn first.</p>
+        </section>
+        <section class="rule-section">
+          <h3>Accounts and teams</h3>
+          <ul>
+            <li>One account can be online in one place. Another login signs this one out.</li>
+            <li>You cannot team with an account on the same computer or the same network. Local two-window testing is exempt.</li>
+            <li>The hall week title follows Beijing calendar weeks, Monday start. Week 1, the week that contains the 1st, is Calm Before the Storm and pressure is off. Then Rain Names the Five, Thunder Holds the Five, Gale Keeps the Five, and from week 5 Storm Draws the Net.</li>
+            <li>The pressure list holds at most 5 accounts and is off during week 1. From week 2 it locks at 00:00 by forecast gold and stays for the day. Forecast gold is gold in hand, plus remaining playable work days at 150 for a full win, plus weekly quests still claimable this month (500 each, at most 4). Expired unclaimed weeks are left out. Someone who has not played is not listed. If the room includes one of the five, the customer is drawn evenly from Timid, Anxious, and Harsh. Otherwise the seven customers are even.</li>
+          </ul>
+        </section>
+        <section class="rule-section">
+          <h3>Daily quests and leaving</h3>
+          <ul>
+            <li>Daily quests refresh at 00:00. The first 3 matches pay 30 / 40 / 50 gold for finishing, win or loss, plus 10 more if that match is won.</li>
+            <li>Each month drops 4 rest days. November 2026 has 21 paid days. October 2026 has 24. September 2026 counts 16 days from the 12th. After the quota, the rest of the month pays no gold, including the weekly quest.</li>
+            <li>Weekly quests follow the Beijing month and can be claimed at most 4 times. After that, a full set of 10 teammates pays nothing.</li>
+            <li>Before the weekly quest is claimed, the page suggests 3 people you have not teamed with. Suggestions are not progress.</li>
+            <li>A disconnect longer than 5 minutes voids the match if nobody at the table has used today’s void. A void is not a loss and does not use a daily slot. If someone already voided today, the match is a loss and uses a slot. A forfeit is always a loss.</li>
+            <li>A stuck match can be voided from the leave menu after about 5 minutes without a real action, once per player per day. If anyone at the table already voided today, nobody else can. A void is not a win or a loss, does not use a daily slot, and does not count toward the weekly teammates.</li>
+          </ul>
+        </section>
+      </div>
     </div>
   </div>
 </template>
@@ -89,6 +164,8 @@
 import { onMounted, ref } from 'vue'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
+import { lang, t } from '@/i18n'
+import LangSwitch from '@/components/LangSwitch.vue'
 
 const bgImage = ref('')
 
@@ -107,6 +184,12 @@ onMounted(() => {
   position: relative;
   isolation: isolate;
   overflow: auto;
+}
+.rules-lang {
+  position: absolute;
+  top: 18px;
+  right: 24px;
+  z-index: 4;
 }
 .rules-page::before {
   content: '';
