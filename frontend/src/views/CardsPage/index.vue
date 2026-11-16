@@ -1,18 +1,18 @@
 <template>
   <div class="page">
-    <BackButton to="/game-hall" text="返回大厅" />
-    <h2>卡牌图鉴</h2>
+    <BackButton to="/game-hall" :text="t('返回大厅')" />
+    <h2>{{ t('卡牌图鉴') }}</h2>
 
-    <div v-if="loading" class="state-msg">加载中...</div>
+    <div v-if="loading" class="state-msg">{{ t('加载中...') }}</div>
     <div v-else-if="error" class="state-msg state-error">{{ error }}</div>
-    <div v-else-if="cardGroups.length === 0" class="state-msg">暂无卡牌数据</div>
+    <div v-else-if="cardGroups.length === 0" class="state-msg">{{ t('暂无卡牌数据') }}</div>
 
     <template v-else>
       <div v-for="group in cardGroups" :key="group.dept" class="dept-section">
         <div class="dept-header">
           <span class="dept-dot" :style="{ background: getDeptColor(group.dept) }"></span>
-          <span class="dept-name">{{ group.dept }}</span>
-          <span class="dept-count">已解锁 {{ group.unlockedCount }} / {{ group.cards.length }}</span>
+          <span class="dept-name">{{ t(group.dept) }}</span>
+          <span class="dept-count">{{ lang === 'en' ? `Unlocked ${group.unlockedCount} / ${group.cards.length}` : `已解锁 ${group.unlockedCount} / ${group.cards.length}` }}</span>
         </div>
         <div class="card-grid">
           <div
@@ -25,7 +25,7 @@
               <div v-if="cardThumb(card)" class="card-face">
                 <img
                   :src="cardThumb(card)!"
-                  :alt="card.unlocked ? card.cardName : '未解锁卡牌'"
+                  :alt="card.unlocked ? card.cardName : t('未解锁卡牌')"
                   class="card-img"
                   :class="{ 'card-img-locked': !card.unlocked }"
                   loading="lazy"
@@ -33,7 +33,7 @@
                   @error="onCardImgError"
                 />
                 <template v-if="card.unlocked">
-                  <span class="card-face-dept">{{ cardDeptLabel(card) }}</span>
+                  <span class="card-face-dept">{{ t(cardDeptLabel(card)) }}</span>
                   <span class="card-face-name" :style="{ top: cardNameTop(card) + '%' }">{{ card.cardName }}</span>
                 </template>
               </div>
@@ -41,12 +41,12 @@
             </div>
             <div class="card-name">{{ card.unlocked ? card.cardName : '???' }}</div>
             <div v-if="card.unlocked" class="card-meta">
-              <span class="card-cost">{{ card.cost }}费</span>
-              <span class="card-type-tag" :class="'type-' + card.cardType">{{ typeLabel(card.cardType) }}</span>
-              <span class="card-dept-tag">{{ cardDeptLabel(card) }}</span>
+              <span class="card-cost">{{ card.cost }} {{ t('费') }}</span>
+              <span class="card-type-tag" :class="'type-' + card.cardType">{{ t(typeLabel(card.cardType)) }}</span>
+              <span class="card-dept-tag">{{ t(cardDeptLabel(card)) }}</span>
             </div>
-            <div v-else class="card-locked-hint">未解锁</div>
-            <div class="card-desc">{{ card.unlocked ? card.description : '胜利后随机解锁' }}</div>
+            <div v-else class="card-locked-hint">{{ t('未解锁') }}</div>
+            <div class="card-desc">{{ card.unlocked ? localizeEffect(card.description) : t('胜利后随机解锁') }}</div>
           </div>
         </div>
       </div>
@@ -62,6 +62,8 @@ import BackButton from '@/components/BackButton.vue'
 import { getImageUrl } from '@/utils/imageUrl'
 import { displayCardDept } from '@/utils/cardDept'
 import { cardNameTopPercent } from '@/utils/cardOverlay'
+import { lang, t } from '@/i18n'
+import { localizeEffect } from '@/i18n/catalog'
 import lockedCardImg from '@/assets/cards/Card_Locked.webp'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'

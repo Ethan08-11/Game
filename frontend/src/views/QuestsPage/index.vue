@@ -1,18 +1,18 @@
 <template>
   <div class="quests-page" :style="{ '--quests-bg': bgUrl ? `url(${bgUrl})` : '' }">
-    <BackButton to="/game-hall" text="返回大厅" />
+    <BackButton to="/game-hall" :text="t('返回大厅')" />
 
     <div class="quest-panel" :style="{ '--panel-bg': `url(${panelBg})`, '--list-bg': `url(${listBg})` }">
-      <div v-if="loading" class="state-msg">加载中...</div>
+      <div v-if="loading" class="state-msg">{{ t('加载中...') }}</div>
       <div v-else-if="error" class="state-msg state-error">{{ error }}</div>
-      <div v-else-if="taskGroups.length === 0" class="state-msg">暂无任务</div>
+      <div v-else-if="taskGroups.length === 0" class="state-msg">{{ t('暂无任务') }}</div>
 
       <div v-else class="task-list-area">
         <div class="quest-summary">
-          <span v-if="restDay">本月工作日已满 {{ workDaysUsed }}/{{ workDaysQuota }}，休息日不发金币</span>
-          <span v-else>今日还可领 {{ remainingMoney }} 金币 · 本月工作日 {{ workDaysUsed }}/{{ workDaysQuota }}</span>
-          <span>周任务 {{ weeklyClaims }}/{{ weeklyClaimLimit }}</span>
-          <span class="quest-reset">刷新倒计时 {{ resetLabel }}</span>
+          <span v-if="restDay">{{ lang === 'en' ? `Work days full ${workDaysUsed}/${workDaysQuota}. Rest days pay no gold` : `本月工作日已满 ${workDaysUsed}/${workDaysQuota}，休息日不发金币` }}</span>
+          <span v-else>{{ lang === 'en' ? `${remainingMoney} gold left today · work days ${workDaysUsed}/${workDaysQuota}` : `今日还可领 ${remainingMoney} 金币 · 本月工作日 ${workDaysUsed}/${workDaysQuota}` }}</span>
+          <span>{{ lang === 'en' ? `Weekly ${weeklyClaims}/${weeklyClaimLimit}` : `周任务 ${weeklyClaims}/${weeklyClaimLimit}` }}</span>
+          <span class="quest-reset">{{ lang === 'en' ? `Refresh in ${resetLabel}` : `刷新倒计时 ${resetLabel}` }}</span>
         </div>
         <template v-for="(entry, idx) in flatTaskList" :key="entry.task.id">
           <div v-if="entry.sectionStart" class="type-section">
@@ -21,8 +21,8 @@
                 class="type-tag"
                 :class="'tag-' + entry.type"
                 :style="tagBgStyle(entry.type)"
-              >{{ typeLabel(entry.type) }}</span>
-              <span class="type-count">{{ groupTaskCount(entry.type) }} 个任务</span>
+              >{{ t(typeLabel(entry.type)) }}</span>
+              <span class="type-count">{{ groupTaskCount(entry.type) }} {{ t('个任务') }}</span>
             </div>
           </div>
           <div
@@ -32,8 +32,8 @@
           >
             <QuestTaskIcon class="task-medal" :code="entry.task.taskCode" />
             <div class="card-info">
-              <div class="task-name">{{ entry.task.taskName }}</div>
-              <div class="task-desc">{{ entry.task.description }}</div>
+              <div class="task-name">{{ shownTask(entry.task).name }}</div>
+              <div class="task-desc">{{ shownTask(entry.task).description }}</div>
               <div class="task-progress">
                 <div class="progress-track">
                   <div class="progress-fill" :style="{ width: progressPercent(entry.task) + '%' }"></div>
@@ -54,27 +54,27 @@
                 class="quest-action claim"
                 :disabled="claimingId === entry.task.id"
                 @click="onClaim(entry.task)"
-              >{{ claimingId === entry.task.id ? '领取中' : '领取' }}</button>
+              >{{ claimingId === entry.task.id ? t('领取中') : t('领取') }}</button>
               <button
                 v-else-if="restDayBlocked(entry.task)"
                 class="quest-action done"
                 disabled
-              >休息日</button>
+              >{{ t('休息日') }}</button>
               <button
                 v-else-if="weeklyBlocked(entry.task)"
                 class="quest-action done"
                 disabled
-              >本月已满</button>
+              >{{ t('本月已满') }}</button>
               <button
                 v-else-if="entry.task.status >= 3"
                 class="quest-action done"
                 disabled
-              >已领取</button>
+              >{{ t('已领取') }}</button>
               <button
                 v-else-if="canGoStart(entry.task)"
                 class="quest-action go"
                 @click="goStartMatch"
-              >去开局</button>
+              >{{ t('去开局') }}</button>
             </div>
           </div>
         </template>
@@ -129,6 +129,8 @@ import type { UserTask } from '@/api'
 import { useUserStore } from '@/store/user'
 import BackButton from '@/components/BackButton.vue'
 import QuestTaskIcon from '@/components/QuestTaskIcon.vue'
+import { lang, t } from '@/i18n'
+import { localizeTask } from '@/i18n/catalog'
 import hallBgDay from '@/assets/hall-bg2.webp'
 import hallBgNight from '@/assets/hall-bg.webp'
 import panelBg from '@/assets/quest-panel-bg.webp'
@@ -336,7 +338,7 @@ function typeLabel(type: string): string {
     growth: '成长',
     event: '事件',
   }
-  return labels[type] || type
+  return t(labels[type] || type)
 }
 
 function parseReward(rewardValue: string): Record<string, any> {
@@ -352,13 +354,17 @@ function rewardIcon(rewardType: string): string {
   return icons[rewardType] || '?'
 }
 
+function shownTask(task: UserTask) {
+  return localizeTask(task.taskCode, task.taskName, task.description)
+}
+
 function rewardText(task: UserTask): string {
   const val = parseReward(task.rewardValue)
   switch (task.rewardType) {
     case 'money':
-      return `+${val.amount || 0} 金币`
+      return lang.value === 'en' ? `+${val.amount || 0} gold` : `+${val.amount || 0} 金币`
     case 'exp':
-      return `+${val.amount || 0} 经验`
+      return lang.value === 'en' ? `+${val.amount || 0} EXP` : `+${val.amount || 0} 经验`
     case 'item':
       return `${val.itemCode || ''} x${val.count || 0}`
     default:

@@ -1,43 +1,43 @@
 <template>
   <main class="customer-page" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
-    <BackButton to="/game-hall" text="返回大厅" />
+    <BackButton to="/game-hall" :text="t('返回大厅')" />
 
     <section class="customer-card">
-      <p class="eyebrow">顾客图鉴</p>
-      <h1>全部顾客</h1>
+      <p class="eyebrow">{{ t('顾客图鉴') }}</p>
+      <h1>{{ t('全部顾客') }}</h1>
 
       <div v-if="catalogReady" class="customer-scroll" :style="{ '--card-bg': `url(${cardBg})` }">
         <div class="customer-grid">
           <article v-for="customer in customers" :key="customer.customerTypeId ?? customer.customerCode" class="customer-item">
             <div class="highlight-section">
-              <img :src="getImageUrl(customer.imageUrl) || avatarImg" alt="顾客形象" class="customer-avatar-img" loading="lazy" decoding="async" />
+              <img :src="getImageUrl(customer.imageUrl) || avatarImg" :alt="t('顾客形象')" class="customer-avatar-img" loading="lazy" decoding="async" />
             </div>
 
             <div class="traits-section">
-              <p class="customer-desc">{{ customer.description }}</p>
+              <p class="customer-desc">{{ shownCustomer(customer).description }}</p>
 
               <div class="customer-meta">
-                <span>效果触发概率</span>
+                <span>{{ t('效果触发概率') }}</span>
                 <strong>{{ formatRate(customer.triggerChance) }}</strong>
               </div>
               <div class="customer-meta">
-                <span>效果类型</span>
-                <strong>{{ effectLabel(customer.effectType) }}</strong>
+                <span>{{ t('效果类型') }}</span>
+                <strong>{{ t(effectLabel(customer.effectType)) }}</strong>
               </div>
               <div class="customer-meta">
-                <span>效果数值</span>
-                <strong>{{ formatEffectValue(customer) }}</strong>
+                <span>{{ t('效果数值') }}</span>
+                <strong>{{ localizeEffect(formatEffectValue(customer)) }}</strong>
               </div>
             </div>
 
             <div class="name-section">
-              <h2>{{ customer.customerName }}</h2>
+              <h2>{{ shownCustomer(customer).name }}</h2>
             </div>
           </article>
 
           <article class="customer-item placeholder-card">
             <div class="name-section">
-              <h2>敬请期待中。。。</h2>
+              <h2>{{ t('敬请期待中。。。') }}</h2>
             </div>
           </article>
         </div>
@@ -57,6 +57,8 @@ import cardBg from '@/assets/customer-card-bg.webp'
 import avatarImg from '@/assets/customer-avatar-intro.webp'
 import { getImageUrl } from '@/utils/imageUrl'
 import { customerEffectSummary } from '@/utils/customerEffectText'
+import { t } from '@/i18n'
+import { localizeCustomer, localizeEffect } from '@/i18n/catalog'
 
 const bgDay = bg2
 const bgNight = bg1
@@ -64,8 +66,16 @@ const bgImage = ref('')
 const customers = ref<CustomerApiItem[]>([])
 const catalogReady = ref(false)
 
+function shownCustomer(customer: CustomerApiItem) {
+  return localizeCustomer({
+    code: customer.customerCode,
+    name: customer.customerName,
+    description: customer.description,
+  })
+}
+
 function formatRate(value?: number) {
-  if (value == null) return '后端未配置'
+  if (value == null) return t('后端未配置')
   return `${Math.round((value > 1 ? value / 100 : value) * 100)}%`
 }
 

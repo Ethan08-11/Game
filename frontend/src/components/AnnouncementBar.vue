@@ -7,13 +7,13 @@
       @mouseenter="paused = true"
       @mouseleave="paused = false"
     >
-      <span class="announcement-badge">公告</span>
+      <span class="announcement-badge">{{ t('公告') }}</span>
       <div class="announcement-viewport">
         <transition name="notice-slide" mode="out-in">
-          <p :key="current.id" class="announcement-title">{{ current.title }}</p>
+          <p :key="current.id + lang" class="announcement-title">{{ noticeTitle(current) }}</p>
         </transition>
       </div>
-      <span class="announcement-hint">点击查看全文</span>
+      <span class="announcement-hint">{{ t('点击查看全文') }}</span>
     </button>
     <div class="announcement-dots" aria-hidden="true">
       <button
@@ -22,11 +22,11 @@
         type="button"
         class="dot"
         :class="{ active: i === index }"
-        :aria-label="item.title"
+        :aria-label="noticeTitle(item)"
         @click.stop="go(i)"
       />
     </div>
-    <button class="rules-link" type="button" @click="$router.push('/rules')">规则说明</button>
+    <button class="rules-link" type="button" @click="$router.push('/rules')">{{ t('规则说明') }}</button>
   </div>
 
   <Teleport to="body">
@@ -34,11 +34,11 @@
       <div class="notice-modal" role="dialog" aria-modal="true">
         <header class="notice-header">
           <span class="notice-seal">告示</span>
-          <h2>{{ activeNotice.title }}</h2>
+          <h2>{{ noticeTitle(activeNotice) }}</h2>
           <p class="notice-date">{{ activeNotice.date }}</p>
           <button class="notice-close" type="button" aria-label="关闭" @click="closeDialog">×</button>
         </header>
-        <div class="notice-body">{{ activeNotice.content }}</div>
+        <div class="notice-body">{{ noticeBody(activeNotice) }}</div>
         <footer class="notice-footer">
           <button type="button" class="nav-btn" :disabled="index <= 0" @click="go(index - 1)">上一则</button>
           <span class="notice-index">{{ index + 1 }} / {{ notices.length }}</span>
@@ -52,6 +52,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { visibleAnnouncements, type Announcement } from '@/data/announcements'
+import { lang, t } from '@/i18n'
+import { announcementEn } from '@/i18n/announcements.en'
 
 const notices = visibleAnnouncements
 
@@ -62,6 +64,16 @@ let timer: ReturnType<typeof setInterval> | null = null
 
 const current = computed(() => notices[index.value] || notices[0])
 const activeNotice = computed<Announcement>(() => notices[index.value] || notices[0])
+
+function noticeTitle(item: Announcement) {
+  if (lang.value === 'en') return announcementEn[item.id]?.title || item.title
+  return item.title
+}
+
+function noticeBody(item: Announcement) {
+  if (lang.value === 'en') return announcementEn[item.id]?.content || item.content
+  return item.content
+}
 
 function go(i: number) {
   if (i < 0 || i >= notices.length) return

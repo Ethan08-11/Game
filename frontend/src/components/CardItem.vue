@@ -6,14 +6,14 @@
     @click="!disabled && $emit('play')"
   >
     <span class="card-cost">{{ cost }}</span>
-    <span class="card-dept">{{ displayDept }}</span>
+    <span class="card-dept">{{ t(displayDept) }}</span>
     <strong class="card-name">{{ name }}</strong>
     <div ref="descBoxRef" class="card-desc-box">
       <p
         ref="descRef"
         class="card-desc"
         :style="{ fontSize: `${descFontPx}px`, lineHeight: DESC_LINE_HEIGHT }"
-      >{{ description }}</p>
+      >{{ shownDescription }}</p>
     </div>
     <div class="card-bottom">
       <div class="card-tag" :class="`tag-${type}`">
@@ -30,6 +30,8 @@ import { Switch, Aim, Download, Delete, MagicStick, Lightning, FirstAidKit, Circ
 import { getImageUrl } from '@/utils/imageUrl'
 import { displayCardDept } from '@/utils/cardDept'
 import { cardNameTopPercent } from '@/utils/cardOverlay'
+import { t, lang } from '@/i18n'
+import { localizeEffect } from '@/i18n/catalog'
 import fallbackBg from '@/assets/card-background1.webp'
 
 const DESC_MAX_PX = 18
@@ -70,6 +72,7 @@ const cardRootStyle = computed(() => {
 })
 
 const displayDept = computed(() => displayCardDept(props.dept, props.imageUrl, props.dept))
+const shownDescription = computed(() => localizeEffect(props.description))
 
 function fitsInBox(box: HTMLElement, text: HTMLElement) {
   return text.scrollHeight <= box.clientHeight + 0.5
@@ -127,7 +130,7 @@ const typeLabel = computed(() => {
     heal: '治疗',
     buff: '增益',
   }
-  return labels[props.type] || props.type || '特殊'
+  return t(labels[props.type] || props.type || '特殊')
 })
 
 onMounted(() => {
@@ -140,7 +143,7 @@ onMounted(() => {
   }
 })
 
-watch(() => [props.description, props.imageUrl, props.name], () => {
+watch(() => [props.description, props.imageUrl, props.name, lang.value], () => {
   fitDescription()
 })
 

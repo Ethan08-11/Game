@@ -12,19 +12,20 @@
           <img :src="leaderboardBtnImg" alt="排行榜" />
         </button>
         <span class="money-wrap" :style="{ '--money-bg': `url(${moneyBg})` }">
-          <span class="money-text">金 币 : {{ user.money }}</span>
+          <span class="money-text">{{ t('金币') }}: {{ user.money }}</span>
         </span>
       </div>
       <div class="header-right">
-        <button class="user-profile-btn" type="button" title="点击更换头像" @click="avatarDialogVisible = true">
+        <button class="user-profile-btn" type="button" :title="t('点击更换头像')" @click="avatarDialogVisible = true">
           <span class="user-avatar-wrap">
             <PlayerAvatar class="user-avatar" :src="user.avatar" :alt="user.username" />
-            <span class="avatar-edit-dot">换</span>
+            <span class="avatar-edit-dot">{{ t('换') }}</span>
           </span>
           <span class="user-name">{{ user.username }}</span>
         </button>
-        <el-button @click="clearLocalCache">清除本地缓存</el-button>
-        <el-button type="danger" text @click="handleLogout">退出</el-button>
+        <el-button @click="clearLocalCache">{{ t('清除本地缓存') }}</el-button>
+        <el-button type="danger" text @click="handleLogout">{{ t('退出') }}</el-button>
+        <LangSwitch />
       </div>
     </header>
 
@@ -58,7 +59,7 @@
         <span class="hit-target" @click="$router.push('/customer-intro')"></span>
       </button>
       <button class="start-btn" :style="startBtnStyle">
-        <span class="start-btn-label">开始<br>游戏</span>
+        <span class="start-btn-label">{{ t('开始') }}<br>{{ t('游戏') }}</span>
         <span class="hit-target" style="height:140px" @click="startGame"></span>
       </button>
     </div>
@@ -73,17 +74,18 @@
     <Teleport to="body">
       <div v-if="reconnectDialogVisible" class="reconnect-overlay">
         <div class="reconnect-modal">
-          <h2 class="reconnect-title">你有未完成的对局</h2>
-          <p class="reconnect-desc">
+          <h2 class="reconnect-title">{{ t('你有未完成的对局') }}</h2>
+          <p v-if="lang === 'en'" class="reconnect-desc">The last match closed unexpectedly. Reconnect and continue? Forfeiting uses today's quest slot. If the match is stuck, use Stuck: void this match. Each player can void one match a day, and one void covers the whole table.</p>
+          <p v-else class="reconnect-desc">
             检测到上一次游戏异常退出，是否重新连接继续对战？放弃会占用今日任务局数。卡死且重连不上可点「对局异常」（每人每天只能作废 1 局，局里有人用过则其他人也不能作废）。
           </p>
           <p class="reconnect-countdown">
-            {{ reconnectCountdown }} 秒后将按放弃处理（占用今日任务局数）
+            {{ lang === 'en' ? `Forfeit in ${reconnectCountdown}s (uses today's quest slot)` : `${reconnectCountdown} 秒后将按放弃处理（占用今日任务局数）` }}
           </p>
           <div class="reconnect-actions">
-            <el-button type="primary" size="large" @click="doReconnect">重新连接</el-button>
-            <el-button size="large" @click="doAbandonMatch">放弃对局</el-button>
-            <el-button size="large" @click="doCancelStuck">对局异常，取消本局</el-button>
+            <el-button type="primary" size="large" @click="doReconnect">{{ t('重新连接') }}</el-button>
+            <el-button size="large" @click="doAbandonMatch">{{ t('放弃对局') }}</el-button>
+            <el-button size="large" @click="doCancelStuck">{{ t('对局异常，取消本局') }}</el-button>
           </div>
         </div>
       </div>
@@ -92,10 +94,10 @@
     <Teleport to="body">
       <div v-if="voidBlockedMessage" class="reconnect-overlay void-blocked-overlay">
         <div class="reconnect-modal">
-          <h2 class="reconnect-title">无法作废本局</h2>
+          <h2 class="reconnect-title">{{ t('无法作废本局') }}</h2>
           <p class="reconnect-desc">{{ voidBlockedMessage }}</p>
           <div class="reconnect-actions">
-            <el-button type="primary" size="large" @click="voidBlockedMessage = ''">知道了</el-button>
+            <el-button type="primary" size="large" @click="voidBlockedMessage = ''">{{ t('知道了') }}</el-button>
           </div>
         </div>
       </div>
@@ -118,6 +120,8 @@ import FriendPanel from '@/components/FriendPanel.vue'
 import AnnouncementBar from '@/components/AnnouncementBar.vue'
 import AvatarPickerDialog from '@/components/AvatarPickerDialog.vue'
 import PlayerAvatar from '@/components/PlayerAvatar.vue'
+import LangSwitch from '@/components/LangSwitch.vue'
+import { lang, t } from '@/i18n'
 import startBtnImg from '@/assets/start-btn-v2.webp'
 import questBtnImg from '@/assets/quest-btn-v3.webp'
 import customerBtnImg from '@/assets/customer-btn-v3.webp'
@@ -193,7 +197,7 @@ function monthModeName(now = new Date()): string {
   return MONTH_MODE_NAMES[week]
 }
 
-const modeText = `本周模式：${monthModeName()}`
+const modeText = computed(() => `${t('本周模式：')}${t(monthModeName())}`)
 
 const avatarDialogVisible = ref(false)
 const hallReady = ref(false)

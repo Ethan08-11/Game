@@ -1,9 +1,9 @@
 <template>
   <div class="page" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
-    <BackButton to="/game-hall" text="返回大厅" />
+    <BackButton to="/game-hall" :text="t('返回大厅')" />
     <div class="title-wrapper">
       <img :src="cardBg" class="title-bg" :style="{ transform: `translate(${bgX}px, ${bgY}px)` }" />
-      <h2 class="title-text" :style="{ transform: `translate(${textX}px, ${textY}px)` }">您的成就</h2>
+      <h2 class="title-text" :style="{ transform: `translate(${textX}px, ${textY}px)` }">{{ t('您的成就') }}</h2>
     </div>
     <div class="tabs">
       <button
@@ -12,9 +12,9 @@
         :class="{ active: tab === item.id }"
         type="button"
         @click="tab = item.id"
-      >{{ item.label }}</button>
+      >{{ t(item.label) }}</button>
     </div>
-    <p class="summary">{{ tabLabel }} · 已解锁 {{ unlockedCount }}/{{ visibleList.length }}</p>
+    <p class="summary">{{ t(tabLabel) }} · {{ lang === 'en' ? `Unlocked ${unlockedCount}/${visibleList.length}` : `已解锁 ${unlockedCount}/${visibleList.length}` }}</p>
     <div class="grid" :style="{ '--card-bg': `url(${achieveBg})` }">
       <div
         v-for="a in visibleList"
@@ -28,9 +28,9 @@
         <div class="name">{{ cardName(a) }}</div>
         <div class="desc">{{ cardDesc(a) }}</div>
         <div class="progress-text">{{ progressText(a) }}</div>
-        <div class="time">{{ a.unlockedAt ? '已解锁' : '未解锁' }}</div>
+        <div class="time">{{ a.unlockedAt ? t('已解锁') : t('未解锁') }}</div>
       </div>
-      <div v-if="visibleList.length === 0" class="empty">该难度暂无成就</div>
+      <div v-if="visibleList.length === 0" class="empty">{{ t('该难度暂无成就') }}</div>
     </div>
   </div>
 </template>
@@ -44,6 +44,8 @@ import cardBg from '@/assets/achievement-card-bg.webp'
 import achieveBg from '@/assets/achievement-bg.webp'
 import BackButton from '@/components/BackButton.vue'
 import { getIcon } from '@/utils/iconMap'
+import { lang, t } from '@/i18n'
+import { localizeAchievement } from '@/i18n/catalog'
 
 const tabs = [
   { id: 2, label: '进阶' },
@@ -79,14 +81,16 @@ function isMysteryLocked(item: Achievement) {
 }
 
 function cardName(item: Achievement) {
-  return isMysteryLocked(item) ? '???' : item.name
+  if (isMysteryLocked(item)) return '???'
+  return localizeAchievement(item.id, item.name, item.description).name
 }
 
 function cardDesc(item: Achievement) {
   if (isHiddenLocked(item) && (item.id === 'ACH-005' || item.conditionType === 'all_unlocked')) {
-    return '完成一次特殊条件即可解锁'
+    return t('完成一次特殊条件即可解锁')
   }
-  return isMysteryLocked(item) ? '???' : item.description
+  if (isMysteryLocked(item)) return '???'
+  return localizeAchievement(item.id, item.name, item.description).description
 }
 
 function cardIcon(item: Achievement) {
