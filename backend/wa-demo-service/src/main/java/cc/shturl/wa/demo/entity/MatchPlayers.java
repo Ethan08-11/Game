@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -32,6 +33,8 @@ public class MatchPlayers extends BaseEntity {
     private Integer healingDone;
     private Integer shieldGranted;
     private Integer resultType;
+    private LocalDate makeupOwedDay;
+    private Integer makeupSlot;
     private Integer reviveCount;
     private Integer reviveLimit;
     private LocalDateTime lastReviveAt;

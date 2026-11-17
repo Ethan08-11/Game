@@ -14,6 +14,7 @@
           <span>{{ lang === 'en' ? `Weekly ${weeklyClaims}/${weeklyClaimLimit}` : `周任务 ${weeklyClaims}/${weeklyClaimLimit}` }}</span>
           <span class="quest-reset">{{ lang === 'en' ? `Refresh in ${resetLabel}` : `刷新倒计时 ${resetLabel}` }}</span>
         </div>
+        <p v-if="makeupText" class="makeup-line">{{ makeupText }}</p>
         <template v-for="(entry, idx) in flatTaskList" :key="entry.task.id">
           <div v-if="entry.sectionStart" class="type-section">
             <div class="type-header">
@@ -123,7 +124,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { fetchMyTaskBoard, claimTask, type WeeklyPlayerHint } from '@/api'
+import { fetchMyTaskBoard, claimTask, type MakeupOffer, type WeeklyPlayerHint } from '@/api'
+import { makeupLine } from '@/utils/makeupText'
 import { formatPlayerName } from '@/utils/playerName'
 import type { UserTask } from '@/api'
 import { useUserStore } from '@/store/user'
@@ -154,6 +156,7 @@ const restDay = ref(false)
 const weeklyClaims = ref(0)
 const weeklyClaimLimit = ref(4)
 const weeklySuggestions = ref<WeeklyPlayerHint[]>([])
+const makeup = ref<MakeupOffer | null>(null)
 const resetInSeconds = ref(0)
 const loading = ref(true)
 const error = ref('')
@@ -238,6 +241,8 @@ function hintNames(list: WeeklyPlayerHint[]): string {
   return list.map(item => formatPlayerName(item.name)).filter(Boolean).join('、')
 }
 
+const makeupText = computed(() => makeupLine(makeup.value, lang.value === 'en'))
+
 function restDayBlocked(task: UserTask): boolean {
   return restDay.value && task.status === 2 && task.rewardType === 'money'
 }
@@ -261,6 +266,7 @@ async function loadBoard() {
   weeklyClaims.value = board.weeklyClaims || 0
   weeklyClaimLimit.value = board.weeklyClaimLimit || 4
   weeklySuggestions.value = (board.weeklySuggestions || []).slice(0, 3)
+  makeup.value = board.makeup || null
   resetInSeconds.value = board.resetInSeconds || 0
 }
 
@@ -521,6 +527,12 @@ function rewardText(task: UserTask): string {
   color: #4a3520;
 }
 .quest-reset { font-weight: var(--weight-regular); opacity: 0.85; }
+.makeup-line {
+  margin: 0 8px 12px;
+  color: #4a3520;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
 .card-hero {
   filter: brightness(1.06);
   box-shadow: inset 0 0 0 2px rgba(196, 169, 98, 0.55);

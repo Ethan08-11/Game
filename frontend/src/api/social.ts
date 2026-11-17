@@ -40,6 +40,17 @@ export interface UserTask {
   periodKey?: string
 }
 
+export interface MakeupOffer {
+  available?: boolean
+  owedDay?: string | null
+  slot?: number
+  finishGold?: number
+  winGold?: number
+  usedToday?: boolean
+  paysGold?: boolean
+  owedCount?: number
+}
+
 export interface MyTaskBoard {
   tasks: UserTask[]
   remainingMoney: number
@@ -53,6 +64,7 @@ export interface MyTaskBoard {
   weeklyClaimLimit?: number
   weeklyTeammates?: WeeklyPlayerHint[]
   weeklySuggestions?: WeeklyPlayerHint[]
+  makeup?: MakeupOffer | null
 }
 
 export interface WeeklyPlayerHint {

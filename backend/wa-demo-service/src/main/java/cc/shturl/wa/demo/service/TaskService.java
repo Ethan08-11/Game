@@ -17,7 +17,7 @@ public interface TaskService {
     void recordMatchResult(Long userId, String resultType, Long teammateId);
     /** 放弃 / 掉线超时：只占用当日第 N 局，不算完成、不给获胜任务。 */
     void consumeDailyMatchSlot(Long userId);
-    /** 按本周每天未作废的前 3 局重算不同队友。卡死作废不占槽，后面的局会滑进前三。 */
+    /** 按本周每天最多 3 局重算不同队友。自己的前 3 局没满时补打占一个空位；作废不占槽，后面的局会滑进前三。 */
     void rebuildWeeklyTeammates(Long userId);
     /** 看广告复活：只记广告进度，不完成「赢第 N 局」。最终获胜才由 recordMatchResult 计入。 */
     void recordAdWatch(Long userId);

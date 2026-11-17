@@ -92,6 +92,17 @@
 
       <p v-if="pendingInvite && room.players.length < 2" class="invite-wait-hint">邀请已发送，双方进入房间后即可选部门</p>
 
+      <label v-if="makeupAvailable" class="makeup-opt">
+        <input
+          type="checkbox"
+          :checked="selfMakeup"
+          :disabled="makeupSaving || !room.roomId"
+          @change="onMakeupToggle"
+        />
+        <span>{{ makeupText }}</span>
+      </label>
+      <p v-else-if="makeupText" class="makeup-note">{{ makeupText }}</p>
+
       <button
         class="ready-btn"
         :class="{
@@ -117,10 +128,11 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { QuestionFilled, Check } from '@element-plus/icons-vue'
-import { t } from '@/i18n'
+import { lang, t } from '@/i18n'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
-import { extractRoomId, getRoomDetail, getCurrentRoom, leaveRoom as leaveRoomApi, abandonMatch, sendRoomInvite, setRoomDepartment, setRoomReady } from '@/api'
+import { extractRoomId, getRoomDetail, getCurrentRoom, leaveRoom as leaveRoomApi, abandonMatch, sendRoomInvite, setRoomDepartment, setRoomReady, setRoomMakeup, fetchMyTaskBoard } from '@/api'
+import { makeupLine, type MakeupOffer } from '@/utils/makeupText'
 import type { Friend } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { connectRoomSocket, subscribeRoomEvent } from '@/utils/roomSocket'
@@ -176,6 +188,8 @@ interface DisplayFriend extends Friend {
 }
 
 const invitedIds = ref<Record<string, boolean>>({})
+const makeupOffer = ref<MakeupOffer | null>(null)
+const makeupSaving = ref(false)
 const showDeptModal = ref(false)
 const pendingDept = ref('')
 const pendingInvite = ref(false)
@@ -464,6 +478,7 @@ onMounted(async () => {
   if (user.userId) {
     room.setCurrentUser(user.userId)
   }
+  void loadMakeupOffer()
   void user.loadMe().catch(() => {})
   if (user.token) {
     connectRoomSocket(user.token)
@@ -576,6 +591,44 @@ async function inviteFriend(f: DisplayFriend) {
     invitedIds.value = { ...invitedIds.value, [String(f.id)]: false }
     pendingInvite.value = false
     ElMessage.error(error?.message || '组队邀请发送失败')
+  }
+}
+
+const makeupText = computed(() => makeupLine(makeupOffer.value, lang.value === 'en'))
+const makeupAvailable = computed(() => Boolean(makeupOffer.value?.available))
+const selfMakeup = computed(() => {
+  const selfId = String(user.userId || '')
+  return room.players.some(player => player.id === selfId && player.makeupOptIn)
+})
+
+async function loadMakeupOffer() {
+  if (!user.token) return
+  try {
+    const board = await fetchMyTaskBoard()
+    makeupOffer.value = board.makeup || null
+  } catch {
+    makeupOffer.value = null
+  }
+}
+
+async function onMakeupToggle(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!room.roomId) {
+    input.checked = false
+    ElMessage.warning(lang.value === 'en' ? 'Enter a room first' : '请先进入房间')
+    return
+  }
+  makeupSaving.value = true
+  try {
+    const detail = await setRoomMakeup(room.roomId, input.checked)
+    room.syncRoomDetail(detail, String(user.userId), user.username, friendNameMap())
+    patchPlayerNames()
+  } catch (error: any) {
+    input.checked = selfMakeup.value
+    ElMessage.error(error?.message || (lang.value === 'en' ? 'Could not set makeup' : '补打勾选失败'))
+    await loadMakeupOffer()
+  } finally {
+    makeupSaving.value = false
   }
 }
 
@@ -993,6 +1046,26 @@ async function leaveCurrentRoom() {
   margin: var(--space-2) 0 0;
   color: #8b7a65;
   font-size: var(--text-xs);
+}
+.makeup-opt {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: var(--space-4);
+  color: #4a3520;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  cursor: pointer;
+}
+.makeup-opt input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.makeup-note {
+  margin-top: var(--space-4);
+  color: #4a3520;
+  font-size: var(--text-sm);
+  line-height: 1.45;
 }
 .ready-btn {
   width: 100%;

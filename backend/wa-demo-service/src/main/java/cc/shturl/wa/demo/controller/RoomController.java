@@ -2,6 +2,7 @@ package cc.shturl.wa.demo.controller;
 
 import cc.shturl.wa.common.result.Result;
 import cc.shturl.wa.demo.dto.req.RoomDeptReq;
+import cc.shturl.wa.demo.dto.req.RoomMakeupReq;
 import cc.shturl.wa.demo.dto.req.RoomInviteReq;
 import cc.shturl.wa.demo.dto.resp.RoomDetailResp;
 import cc.shturl.wa.demo.entity.RoomInvites;
@@ -70,6 +71,13 @@ public class RoomController {
                                                 @PathVariable("roomId") Long roomId,
                                                 @Valid @RequestBody RoomDeptReq request) {
         return Result.ok(roomService.setDepartment(authTokenSupport.requireUserIdFromAccessToken(authorization), roomId, request));
+    }
+
+    @PostMapping("/{roomId}/makeup")
+    public Result<RoomDetailResp> setMakeup(@RequestHeader("Authorization") String authorization,
+                                            @PathVariable("roomId") Long roomId,
+                                            @RequestBody(required = false) RoomMakeupReq request) {
+        return Result.ok(roomService.setMakeup(authTokenSupport.requireUserIdFromAccessToken(authorization), roomId, request));
     }
 
     @PostMapping("/{roomId}/ready")

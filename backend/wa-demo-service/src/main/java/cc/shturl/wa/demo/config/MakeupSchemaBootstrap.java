@@ -1,0 +1,83 @@
+package cc.shturl.wa.demo.config;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+
+/**
+ * 补打用的勾选、对局标记和已补档位。已有库在启动时补列。
+ */
+@Component
+@Order(4)
+public class MakeupSchemaBootstrap implements ApplicationRunner {
+    private static final Logger log = LoggerFactory.getLogger(MakeupSchemaBootstrap.class);
+
+    private final JdbcTemplate jdbcTemplate;
+
+    public MakeupSchemaBootstrap(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    @Override
+    public void run(ApplicationArguments args) {
+        if (tableExists("match_players") && !columnExists("match_players", "makeup_owed_day")) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE `match_players`
+                    ADD COLUMN `makeup_owed_day` date NULL DEFAULT NULL
+                      COMMENT '补打对应的北京时间自然日' AFTER `result_type`
+                    """);
+            log.info("Added match_players.makeup_owed_day.");
+        }
+        if (tableExists("match_players") && !columnExists("match_players", "makeup_slot")) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE `match_players`
+                    ADD COLUMN `makeup_slot` tinyint NULL DEFAULT NULL
+                      COMMENT '补打对应的第几局：1/2/3' AFTER `makeup_owed_day`
+                    """);
+            log.info("Added match_players.makeup_slot.");
+        }
+        if (tableExists("room_members") && !columnExists("room_members", "makeup_opt_in")) {
+            jdbcTemplate.execute("""
+                    ALTER TABLE `room_members`
+                    ADD COLUMN `makeup_opt_in` tinyint NOT NULL DEFAULT 0
+                      COMMENT '开局前勾选：这局算补打' AFTER `ready_status`
+                    """);
+            log.info("Added room_members.makeup_opt_in.");
+        }
+        if (!tableExists("user_makeup_claims")) {
+            jdbcTemplate.execute("""
+                    CREATE TABLE `user_makeup_claims` (
+                      `id` bigint NOT NULL AUTO_INCREMENT,
+                      `user_id` bigint NOT NULL,
+                      `owed_day` date NOT NULL COMMENT '被补上的自然日',
+                      `slot_no` tinyint NOT NULL COMMENT '第几局 1/2/3',
+                      `match_id` bigint NOT NULL,
+                      `gold_paid` int NOT NULL DEFAULT 0,
+                      `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      PRIMARY KEY (`id`),
+                      UNIQUE KEY `uk_user_makeup_slot` (`user_id`, `owed_day`, `slot_no`),
+                      KEY `idx_user_makeup_match` (`match_id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='已结算的补打档，含放弃'
+                    """);
+            log.info("Created user_makeup_claims.");
+        }
+    }
+
+    private boolean tableExists(String table) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
+                Integer.class, table);
+        return count != null && count > 0;
+    }
+
+    private boolean columnExists(String table, String column) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?",
+                Integer.class, table, column);
+        return count != null && count > 0;
+    }
+}

@@ -1,6 +1,7 @@
 package cc.shturl.wa.demo.service.impl;
 
 import cc.shturl.wa.common.exception.BusinessException;
+import cc.shturl.wa.demo.dto.resp.MakeupOfferResp;
 import cc.shturl.wa.demo.dto.resp.MyTaskBoardResp;
 import cc.shturl.wa.demo.dto.resp.TaskClaimResp;
 import cc.shturl.wa.demo.dto.resp.TaskResp;
@@ -14,6 +15,7 @@ import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.mapper.UserTaskMapper;
 import cc.shturl.wa.demo.service.LeaderboardService;
+import cc.shturl.wa.demo.service.MakeupService;
 import cc.shturl.wa.demo.service.QuestPeriod;
 import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.WorkDayQuota;
@@ -58,6 +60,7 @@ public class TaskServiceImpl implements TaskService {
     private final JdbcTemplate jdbcTemplate;
     private final LeaderboardService leaderboardService;
     private final WorkDayService workDayService;
+    private final MakeupService makeupService;
     private final WeeklyTeammateHints weeklyTeammateHints;
     private final ObjectMapper objectMapper;
 
@@ -82,7 +85,7 @@ public class TaskServiceImpl implements TaskService {
         int quota = WorkDayQuota.days(YearMonth.now(ZONE));
         if (!userExists(userId)) {
             return new MyTaskBoardResp(List.of(), 0, 0, false, secondsUntilDailyReset(), 0, quota, false, 0,
-                    WeeklyClaimLimit.PER_MONTH, List.of(), List.of());
+                    WeeklyClaimLimit.PER_MONTH, List.of(), List.of(), MakeupOfferResp.none());
         }
         ensureDefaultTasks(userId);
         rebuildWeeklyTeammates(userId);
@@ -110,7 +113,7 @@ public class TaskServiceImpl implements TaskService {
         WeeklyTeammateHints.Hints hints = weeklyTeammateHints.load(userId);
         return new MyTaskBoardResp(visible, remainingMoney, claimable, false, secondsUntilDailyReset(),
                 workDays.used(), workDays.quota(), workDays.restDay(), weeklyClaims, WeeklyClaimLimit.PER_MONTH,
-                hints.teammates(), hints.suggestions());
+                hints.teammates(), hints.suggestions(), makeupService.describe(userId));
     }
 
     @Override
@@ -494,25 +497,54 @@ public class TaskServiceImpl implements TaskService {
         return ids;
     }
 
+    /**
+     * 每天最多 3 个队友。自己的前 3 局没满时，当天的补打占一个空位；已经满 3 局的补打不加。
+     */
     private List<Long> firstThreeTeammates(Long userId, LocalDate day) {
         String start = utcWallStart(day);
         String end = utcWallStart(day.plusDays(1));
         try {
             return jdbcTemplate.query("""
-                    SELECT first3.id AS match_id, other.user_id AS user_id
+                    SELECT picked.id AS match_id, other.user_id AS user_id
                     FROM (
-                      SELECT m.id
-                      FROM matches m
-                      INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
-                      WHERE m.status = 2
-                        AND IFNULL(m.winner_type, 0) IN (1, 2)
-                        AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
-                        AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
-                      ORDER BY COALESCE(m.started_at, m.created_at, m.id), m.id
-                      LIMIT ?
-                    ) first3
+                      (
+                        SELECT m.id
+                        FROM matches m
+                        INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                        WHERE m.status = 2
+                          AND IFNULL(m.winner_type, 0) IN (1, 2)
+                          AND me.makeup_slot IS NULL
+                          AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
+                          AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
+                        ORDER BY COALESCE(m.started_at, m.created_at, m.id), m.id
+                        LIMIT ?
+                      )
+                      UNION ALL
+                      (
+                        SELECT m.id
+                        FROM matches m
+                        INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
+                        WHERE m.status = 2
+                          AND IFNULL(m.winner_type, 0) IN (1, 2)
+                          AND me.makeup_slot IS NOT NULL
+                          AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
+                          AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
+                          AND (
+                            SELECT COUNT(*)
+                            FROM matches m2
+                            INNER JOIN match_players me2 ON me2.match_id = m2.id AND me2.user_id = ?
+                            WHERE m2.status = 2
+                              AND IFNULL(m2.winner_type, 0) IN (1, 2)
+                              AND me2.makeup_slot IS NULL
+                              AND COALESCE(m2.ended_at, m2.started_at, m2.created_at) >= ?
+                              AND COALESCE(m2.ended_at, m2.started_at, m2.created_at) < ?
+                          ) < ?
+                        ORDER BY COALESCE(m.started_at, m.created_at, m.id), m.id
+                        LIMIT 1
+                      )
+                    ) picked
                     LEFT JOIN match_players other
-                      ON other.match_id = first3.id AND other.user_id <> ?
+                      ON other.match_id = picked.id AND other.user_id <> ?
                     """, (rs, rowNum) -> {
                         long matchId = rs.getLong("match_id");
                         long teammateId = rs.getLong("user_id");
@@ -521,7 +553,10 @@ public class TaskServiceImpl implements TaskService {
                         }
                         return teammateId;
                     },
-                    userId, start, end, WEEKLY_DAILY_CAP, userId);
+                    userId, start, end, WEEKLY_DAILY_CAP,
+                    userId, start, end,
+                    userId, start, end, WEEKLY_DAILY_CAP,
+                    userId);
         } catch (Exception e) {
             log.warn("Skip weekly teammate rebuild for user {} on {}: {}", userId, day, e.getMessage());
             return List.of();
