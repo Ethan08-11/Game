@@ -39,8 +39,8 @@
     </div>
     <div class="info-text">
       <div class="crest-meta">
-        <span class="nickname">{{ displayName }}<span v-if="isSelf">（我）</span></span>
-        <span class="dept-label">{{ deptDisplay }}</span>
+        <span class="nickname">{{ displayName }}<span v-if="isSelf">{{ t('（我）') }}</span></span>
+        <span class="dept-label" :class="{ 'is-en': lang === 'en' }">{{ deptDisplay }}</span>
       </div>
       <div class="crest-hp" :aria-label="`${stamina}/${maxStamina} 血值`">
         <svg class="hp-gem" viewBox="0 0 32 32" aria-hidden="true">
@@ -80,6 +80,7 @@
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import shieldIcon from '@/assets/player-shield.webp'
 import { formatPlayerName } from '@/utils/playerName'
+import { lang, t } from '@/i18n'
 
 const props = withDefaults(defineProps<{
   dept: string
@@ -119,7 +120,7 @@ const deptLabelMap: Record<string, string> = {
   // 下次打开「你的0来了」时恢复下一行
   // zero: '你的0来了',
 }
-const deptDisplay = computed(() => deptLabelMap[deptKey.value] || props.dept || '')
+const deptDisplay = computed(() => t(deptLabelMap[deptKey.value] || props.dept || ''))
 
 const justHealed = ref(false)
 let healTimer: ReturnType<typeof setTimeout> | null = null
@@ -312,6 +313,10 @@ onBeforeUnmount(() => {
   -webkit-text-stroke: 0.8px #2a1408;
   paint-order: stroke fill;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.dept-label.is-en {
+  letter-spacing: 0;
+  font-size: 12px;
 }
 .dept-label {
   flex: 0 0 auto;

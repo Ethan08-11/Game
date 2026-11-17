@@ -1,5 +1,6 @@
 import { lang, t } from './index'
 import { translateEffectTemplate } from './effects.en'
+import { CARD_NAME_EN } from './cardNames.en'
 
 const CUSTOMERS: Record<string, { name: string; description: string }> = {
   CUSTOMER_KIND: {
@@ -143,6 +144,12 @@ const EFFECT_PATTERNS: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
 
 export function localizeText(zh: string): string {
   return t(zh)
+}
+
+export function localizeCardName(name?: string | null): string {
+  const raw = String(name ?? '')
+  if (lang.value !== 'en' || !raw) return raw
+  return CARD_NAME_EN[raw] ?? t(raw)
 }
 
 export function localizeEffect(text?: string | null): string {

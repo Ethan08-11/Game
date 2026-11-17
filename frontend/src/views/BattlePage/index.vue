@@ -1,5 +1,5 @@
 <template>
-  <div class="battle-page" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '' }">
+  <div class="battle-page" :class="{ 'is-en': lang === 'en' }" :style="{ '--battle-bg': bgImage ? `url(${bgImage})` : '' }">
     <BackButton to="" :text="t('放弃对战')" @click="handleLeave" />
     <LangSwitch class="battle-lang" />
 
@@ -532,8 +532,8 @@
     </div>
 
     <div class="match-chat-dock">
-      <button class="match-chat-btn" type="button" :disabled="game.isGameOver" @click="toggleMatchChat" aria-label="对局聊天">
-        <span class="match-chat-btn-text">对局聊天</span>
+      <button class="match-chat-btn" type="button" :disabled="game.isGameOver" @click="toggleMatchChat" :aria-label="t('对局聊天')">
+        <span class="match-chat-btn-text">{{ t('对局聊天') }}</span>
         <span v-if="chatUnread > 0" class="match-chat-unread">{{ chatUnread > 9 ? '9+' : chatUnread }}</span>
       </button>
       <MatchChatPanel
@@ -1190,8 +1190,19 @@ const statusBullyActionText = computed(() => {
   const text = String(bullyActionText.value || '').trim()
   if (!text) return ''
   if (text.startsWith('本回合护盾') || text === '本回合没有护盾') return ''
-  return text
+  return localizeBullyAction(text)
 })
+
+function localizeBullyAction(text: string) {
+  if (lang.value !== 'en') return text
+  const exact = t(text)
+  if (exact !== text) return exact
+  const marked = text.match(/^本回合点名(.+)$/)
+  if (marked) return `Marking ${t(marked[1])}`
+  const watching = text.match(/^本回合盯(.+)输出$/)
+  if (watching) return `Watching ${t(watching[1])}`
+  return text
+}
 
 const deptLabelMap: Record<string, string> = {
   sales: '销售部',
@@ -4223,6 +4234,9 @@ onUnmounted(() => {
   transition: transform 0.2s ease;
   border: none;
   outline: none;
+}
+.battle-page.is-en .finish-btn {
+  background-image: url('@/assets/battle-finish-en.webp');
 }
 .finish-btn:hover:not(:disabled) {
   transform: translateY(-6px);

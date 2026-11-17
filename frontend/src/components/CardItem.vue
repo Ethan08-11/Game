@@ -1,13 +1,13 @@
 <template>
   <div
     class="card-item"
-    :class="[`card-${type}`, { disabled }]"
+    :class="[`card-${type}`, { disabled, 'is-en': lang === 'en' }]"
     :style="cardRootStyle"
     @click="!disabled && $emit('play')"
   >
     <span class="card-cost">{{ cost }}</span>
     <span class="card-dept">{{ t(displayDept) }}</span>
-    <strong class="card-name">{{ name }}</strong>
+    <strong class="card-name">{{ shownName }}</strong>
     <div ref="descBoxRef" class="card-desc-box">
       <p
         ref="descRef"
@@ -31,7 +31,7 @@ import { getImageUrl } from '@/utils/imageUrl'
 import { displayCardDept } from '@/utils/cardDept'
 import { cardNameTopPercent } from '@/utils/cardOverlay'
 import { t, lang } from '@/i18n'
-import { localizeEffect } from '@/i18n/catalog'
+import { localizeCardName, localizeEffect } from '@/i18n/catalog'
 import fallbackBg from '@/assets/card-background1.webp'
 
 const DESC_MAX_PX = 18
@@ -72,6 +72,7 @@ const cardRootStyle = computed(() => {
 })
 
 const displayDept = computed(() => displayCardDept(props.dept, props.imageUrl, props.dept))
+const shownName = computed(() => localizeCardName(props.name))
 const shownDescription = computed(() => localizeEffect(props.description))
 
 function fitsInBox(box: HTMLElement, text: HTMLElement) {
@@ -185,6 +186,15 @@ onBeforeUnmount(() => {
   z-index: 2;
 }
 
+.card-item.is-en .card-dept {
+  font-size: 12px;
+  max-width: 62%;
+  letter-spacing: 0;
+}
+.card-item.is-en .card-name {
+  font-size: calc(var(--text-sm) * 1.45);
+  letter-spacing: 0;
+}
 .card-dept {
   position: absolute;
   top: 12px;
