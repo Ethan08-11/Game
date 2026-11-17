@@ -19,27 +19,32 @@
 import { computed } from 'vue'
 import { useUserStore, type Friend } from '@/store/user'
 import { formatPlayerName } from '@/utils/playerName'
-import { t } from '@/i18n'
+import { lang, t } from '@/i18n'
 import PlayerAvatar from '@/components/PlayerAvatar.vue'
 import statusOnlineIcon from '@/assets/status-online.webp'
 import statusOfflineIcon from '@/assets/status-offline.webp'
 import statusInGameIcon from '@/assets/status-in-game.webp'
 import statusInTeamIcon from '@/assets/status-in-team.webp'
+import statusOnlineEn from '@/assets/status-online-en.webp'
+import statusOfflineEn from '@/assets/status-offline-en.webp'
+import statusInGameEn from '@/assets/status-in-game-en.webp'
+import statusInTeamEn from '@/assets/status-in-team-en.webp'
 
 const userStore = useUserStore()
 
 const friends = computed(() => userStore.friends)
 
 function getStatusIcon(f: Friend): string {
+  const en = lang.value === 'en'
   switch (f.presenceStatus) {
     case 'IN_MATCH':
-      return statusInGameIcon
+      return en ? statusInGameEn : statusInGameIcon
     case 'IN_ROOM':
-      return statusInTeamIcon
+      return en ? statusInTeamEn : statusInTeamIcon
     case 'OFFLINE':
-      return statusOfflineIcon
+      return en ? statusOfflineEn : statusOfflineIcon
     default:
-      return statusOnlineIcon
+      return en ? statusOnlineEn : statusOnlineIcon
   }
 }
 </script>

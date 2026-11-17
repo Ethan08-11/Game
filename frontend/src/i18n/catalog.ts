@@ -1,4 +1,5 @@
 import { lang, t } from './index'
+import { translateEffectTemplate } from './effects.en'
 
 const CUSTOMERS: Record<string, { name: string; description: string }> = {
   CUSTOMER_KIND: {
@@ -133,6 +134,11 @@ const EFFECT_PATTERNS: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
   [/^容易紧张。效果触发时，霸凌者血量随机 \+3～6（上限同步提高）。$/, () => CUSTOMERS.CUSTOMER_TIMID.description],
   [/^情绪波动较大。效果触发时，本回合霸凌者攻击随机 \+2～4。$/, () => CUSTOMERS.CUSTOMER_ANXIOUS.description],
   [/^结伴闲逛却从不落单。效果触发时，给两名存活护卫各恢复 1 点血值。$/, () => CUSTOMERS.CUSTOMER_WINDOW.description],
+  [/^调用机会-1且失血(\d+)$/, (m) => `Call −1 and lose ${m[1]} HP`],
+  [/^调用机会([+-]\d+)$/, (m) => `Call ${m[1]}`],
+  [/^血值([+-]\d+)$/, (m) => `HP ${m[1]}`],
+  [/^攻击([+-]\d+)$/, (m) => `Attack ${m[1]}`],
+  [/^HP([+-]\d+)$/, (m) => `HP ${m[1]}`],
 ]
 
 export function localizeText(zh: string): string {
@@ -144,6 +150,8 @@ export function localizeEffect(text?: string | null): string {
   if (lang.value !== 'en' || !raw) return raw
   const known = t(raw)
   if (known !== raw) return known
+  const templated = translateEffectTemplate(raw)
+  if (templated) return templated
   for (const [pattern, format] of EFFECT_PATTERNS) {
     const match = raw.match(pattern)
     if (match) return format(match)

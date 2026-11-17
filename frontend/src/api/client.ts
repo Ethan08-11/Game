@@ -3,6 +3,7 @@
  */
 
 import { clientDeviceId } from '@/utils/clientDevice'
+import { t } from '@/i18n'
 
 const BASE_URL = import.meta.env.VITE_API_BASE || '/api'
 
@@ -103,7 +104,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}, skipRe
       }
       if (res.status === 405 || res.status === 502 || res.status === 504) {
         console.error(`[API] ${method} ${url} → HTTP ${res.status}（后端不可用）`)
-        throw new Error('后端服务未就绪，请确认已在 Zeabur 部署 backend（及 MySQL/Redis/RabbitMQ）')
+        throw new Error(t('后端服务未就绪，请确认已在 Zeabur 部署 backend（及 MySQL/Redis/RabbitMQ）'))
       }
       const err = await res.json().catch(() => ({ message: res.statusText }))
       const msg = err.message || `HTTP ${res.status}`
@@ -118,17 +119,17 @@ async function request<T>(endpoint: string, options: RequestOptions = {}, skipRe
         return request<T>(endpoint, options, true)
       }
       console.error(`[API] ${method} ${url} → 业务错误: ${json.message}`)
-      throw new Error(json.message || '请求失败')
+      throw new Error(json.message || t('请求失败'))
     }
     return json.data
   } catch (e: any) {
     if (e.name === 'AbortError') {
       console.error(`[API] ${method} ${url} → 请求超时`)
-      throw new Error('请求超时，请稍后重试')
+      throw new Error(t('请求超时，请稍后重试'))
     }
     if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
       console.error(`[API] ${method} ${url} → 网络连接失败`)
-      throw new Error('无法连接服务器，请确认后端已启动 (192.168.1.25:8080)')
+      throw new Error(t('无法连接服务器，请确认后端已启动 (192.168.1.25:8080)'))
     }
     throw e
   } finally {
