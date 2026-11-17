@@ -65,6 +65,34 @@ public class MakeupSchemaBootstrap implements ApplicationRunner {
                     """);
             log.info("Created user_makeup_claims.");
         }
+        addClaimColumn("finish_gold", """
+                ALTER TABLE `user_makeup_claims`
+                ADD COLUMN `finish_gold` int NOT NULL DEFAULT 0
+                  COMMENT '这一档打完可领的金币' AFTER `gold_paid`
+                """);
+        addClaimColumn("win_gold", """
+                ALTER TABLE `user_makeup_claims`
+                ADD COLUMN `win_gold` int NOT NULL DEFAULT 0
+                  COMMENT '这一档赢了可领的额外金币' AFTER `finish_gold`
+                """);
+        addClaimColumn("finish_claimed", """
+                ALTER TABLE `user_makeup_claims`
+                ADD COLUMN `finish_claimed` tinyint NOT NULL DEFAULT 1
+                  COMMENT '打完奖励已领。旧记录默认已领，避免再发一次' AFTER `win_gold`
+                """);
+        addClaimColumn("win_claimed", """
+                ALTER TABLE `user_makeup_claims`
+                ADD COLUMN `win_claimed` tinyint NOT NULL DEFAULT 1
+                  COMMENT '获胜额外金币已领。旧记录默认已领' AFTER `finish_claimed`
+                """);
+    }
+
+    private void addClaimColumn(String column, String ddl) {
+        if (!tableExists("user_makeup_claims") || columnExists("user_makeup_claims", column)) {
+            return;
+        }
+        jdbcTemplate.execute(ddl);
+        log.info("Added user_makeup_claims.{}.", column);
     }
 
     private boolean tableExists(String table) {

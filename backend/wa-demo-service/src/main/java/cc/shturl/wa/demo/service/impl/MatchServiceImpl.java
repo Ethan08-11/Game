@@ -195,8 +195,14 @@ public class MatchServiceImpl implements MatchService {
         clientNetworkService.requireDistinctNetwork(members.get(0).getUserId(), members.get(1).getUserId());
         Map<Long, MakeupService.Reservation> makeupByUser = new HashMap<>();
         for (RoomMembers member : members) {
-            if (member.getMakeupOptIn() != null && member.getMakeupOptIn() == 1) {
+            if (member.getMakeupOptIn() == null || member.getMakeupOptIn() != 1) {
+                continue;
+            }
+            try {
                 makeupByUser.put(member.getUserId(), makeupService.requireReservationForStart(member.getUserId()));
+            } catch (BusinessException ex) {
+                member.setMakeupOptIn(0);
+                roomMembersMapper.updateById(member);
             }
         }
         CustomerTypes customer = pickCustomer(members);
@@ -3379,6 +3385,7 @@ public class MatchServiceImpl implements MatchService {
                 if (isMakeup(player)) {
                     makeupService.settle(player.getUserId(), match.getId(), player.getMakeupOwedDay(),
                             player.getMakeupSlot(), false, winnerType == 1);
+                    continue;
                 }
                 try {
                     String resultType = winnerType == 1 ? "WIN" : "LOSE";

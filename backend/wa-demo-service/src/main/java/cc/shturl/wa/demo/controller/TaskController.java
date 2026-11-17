@@ -5,6 +5,7 @@ import cc.shturl.wa.demo.dto.resp.MyTaskBoardResp;
 import cc.shturl.wa.demo.dto.resp.TaskClaimResp;
 import cc.shturl.wa.demo.dto.resp.TaskResp;
 import cc.shturl.wa.demo.security.AuthTokenSupport;
+import cc.shturl.wa.demo.service.MakeupService;
 import cc.shturl.wa.demo.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TaskController {
     private final TaskService taskService;
+    private final MakeupService makeupService;
     private final AuthTokenSupport authTokenSupport;
 
     @GetMapping
@@ -33,6 +35,13 @@ public class TaskController {
     public Result<MyTaskBoardResp> listMyTasks(@RequestHeader("Authorization") String authorization) {
         Long userId = authTokenSupport.requireUserIdFromAccessToken(authorization);
         return Result.ok(taskService.listMyTaskBoard(userId));
+    }
+
+    @PostMapping("/makeup-reward")
+    public Result<TaskClaimResp> claimMakeup(@RequestHeader("Authorization") String authorization,
+                                             @RequestParam("part") String part) {
+        Long userId = authTokenSupport.requireUserIdFromAccessToken(authorization);
+        return Result.ok(makeupService.claim(userId, part));
     }
 
     @PostMapping("/{userTaskId}/claim")

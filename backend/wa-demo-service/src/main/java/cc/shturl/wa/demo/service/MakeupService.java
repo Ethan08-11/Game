@@ -2,6 +2,7 @@ package cc.shturl.wa.demo.service;
 
 import cc.shturl.wa.common.exception.BusinessException;
 import cc.shturl.wa.demo.dto.resp.MakeupOfferResp;
+import cc.shturl.wa.demo.dto.resp.TaskClaimResp;
 import cc.shturl.wa.demo.entity.RoomMembers;
 import cc.shturl.wa.demo.mapper.RoomMembersMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
@@ -21,11 +22,13 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 每人每天最多补 1 局。补的是本月更早没打完的那一档，同时仍计入今天的胜负。
+ * 每人每天最多补 1 局，而且要等今天的 3 局打完才能勾选。
+ * 补的是本月更早没打完的那一档。打完后到任务列表领取，金币按这一档是第 1、2、3 局变化。
  */
 @Service
 @RequiredArgsConstructor
@@ -41,6 +44,10 @@ public class MakeupService {
     public record Reservation(LocalDate owedDay, int slot) {
     }
 
+    private record Pending(long id, LocalDate day, int slot, int finishGold, int winGold,
+                           int finishClaimed, int winClaimed) {
+    }
+
     public MakeupOfferResp describe(Long userId) {
         if (userId == null || !ready()) {
             return MakeupOfferResp.none();
@@ -48,14 +55,26 @@ public class MakeupService {
         LocalDate today = LocalDate.now(WorkDayQuota.ZONE);
         LocalDate start = WorkDayQuota.countStart(YearMonth.from(today));
         MakeupQueue.Next next = MakeupQueue.next(today, start, usedSlots(userId, start, today), claimed(userId, start, today));
-        if (next == null) {
+        Pending pending = findPending(userId);
+        if (next == null && pending == null) {
             return MakeupOfferResp.none();
         }
         boolean usedToday = usedToday(userId, today);
-        boolean pays = workDayService.couldPayGold(userId, next.day());
-        return new MakeupOfferResp(!usedToday, next.day().toString(), next.slot(),
-                MakeupQueue.finishGold(next.slot()), MakeupQueue.WIN_GOLD,
-                usedToday, pays, next.owedCount());
+        boolean dailyReady = playedToday(userId, today) >= 3;
+        String owedDay = next == null ? null : next.day().toString();
+        int slot = next == null ? 0 : next.slot();
+        int finishGold = MakeupQueue.finishGold(slot);
+        boolean pays = next != null && workDayService.couldPayGold(userId, next.day());
+        boolean available = next != null && dailyReady && !usedToday;
+        String questDay = pending == null ? owedDay : pending.day().toString();
+        int questSlot = pending == null ? slot : pending.slot();
+        int questFinish = pending == null ? finishGold : pending.finishGold();
+        int questWin = pending == null ? MakeupQueue.WIN_GOLD : pending.winGold();
+        boolean finishReady = pending != null && pending.finishClaimed() == 0 && pending.finishGold() > 0;
+        boolean winReady = pending != null && pending.winClaimed() == 0 && pending.winGold() > 0;
+        return new MakeupOfferResp(available, owedDay, slot, finishGold, MakeupQueue.WIN_GOLD,
+                usedToday, pays, next == null ? 0 : next.owedCount(), dailyReady,
+                questDay, questSlot, questFinish, questWin, finishReady, winReady);
     }
 
     public Reservation requireReservation(Long userId) {
@@ -69,7 +88,9 @@ public class MakeupService {
     private Reservation reserve(Long userId, boolean starting) {
         MakeupOfferResp offer = describe(userId);
         if (!offer.available()) {
-            String reason = offer.usedToday() ? "今天的补打已经用过" : "今天没有可补的局";
+            String reason = !offer.dailyReady() && offer.slot() > 0
+                    ? "今天打满 3 局后才能补打"
+                    : offer.usedToday() ? "今天的补打已经用过" : "今天没有可补的局";
             throw new BusinessException(starting ? "这局不能按补打开局：" + reason : reason);
         }
         return new Reservation(LocalDate.parse(offer.owedDay()), offer.slot());
@@ -93,7 +114,7 @@ public class MakeupService {
     }
 
     /**
-     * 打完发这一档的金币；放弃记 0 金币并消耗这一档。作废不要调用。
+     * 打完记下这一档，金币留到任务列表领取。放弃记 0 并消耗这一档。作废不要调用。
      */
     @Transactional
     public void settle(Long userId, Long matchId, LocalDate owedDay, int slot, boolean forfeit, boolean won) {
@@ -106,27 +127,99 @@ public class MakeupService {
         if (existing != null && existing > 0) {
             return;
         }
-        int gold = 0;
-        if (!forfeit) {
-            gold = MakeupQueue.finishGold(slot) + (won ? MakeupQueue.WIN_GOLD : 0);
-            if (!workDayService.couldPayGold(userId, owedDay)) {
-                gold = 0;
-            } else {
-                workDayService.allowGold(userId, owedDay);
-            }
+        int finishGold = 0;
+        int winGold = 0;
+        int finishClaimed = 1;
+        int winClaimed = 1;
+        if (!forfeit && workDayService.couldPayGold(userId, owedDay)) {
+            finishGold = MakeupQueue.finishGold(slot);
+            winGold = won ? MakeupQueue.WIN_GOLD : 0;
+            finishClaimed = 0;
+            winClaimed = winGold > 0 ? 0 : 1;
         }
         try {
             jdbcTemplate.update("""
-                    INSERT INTO user_makeup_claims(user_id, owed_day, slot_no, match_id, gold_paid, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """, userId, Date.valueOf(owedDay), slot, matchId, gold, Timestamp.valueOf(LocalDateTime.now()));
+                    INSERT INTO user_makeup_claims(
+                        user_id, owed_day, slot_no, match_id, gold_paid,
+                        finish_gold, win_gold, finish_claimed, win_claimed, created_at)
+                    VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+                    """, userId, Date.valueOf(owedDay), slot, matchId,
+                    finishGold, winGold, finishClaimed, winClaimed, Timestamp.valueOf(LocalDateTime.now()));
         } catch (DuplicateKeyException ignored) {
-            return;
+            // 这一档已经记过。
+        }
+    }
+
+    @Transactional
+    public TaskClaimResp claim(Long userId, String part) {
+        if (userId == null || !ready()) {
+            throw new BusinessException("没有可领的补打奖励");
+        }
+        boolean win = "win".equalsIgnoreCase(part);
+        if (!win && !"finish".equalsIgnoreCase(part)) {
+            throw new BusinessException("没有可领的补打奖励");
+        }
+        Pending pending = lockPending(userId);
+        if (pending == null) {
+            throw new BusinessException("没有可领的补打奖励");
+        }
+        int gold = win ? pending.winGold() : pending.finishGold();
+        int claimed = win ? pending.winClaimed() : pending.finishClaimed();
+        if (claimed != 0 || gold <= 0) {
+            throw new BusinessException("补打奖励已领取");
+        }
+        if (!workDayService.allowGold(userId, pending.day())) {
+            gold = 0;
+        }
+        String flag = win ? "win_claimed" : "finish_claimed";
+        int updated = jdbcTemplate.update("""
+                UPDATE user_makeup_claims
+                SET %s = 1, gold_paid = gold_paid + ?
+                WHERE id = ? AND user_id = ? AND %s = 0
+                """.formatted(flag, flag), gold, pending.id(), userId);
+        if (updated != 1) {
+            throw new BusinessException("补打奖励已领取");
         }
         if (gold > 0) {
             leaderboardService.ensureCurrentMonth();
             userProfileMapper.applyMatchSettlement(userId, 0, 0, 0, 0, gold);
         }
+        String message = gold > 0 ? "奖励领取成功" : "本月工作日已满，这局补打不发金币";
+        return new TaskClaimResp(pending.id(), pending.id(), 1, 1, 3, message, (long) gold, 0);
+    }
+
+    private int playedToday(Long userId, LocalDate today) {
+        return usedSlots(userId, today, today.plusDays(1)).getOrDefault(today, 0);
+    }
+
+    private Pending findPending(Long userId) {
+        List<Pending> rows = jdbcTemplate.query("""
+                SELECT id, owed_day, slot_no, finish_gold, win_gold, finish_claimed, win_claimed
+                FROM user_makeup_claims
+                WHERE user_id = ? AND (finish_claimed = 0 OR win_claimed = 0)
+                ORDER BY owed_day, slot_no
+                LIMIT 1
+                """, (rs, row) -> pending(rs), userId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private Pending lockPending(Long userId) {
+        List<Pending> rows = jdbcTemplate.query("""
+                SELECT id, owed_day, slot_no, finish_gold, win_gold, finish_claimed, win_claimed
+                FROM user_makeup_claims
+                WHERE user_id = ? AND (finish_claimed = 0 OR win_claimed = 0)
+                ORDER BY owed_day, slot_no
+                LIMIT 1
+                FOR UPDATE
+                """, (rs, row) -> pending(rs), userId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private Pending pending(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Date day = rs.getDate("owed_day");
+        return new Pending(rs.getLong("id"), day == null ? null : day.toLocalDate(),
+                rs.getInt("slot_no"), rs.getInt("finish_gold"), rs.getInt("win_gold"),
+                rs.getInt("finish_claimed"), rs.getInt("win_claimed"));
     }
 
     private Map<LocalDate, Integer> usedSlots(Long userId, LocalDate start, LocalDate today) {
@@ -190,6 +283,7 @@ public class MakeupService {
 
     private boolean ready() {
         return tableExists("user_makeup_claims")
+                && columnExists("user_makeup_claims", "finish_claimed")
                 && columnExists("match_players", "makeup_slot")
                 && columnExists("room_members", "makeup_opt_in");
     }

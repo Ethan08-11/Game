@@ -60,7 +60,7 @@ const TASKS: Record<string, { name: string; description: string }> = {
   },
   'T-WEEKLY-TEAM-10': {
     name: 'Team with 10 people',
-    description: 'In this week’s first 3 daily matches, team with 10 different people. A forfeited match uses one of those slots. A voided stuck match does not. At most 4 claims a month.',
+    description: 'In this week’s first 3 daily matches, team with 10 different people. Makeup waits until those 3 are done and does not add a teammate. A forfeited match uses one of those slots. A voided stuck match does not. At most 4 claims a month.',
   },
 }
 

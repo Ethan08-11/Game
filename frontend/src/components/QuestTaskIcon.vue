@@ -139,6 +139,8 @@ const KIND_BY_CODE: Record<string, string> = {
   'T-DAILY-WIN-2': 'chalice',
   'T-DAILY-MATCH-3': 'castle',
   'T-DAILY-WIN-3': 'candles',
+  'T-MAKEUP-FINISH': 'scroll',
+  'T-MAKEUP-WIN': 'crown',
   'T-WEEKLY-TEAM-10': 'helms',
 }
 
