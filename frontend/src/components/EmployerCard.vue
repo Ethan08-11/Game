@@ -23,7 +23,7 @@
         <span>{{ t('对应霸凌者') }}</span>
         <strong>{{ t(game.employerTrait.bullyName) }}</strong>
       </p>
-      <p v-if="game.employerTrait.bullySkillSummary" class="attr-desc">{{ game.employerTrait.bullySkillSummary }}</p>
+      <p v-if="game.employerTrait.bullySkillSummary" class="attr-desc">{{ localizeEffect(game.employerTrait.bullySkillSummary) }}</p>
     </div>
   </div>
 </template>

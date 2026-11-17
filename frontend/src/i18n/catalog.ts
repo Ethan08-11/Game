@@ -4,31 +4,31 @@ import { translateEffectTemplate } from './effects.en'
 const CUSTOMERS: Record<string, { name: string; description: string }> = {
   CUSTOMER_KIND: {
     name: 'Kind Steady',
-    description: 'Calm and steady. When this triggers, the Bully’s attack is −1 this round.',
+    description: 'Calm and steady. On trigger, the Bully’s attack is −1 this round.',
   },
   CUSTOMER_TIMID: {
     name: 'Timid',
-    description: 'Easily rattled. When this triggers, the Bully gains 3 to 6 HP, and the maximum rises by the same amount.',
+    description: 'Easily rattled. On trigger, the Bully gains 3 to 6 HP, and the maximum rises too.',
   },
   CUSTOMER_ANXIOUS: {
     name: 'Anxious',
-    description: 'On edge. When this triggers, the Bully’s attack is +2 to +4 this round.',
+    description: 'On edge. On trigger, the Bully’s attack is +2 to +4 this round.',
   },
   CUSTOMER_WINDOW: {
     name: 'Strolling Pair',
-    description: 'They wander together and never split up. When this triggers, each living guard heals 1.',
+    description: 'They stay together. On trigger, each living guard heals 1.',
   },
   CUSTOMER_WEALTHY: {
     name: 'Wealthy',
-    description: 'A generous spender. When this triggers, one living guard gains 1 Call this round.',
+    description: 'A generous spender. On trigger, one living guard gains 1 Call.',
   },
   CUSTOMER_HARSH: {
     name: 'Harsh',
-    description: 'Sharp-eyed and sharp-tongued. When this triggers, one living guard loses 1 Call and 3 HP. Shield does not block it.',
+    description: 'Sharp-tongued. On trigger, one guard loses 1 Call and 3 HP. Shield does not block it.',
   },
   CUSTOMER_CLEMENT: {
     name: 'Ready Guest',
-    description: 'An easygoing Singapore builder who says OK with a smile. When this triggers, each living guard draws 1 card.',
+    description: 'Says OK with a smile. On trigger, each living guard draws 1.',
   },
 }
 
