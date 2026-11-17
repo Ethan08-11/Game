@@ -1,19 +1,19 @@
 <template>
-  <aside class="match-chat-panel" role="dialog" aria-label="对局聊天">
+  <aside class="match-chat-panel" role="dialog" :aria-label="t('和队友聊天')">
     <header class="match-chat-head">
-      <strong>对局聊天</strong>
-      <button type="button" class="match-chat-close" aria-label="关闭聊天" @click="$emit('close')">×</button>
+      <strong>{{ t('和队友聊天') }}</strong>
+      <button type="button" class="match-chat-close" :aria-label="t('关闭聊天')" @click="$emit('close')">×</button>
     </header>
     <div ref="listRef" class="match-chat-list">
-      <p v-if="messages.length === 0" class="match-chat-empty">点快捷语，或输入一句话发给队友</p>
+      <p v-if="messages.length === 0" class="match-chat-empty">{{ t('点快捷语，或输入一句话发给队友') }}</p>
       <div
         v-for="item in messages"
         :key="item.id"
         class="match-chat-item"
         :class="{ mine: item.mine }"
       >
-        <span class="match-chat-name">{{ item.mine ? '我' : item.name }}</span>
-        <p class="match-chat-text">{{ item.text }}</p>
+        <span class="match-chat-name">{{ item.mine ? (lang === 'en' ? 'Me' : '我') : item.name }}</span>
+        <p class="match-chat-text">{{ t(item.text) }}</p>
       </div>
     </div>
     <div class="match-chat-phrases">
@@ -24,7 +24,7 @@
         class="match-chat-phrase"
         :disabled="disabled"
         @click="$emit('send', phrase)"
-      >{{ phrase }}</button>
+      >{{ t(phrase) }}</button>
     </div>
     <form class="match-chat-form" @submit.prevent="submitDraft">
       <input
@@ -32,16 +32,17 @@
         class="match-chat-input"
         maxlength="40"
         :disabled="disabled"
-        placeholder="发给队友…"
+        :placeholder="t('发给队友…')"
         @keydown.esc="$emit('close')"
       />
-      <button type="submit" class="match-chat-send" :disabled="disabled || !draft.trim()">发送</button>
+      <button type="submit" class="match-chat-send" :disabled="disabled || !draft.trim()">{{ t('发送') }}</button>
     </form>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
+import { lang, t } from '@/i18n'
 
 export interface MatchChatMessage {
   id: string

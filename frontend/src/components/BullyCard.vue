@@ -61,6 +61,8 @@ const targetText = computed(() => {
   }
   if (target === 'sales' || target === '销售' || target === '销售部') return t('目标: 销售部')
   if (target === 'purchase' || target === '采购' || target === '采购部') return t('目标: 采购部')
+  const parts = target.split(/[、,，]/).map((item) => item.trim()).filter(Boolean)
+  if (parts.length > 1) return `${t('目标:')} ${parts.map((item) => t(item)).join(' / ')}`
   return `${t('目标:')} ${t(target)}`
 })
 
