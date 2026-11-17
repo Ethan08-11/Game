@@ -491,6 +491,8 @@ CREATE TABLE `match_players`  (
   `healing_done` int NOT NULL DEFAULT 0 COMMENT '整局累计有效治疗量',
   `shield_granted` int NOT NULL DEFAULT 0 COMMENT '整局累计产生的防御值',
   `result_type` tinyint NOT NULL DEFAULT 0 COMMENT '个人结算：0未结算 1胜利 2失败 3逃跑中断',
+  `makeup_owed_day` date NULL DEFAULT NULL COMMENT '补打对应的北京时间自然日',
+  `makeup_slot` tinyint NULL DEFAULT NULL COMMENT '补打对应的第几局：1/2/3',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
   PRIMARY KEY (`id`) USING BTREE,
@@ -501,6 +503,23 @@ CREATE TABLE `match_players`  (
   CONSTRAINT `match_players_ibfk_1` FOREIGN KEY (`match_id`) REFERENCES `matches` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT `match_players_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE = InnoDB AUTO_INCREMENT = 319 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '玩家单局最终战绩表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for user_makeup_claims
+-- ----------------------------
+DROP TABLE IF EXISTS `user_makeup_claims`;
+CREATE TABLE `user_makeup_claims` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `owed_day` date NOT NULL COMMENT '被补上的自然日',
+  `slot_no` tinyint NOT NULL COMMENT '第几局 1/2/3',
+  `match_id` bigint NOT NULL,
+  `gold_paid` int NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_makeup_slot` (`user_id`, `owed_day`, `slot_no`),
+  KEY `idx_user_makeup_match` (`match_id`)
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '已结算的补打档，含放弃' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for match_replays
@@ -655,6 +674,7 @@ CREATE TABLE `room_members`  (
   `seat_no` tinyint NOT NULL COMMENT '座位号：1或2',
   `dept_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '已选择的职业：销售部/采购部',
   `ready_status` tinyint NOT NULL DEFAULT 0 COMMENT '准备状态：1已准备 0未准备',
+  `makeup_opt_in` tinyint NOT NULL DEFAULT 0 COMMENT '开局前勾选：这局算补打',
   `online_status` tinyint NOT NULL DEFAULT 1 COMMENT '在线/掉线状态：1在线 0掉线',
   `joined_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入房间时间',
   `left_at` datetime NULL DEFAULT NULL COMMENT '离开房间时间',

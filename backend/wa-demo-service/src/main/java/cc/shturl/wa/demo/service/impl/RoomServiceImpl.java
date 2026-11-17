@@ -9,6 +9,7 @@ import cc.shturl.wa.common.dto.RoomInviteRejectedEvent;
 import cc.shturl.wa.common.dto.RoomMemberDepartmentChangedEvent;
 import cc.shturl.wa.common.dto.RoomMemberReadyEvent;
 import cc.shturl.wa.demo.dto.req.RoomDeptReq;
+import cc.shturl.wa.demo.dto.req.RoomMakeupReq;
 import cc.shturl.wa.demo.dto.req.RoomInviteReq;
 import cc.shturl.wa.demo.dto.resp.RoomDetailResp;
 import cc.shturl.wa.demo.dto.resp.RoomMemberResp;
@@ -24,6 +25,7 @@ import cc.shturl.wa.demo.mapper.MatchesMapper;
 import cc.shturl.wa.demo.mapper.RoomInvitesMapper;
 import cc.shturl.wa.demo.mapper.RoomMembersMapper;
 import cc.shturl.wa.demo.mapper.UserMapper;
+import cc.shturl.wa.demo.service.MakeupService;
 import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomEventPublisher;
 import cc.shturl.wa.demo.service.RoomNotificationService;
@@ -65,6 +67,7 @@ public class RoomServiceImpl implements RoomService {
     private final TransactionTemplate transactionTemplate;
     private final RoomPresenceCleanupService roomPresenceCleanupService;
     private final ClientNetworkService clientNetworkService;
+    private final MakeupService makeupService;
 
     @Override
     @Transactional
@@ -284,7 +287,8 @@ public class RoomServiceImpl implements RoomService {
                             : "玩家" + member.getUserId();
                     return new RoomMemberResp(member.getId(), member.getRoomId(), member.getUserId(),
                             member.getSeatNo(), member.getDeptType(), member.getReadyStatus(), member.getOnlineStatus(),
-                            username, username, user != null ? user.getAvatarUrl() : null);
+                            username, username, user != null ? user.getAvatarUrl() : null,
+                            member.getMakeupOptIn() == null ? 0 : member.getMakeupOptIn());
                 })
                 .toList();
         return new RoomDetailResp(room.getId(), room.getRoomCode(), room.getHostUserId(), room.getStatus(),
@@ -327,6 +331,15 @@ public class RoomServiceImpl implements RoomService {
                 currentUserId,
                 deptType,
                 System.currentTimeMillis()));
+        return getRoomDetail(currentUserId, roomId);
+    }
+
+    @Override
+    @Transactional
+    public RoomDetailResp setMakeup(Long currentUserId, Long roomId, RoomMakeupReq request) {
+        requireOpenRoom(roomId);
+        boolean enabled = request != null && Boolean.TRUE.equals(request.enabled());
+        makeupService.setOptIn(currentUserId, roomId, enabled);
         return getRoomDetail(currentUserId, roomId);
     }
 

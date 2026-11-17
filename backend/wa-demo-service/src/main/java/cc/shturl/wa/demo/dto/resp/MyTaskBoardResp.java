@@ -14,6 +14,7 @@ public record MyTaskBoardResp(
         Integer weeklyClaims,
         Integer weeklyClaimLimit,
         List<WeeklyPlayerHint> weeklyTeammates,
-        List<WeeklyPlayerHint> weeklySuggestions
+        List<WeeklyPlayerHint> weeklySuggestions,
+        MakeupOfferResp makeup
 ) {
 }

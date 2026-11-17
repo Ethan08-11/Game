@@ -54,6 +54,7 @@ import cc.shturl.wa.demo.service.AchievementService;
 import cc.shturl.wa.demo.service.CardCollectionService;
 import cc.shturl.wa.demo.service.ClientNetworkService;
 import cc.shturl.wa.demo.service.LeaderboardService;
+import cc.shturl.wa.demo.service.MakeupService;
 import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
@@ -159,6 +160,7 @@ public class MatchServiceImpl implements MatchService {
     private final LeaderboardService leaderboardService;
     private final ClientNetworkService clientNetworkService;
     private final AchievementService achievementService;
+    private final MakeupService makeupService;
 
     @Override
     @Transactional
@@ -191,6 +193,12 @@ public class MatchServiceImpl implements MatchService {
                 .orderByAsc(RoomMembers::getSeatNo));
         validateReadyMembers(members);
         clientNetworkService.requireDistinctNetwork(members.get(0).getUserId(), members.get(1).getUserId());
+        Map<Long, MakeupService.Reservation> makeupByUser = new HashMap<>();
+        for (RoomMembers member : members) {
+            if (member.getMakeupOptIn() != null && member.getMakeupOptIn() == 1) {
+                makeupByUser.put(member.getUserId(), makeupService.requireReservationForStart(member.getUserId()));
+            }
+        }
         CustomerTypes customer = pickCustomer(members);
         Bullies bully = requireBullyForCustomer(customer);
 
@@ -209,6 +217,14 @@ public class MatchServiceImpl implements MatchService {
 
         for (RoomMembers member : members) {
             MatchPlayers player = createPlayer(match.getId(), member);
+            MakeupService.Reservation reserved = makeupByUser.get(member.getUserId());
+            if (reserved != null) {
+                player.setMakeupOwedDay(reserved.owedDay());
+                player.setMakeupSlot(reserved.slot());
+                matchPlayersMapper.updateById(player);
+                member.setMakeupOptIn(0);
+                roomMembersMapper.updateById(member);
+            }
             createDeck(match.getId(), player);
         }
         createFirstRound(match, customer);
@@ -3360,6 +3376,11 @@ public class MatchServiceImpl implements MatchService {
         }
         if (grantRewards && (winnerType == 1 || winnerType == 2)) {
             for (MatchPlayers player : settledPlayers) {
+                if (isMakeup(player)) {
+                    makeupService.settle(player.getUserId(), match.getId(), player.getMakeupOwedDay(),
+                            player.getMakeupSlot(), false, winnerType == 1);
+                    continue;
+                }
                 try {
                     String resultType = winnerType == 1 ? "WIN" : "LOSE";
                     Long teammateId = settledPlayers.stream()
@@ -3395,6 +3416,11 @@ public class MatchServiceImpl implements MatchService {
             }
         } else if (consumeSlotOnly) {
             for (MatchPlayers player : listPlayers(match.getId())) {
+                if (isMakeup(player)) {
+                    makeupService.settle(player.getUserId(), match.getId(), player.getMakeupOwedDay(),
+                            player.getMakeupSlot(), true, false);
+                    continue;
+                }
                 try {
                     taskService.consumeDailyMatchSlot(player.getUserId());
                 } catch (Exception e) {
@@ -3425,6 +3451,11 @@ public class MatchServiceImpl implements MatchService {
                 }
             }
         }
+    }
+
+    private boolean isMakeup(MatchPlayers player) {
+        return player.getMakeupSlot() != null && player.getMakeupSlot() >= 1 && player.getMakeupSlot() <= 3
+                && player.getMakeupOwedDay() != null;
     }
 
     private void applyProfileSettlement(Long userId, int winnerType, boolean grantRewards) {

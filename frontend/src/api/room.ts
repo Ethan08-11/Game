@@ -18,6 +18,7 @@ export interface RoomPlayerResp {
   ready_status?: boolean | number
   onlineStatus?: number
   online_status?: number
+  makeupOptIn?: number | boolean
 }
 
 export interface RoomDetailResp {
@@ -92,6 +93,13 @@ export async function setRoomDepartment(roomId: string, deptType: string): Promi
   return apiCall(`/rooms/${roomId}/department`, {
     method: 'POST',
     body: { deptType },
+  })
+}
+
+export async function setRoomMakeup(roomId: string, enabled: boolean): Promise<RoomDetailResp> {
+  return apiCall(`/rooms/${roomId}/makeup`, {
+    method: 'POST',
+    body: { enabled },
   })
 }
 

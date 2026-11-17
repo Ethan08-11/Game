@@ -14,6 +14,7 @@ public class RoomMembers extends BaseEntity {
     private Integer seatNo;
     private String deptType;
     private Integer readyStatus;
+    private Integer makeupOptIn;
     private Integer onlineStatus;
     private LocalDateTime joinedAt;
     private LocalDateTime leftAt;
