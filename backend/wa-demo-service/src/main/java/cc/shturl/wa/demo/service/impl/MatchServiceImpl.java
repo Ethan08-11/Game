@@ -3379,7 +3379,6 @@ public class MatchServiceImpl implements MatchService {
                 if (isMakeup(player)) {
                     makeupService.settle(player.getUserId(), match.getId(), player.getMakeupOwedDay(),
                             player.getMakeupSlot(), false, winnerType == 1);
-                    continue;
                 }
                 try {
                     String resultType = winnerType == 1 ? "WIN" : "LOSE";

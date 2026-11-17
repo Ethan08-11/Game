@@ -74,7 +74,7 @@
           <h3>每日任务与离开对局</h3>
           <ul>
             <li>每日任务每天 0 点刷新。当天前 3 局：打完第 1 / 2 / 3 局可领 30 / 40 / 50 金币（输赢都算）；该局获胜再各领 10 金币</li>
-            <li>漏打的局可以补。按北京时间，本月第一天没有补打。从第二天起，更早没打完的局先补最早的一档：第 1 / 2 / 3 局打完是 30 / 40 / 50，这局再赢加 10。每天最多补 1 局，不占当天自己的前 3 局。周任务每天仍最多算 3 个队友；自己的前 3 局没满时，这把补打占一个名额，已经满了就不再加。开局前自己勾选「这局算补打」。金币在对局结束时直接到账。放弃这局，这一档作废、金币为 0，今天不能再补。作废不消耗，可以再开。补打记普通胜负和经验，完不成「完美一日」。欠账不跨月。补已经领过金币的那一天，定额满了也发；补还没记过的一天要占 1 个工作日，定额满了就不发金币</li>
+            <li>漏打的局可以补。按北京时间，本月第一天没有补打。从第二天起，更早没打完的局先补最早的一档：第 1 / 2 / 3 局打完是 30 / 40 / 50，这局再赢加 10。每天最多补 1 局，这局仍算今天的胜负和前 3 局。周任务每天仍最多算 3 个队友；自己的前 3 局没满时，这把补打占一个名额，已经满了就不再加。开局前自己勾选「这局算补打」。金币在对局结束时直接到账。放弃这局，这一档作废、金币为 0，今天不能再补。作废不消耗，可以再开。补打记普通胜负和经验，赢了也能完成「完美一日」。欠账不跨月。补已经领过金币的那一天，定额满了也发；补还没记过的一天要占 1 个工作日，定额满了就不发金币</li>
             <li>每月固定扣 4 天单休：只有「当月天数 − 4」天能领金币。2026 年 11 月每人 21 天。2026 年 10 月休假 7 天，31 天只有 24 天能领。2026 年 9 月从 12 日起算，全员只算 16 天。领满后天数为休息日，不发金币（含周常）</li>
             <li>周任务按北京时间自然月计算，每人每月最多领取 4 次。当月领满后，本周即使凑满 10 位同事也不能再领</li>
             <li>周任务未领取前，任务页只推荐 3 名还没组过的玩家。优先本周上线并且打过的人，推荐不计入 10 人进度</li>
@@ -149,7 +149,7 @@
           <h3>Daily quests and leaving</h3>
           <ul>
             <li>Daily quests refresh at 00:00. The first 3 matches pay 30 / 40 / 50 gold for finishing, win or loss, plus 10 more if that match is won.</li>
-            <li>Unfinished earlier matches can be made up, one extra match a day, oldest slot first. Slot 1 / 2 / 3 pay 30 / 40 / 50, plus 10 for a win. It does not use today’s first 3 matches. The weekly quest still counts at most 3 teammates a day; this match fills one of those seats when fewer than 3 regular matches were played, and adds nobody once 3 are full. Check “makeup” before the match. Gold is paid when the match ends. A forfeit spends that slot for 0 gold and blocks another makeup today. A void does not. The first day of the month has nothing to make up, and debt does not cross months. A day that already paid gold still pays when the quota is full. A day that never paid needs a free work day, or the makeup pays nothing.</li>
+            <li>Unfinished earlier matches can be made up, one extra match a day, oldest slot first. Slot 1 / 2 / 3 pay 30 / 40 / 50, plus 10 for a win. It still counts as today’s win or loss, including the first 3 matches. The weekly quest still counts at most 3 teammates a day; this match fills one of those seats when fewer than 3 regular matches were played, and adds nobody once 3 are full. Check “makeup” before the match. Gold is paid when the match ends. A forfeit spends that slot for 0 gold and blocks another makeup today. A void does not. The first day of the month has nothing to make up, and debt does not cross months. A day that already paid gold still pays when the quota is full. A day that never paid needs a free work day, or the makeup pays nothing.</li>
             <li>Each month drops 4 rest days. November 2026 has 21 paid days. October 2026 has 24. September 2026 counts 16 days from the 12th. After the quota, the rest of the month pays no gold, including the weekly quest.</li>
             <li>Weekly quests follow the Beijing month and can be claimed at most 4 times. After that, a full set of 10 teammates pays nothing.</li>
             <li>Before the weekly quest is claimed, the page suggests 3 people you have not teamed with. Suggestions are not progress.</li>

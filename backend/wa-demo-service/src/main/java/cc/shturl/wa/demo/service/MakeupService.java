@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 每人每天最多补 1 局。补的是本月更早没打完的那一档，不占今天自己的前 3 局。
+ * 每人每天最多补 1 局。补的是本月更早没打完的那一档，同时仍计入今天的胜负。
  */
 @Service
 @RequiredArgsConstructor
