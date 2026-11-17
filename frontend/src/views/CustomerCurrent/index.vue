@@ -1,55 +1,55 @@
 <template>
-  <main class="customer-page" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
-    <BackButton to="/game-hall" text="返回大厅" />
+  <main class="customer-page" :class="{ 'is-en': lang === 'en' }" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
+    <BackButton to="/game-hall" :text="t('返回大厅')" />
 
     <section v-if="customerReady" class="customer-card" :style="{ '--panel-bg': `url(${panelBg})` }">
-      <div class="card-title" :style="{ backgroundImage: `url(${titleBanner})` }">顾客来访</div>
+      <div class="card-title" :style="{ backgroundImage: `url(${titleBanner})` }">{{ t('顾客来访') }}</div>
       <div class="card-layout">
         <div class="card-body">
-          <h1>{{ game.employerName }}</h1>
-          <p class="story">顾客长期遭受霸凌者欺凌，已向 HIH 发起求助。请先了解本局顾客属性，再进入部门选择。</p>
+          <h1>{{ shownCustomer.name }}</h1>
+          <p class="story">{{ t('顾客长期遭受霸凌者欺凌，已向 HIH 发起求助。请先了解本局顾客属性，再进入部门选择。') }}</p>
 
           <div class="trait-panel">
-            <span class="trait-label">顾客属性</span>
-            <strong>{{ trait?.name }}</strong>
-            <p>{{ trait?.description }}</p>
+            <span class="trait-label">{{ t('顾客属性') }}</span>
+            <strong>{{ shownCustomer.name }}</strong>
+            <p>{{ shownCustomer.description }}</p>
           </div>
 
           <div class="info-grid">
             <div class="info-item">
-              <span>顾客类型触发概率</span>
+              <span>{{ t('顾客类型触发概率') }}</span>
               <strong>{{ formatRate(trait?.typeTriggerRate) }}</strong>
             </div>
             <div class="info-item">
-              <span>效果触发概率</span>
+              <span>{{ t('效果触发概率') }}</span>
               <strong>{{ formatRate(trait?.effectTriggerRate) }}</strong>
             </div>
             <div class="info-item">
-              <span>顾客效果</span>
+              <span>{{ t('顾客效果') }}</span>
               <strong>{{ effectText }}</strong>
             </div>
             <div v-if="trait?.bullyName" class="info-item">
-              <span>对应霸凌者</span>
-              <strong>{{ trait.bullyName }}</strong>
+              <span>{{ t('对应霸凌者') }}</span>
+              <strong>{{ t(trait.bullyName) }}</strong>
             </div>
             <div v-if="trait?.bullySkillSummary" class="info-item info-item-skill">
-              <span>霸凌者特效</span>
-              <strong>{{ trait.bullySkillSummary }}</strong>
+              <span>{{ t('霸凌者特效') }}</span>
+              <strong>{{ localizeEffect(trait.bullySkillSummary) }}</strong>
             </div>
             <div v-if="trait?.bullyName" class="info-item">
-              <span>霸凌者特效概率</span>
+              <span>{{ t('霸凌者特效概率') }}</span>
               <strong>{{ bullyChanceText }}</strong>
             </div>
           </div>
         </div>
-        <img v-if="customerAvatar" :src="customerAvatar" alt="顾客形象" class="customer-avatar" />
+        <img v-if="customerAvatar" :src="customerAvatar" :alt="t('顾客形象')" class="customer-avatar" />
       </div>
 
       <div class="card-footer">
         <button type="button" class="primary-btn" :disabled="jumping" :style="{ backgroundImage: `url(${titleBanner})` }" @click.stop.prevent="goMatchMaking">
-          {{ jumping ? '跳转中...' : '保护我们的顾客' }}
+          {{ jumping ? t('跳转中...') : t('保护我们的顾客') }}
         </button>
-        <p class="slogan">顾客需要您们的帮助！！！</p>
+        <p class="slogan">{{ t('顾客需要您们的帮助！！！') }}</p>
       </div>
     </section>
   </main>
@@ -66,6 +66,8 @@ import panelBg from '@/assets/customer-panel-bg.webp'
 import titleBanner from '@/assets/title-banner.webp'
 import { getImageUrl } from '@/utils/imageUrl'
 import { customerEffectSummary } from '@/utils/customerEffectText'
+import { lang, t } from '@/i18n'
+import { localizeCustomer, localizeEffect } from '@/i18n/catalog'
 
 const bgDay = bg2
 const bgNight = bg1
@@ -80,14 +82,19 @@ const customerReady = computed(() => {
   return Boolean(trait.value && name && name !== '雇主')
 })
 const customerAvatar = computed(() => getImageUrl(trait.value?.imageUrl) || '')
+const shownCustomer = computed(() => {
+  const current = trait.value
+  if (!current) return { name: '', description: '' }
+  return localizeCustomer({ code: current.id, name: current.name, description: current.description })
+})
 const effectText = computed(() => {
   if (!trait.value) return ''
   const summary = customerEffectSummary({ id: trait.value.id, name: trait.value.name, effectType: trait.value.effectType })
-  if (summary) return summary
+  if (summary) return localizeEffect(summary)
   const value = trait.value.effectValue ?? 0
   if (trait.value.effectType === 'player_harsh') {
     const amount = Math.abs(value)
-    return `一名玩家调用机会-1且失血${amount}`
+    return localizeEffect(`一名玩家调用机会-1且失血${amount}`)
   }
   const target = trait.value.effectType === 'player_hp'
     ? '我方血值'
@@ -96,16 +103,16 @@ const effectText = computed(() => {
       : trait.value.effectType === 'hp'
         ? '霸凌者血量'
         : '霸凌者基础攻击'
-  return `${target}${value >= 0 ? '+' : ''}${value}`
+  return localizeEffect(`${target}${value >= 0 ? '+' : ''}${value}`)
 })
 const bullyChanceText = computed(() => {
   const chance = trait.value?.bullySkillChance
-  if (chance == null) return '常驻'
+  if (chance == null) return t('常驻')
   return formatRate(chance)
 })
 
 function formatRate(value?: number) {
-  if (value == null) return '后端未配置'
+  if (value == null) return t('后端未配置')
   return `${Math.round(value * 100)}%`
 }
 
@@ -211,6 +218,17 @@ async function goMatchMaking() {
   font-weight: var(--weight-bold);
   color: #4a3520;
   z-index: 2;
+  white-space: nowrap;
+}
+.customer-page.is-en .card-title {
+  font-size: 18px;
+}
+.customer-page.is-en .primary-btn {
+  font-size: 16px;
+}
+.customer-page.is-en .slogan {
+  font-size: 18px;
+  white-space: nowrap;
 }
 .card-body {
   position: relative;

@@ -2,7 +2,7 @@
   <main class="customer-page" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
     <BackButton to="/game-hall" :text="t('返回大厅')" />
 
-    <section class="customer-card">
+    <section class="customer-card" :class="{ 'is-en': lang === 'en' }">
       <p class="eyebrow">{{ t('顾客图鉴') }}</p>
       <h1>{{ t('全部顾客') }}</h1>
 
@@ -57,7 +57,7 @@ import cardBg from '@/assets/customer-card-bg.webp'
 import avatarImg from '@/assets/customer-avatar-intro.webp'
 import { getImageUrl } from '@/utils/imageUrl'
 import { customerEffectSummary } from '@/utils/customerEffectText'
-import { t } from '@/i18n'
+import { lang, t } from '@/i18n'
 import { localizeCustomer, localizeEffect } from '@/i18n/catalog'
 
 const bgDay = bg2
@@ -322,6 +322,15 @@ h2 {
   line-height: 1.5;
   text-align: justify;
   overflow: hidden;
+}
+.customer-card.is-en .traits-section {
+  overflow: hidden;
+}
+.customer-card.is-en .customer-desc {
+  min-height: 0;
+  font-size: 13px;
+  line-height: 1.28;
+  text-align: left;
 }
 .customer-meta {
   flex: 0 0 auto;
