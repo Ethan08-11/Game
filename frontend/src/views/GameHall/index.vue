@@ -1,7 +1,7 @@
 <template>
   <div class="hall-fit">
     <div v-show="hallReady" class="hall-frame">
-      <div class="hall-page" :style="pageStyle">
+      <div class="hall-page" :class="{ 'is-en': lang === 'en' }" :style="pageStyle">
         <header class="hall-header">
       <span class="mode-tag">{{ modeText }}</span>
       <div class="top-nav">
@@ -42,11 +42,11 @@
       </main>
 
       <button class="float-btn" :style="cardsBtnStyle">
-        <img :src="tujianBtnImg" alt="图鉴" class="tujian-img" />
+        <img :src="lang === 'en' ? tujianBtnEn : tujianBtnImg" alt="图鉴" class="tujian-img" />
         <span class="hit-target" @click="$router.push('/cards')"></span>
       </button>
       <button class="float-btn" :style="questBtnStyle">
-        <img :src="questBtnImg" alt="任务" class="quest-img" />
+        <img :src="lang === 'en' ? questBtnEn : questBtnImg" alt="任务" class="quest-img" />
         <span
           v-if="questBadgeText"
           class="quest-badge"
@@ -55,7 +55,7 @@
         <span class="hit-target" @click="$router.push('/quests')"></span>
       </button>
       <button class="float-btn" :style="customerBtnStyle">
-        <img :src="customerBtnImg" alt="顾客图鉴" />
+        <img :src="lang === 'en' ? customerBtnEn : customerBtnImg" alt="顾客图鉴" />
         <span class="hit-target" @click="$router.push('/customer-intro')"></span>
       </button>
       <button class="start-btn" :style="startBtnStyle">
@@ -124,12 +124,15 @@ import LangSwitch from '@/components/LangSwitch.vue'
 import { lang, t } from '@/i18n'
 import startBtnImg from '@/assets/start-btn-v2.webp'
 import questBtnImg from '@/assets/quest-btn-v3.webp'
+import questBtnEn from '@/assets/quest-btn-en.webp'
 import customerBtnImg from '@/assets/customer-btn-v3.webp'
+import customerBtnEn from '@/assets/customer-btn-en.webp'
 
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
 import moneyBg from '@/assets/points-btn-bg.webp'
 import tujianBtnImg from '@/assets/tujian-btn.webp'
+import tujianBtnEn from '@/assets/tujian-btn-en.webp'
 import leaderboardBtnImg from '@/assets/leaderboard-btn-icon.webp'
 import achievementBtnImg from '@/assets/achievement-btn-icon.webp'
 
@@ -643,6 +646,24 @@ async function handleLogout() {
   z-index: -1;
   background: url('@/assets/friend-list-bg.webp') 53% 20%/200% no-repeat;
   pointer-events: none;
+}
+.hall-page.is-en .hall-sidebar::before {
+  background-image: url('@/assets/friend-list-bg-en.webp');
+}
+.hall-page.is-en .mode-tag {
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+.hall-page.is-en .start-btn-label {
+  font-size: 40px;
+  letter-spacing: 0;
+}
+.hall-page.is-en .avatar-edit-dot {
+  font-size: 11px;
+  padding: 0 4px;
+}
+.hall-page.is-en .header-right :deep(.el-button) {
+  white-space: nowrap;
 }
 
 .hall-main {

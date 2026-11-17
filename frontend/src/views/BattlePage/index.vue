@@ -1279,7 +1279,7 @@ function effectLabel(effectType?: string) {
     CLEAR_BOSS_SHIELD: '清空敌人防御',
     SKIP_BULLY_ATTACK: '霸凌者不出手',
   }
-  return map[effectType || ''] || effectType || '未知效果'
+  return t(map[effectType || ''] || effectType || '未知效果')
 }
 
 function mapCard(card: any): BattleCard {
