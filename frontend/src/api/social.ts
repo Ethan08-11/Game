@@ -49,6 +49,13 @@ export interface MakeupOffer {
   usedToday?: boolean
   paysGold?: boolean
   owedCount?: number
+  dailyReady?: boolean
+  questDay?: string | null
+  questSlot?: number
+  questFinishGold?: number
+  questWinGold?: number
+  finishReady?: boolean
+  winReady?: boolean
 }
 
 export interface MyTaskBoard {
@@ -93,6 +100,10 @@ export async function fetchMyTaskBoard(): Promise<MyTaskBoard> {
 
 export async function claimTask(userTaskId: number): Promise<TaskClaimResult> {
   return apiCall(`/tasks/${userTaskId}/claim`, { method: 'POST' })
+}
+
+export async function claimMakeup(part: 'finish' | 'win'): Promise<TaskClaimResult> {
+  return apiCall(`/tasks/makeup-reward?part=${part}`, { method: 'POST' })
 }
 
 // ---------- 皮肤 ----------

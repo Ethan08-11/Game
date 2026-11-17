@@ -124,8 +124,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { fetchMyTaskBoard, claimTask, type MakeupOffer, type WeeklyPlayerHint } from '@/api'
-import { makeupLine } from '@/utils/makeupText'
+import { fetchMyTaskBoard, claimTask, claimMakeup, type MakeupOffer, type WeeklyPlayerHint } from '@/api'
+import { formatOwedDay, makeupLine } from '@/utils/makeupText'
 import { formatPlayerName } from '@/utils/playerName'
 import type { UserTask } from '@/api'
 import { useUserStore } from '@/store/user'
@@ -173,10 +173,59 @@ const taskGroups = computed<TaskGroup[]>(() => {
     list.push(t)
     map.set(t.taskType, list)
   }
+  const makeupCards = makeupQuestCards()
+  if (makeupCards.length) {
+    map.set('daily', [...(map.get('daily') || []), ...makeupCards])
+  }
   return typeOrder
     .filter(t => map.has(t))
     .map(type => ({ type, tasks: map.get(type)! }))
 })
+
+function makeupQuestCards(): UserTask[] {
+  const offer = makeup.value
+  if (!offer?.questSlot) return []
+  const day = formatOwedDay(offer.questDay, false)
+  const canStart = offer.dailyReady !== false && !offer.usedToday && !offer.finishReady
+  const wait = canStart ? 'MATCH_COUNT' : 'MAKEUP_WAIT'
+  const finishGold = offer.questFinishGold ?? 0
+  const winGold = offer.questWinGold ?? 10
+  const finishStatus = offer.finishReady ? 2 : (offer.winReady ? 3 : 0)
+  const winStatus = offer.winReady ? 2 : (offer.finishReady ? 3 : 0)
+  const cards: UserTask[] = [
+    {
+      id: -1,
+      taskId: -1,
+      taskCode: 'T-MAKEUP-FINISH',
+      taskName: `补打第 ${offer.questSlot} 局`,
+      taskType: 'daily',
+      description: `补${day}第 ${offer.questSlot} 局。今天打满 3 局后勾选补打，打完在这里领取。`,
+      rewardType: 'money',
+      rewardValue: JSON.stringify({ amount: finishGold }),
+      targetCount: 1,
+      progressValue: finishStatus > 0 ? 1 : 0,
+      status: finishStatus,
+      progressType: wait,
+    },
+  ]
+  if (winGold > 0) {
+    cards.push({
+      id: -2,
+      taskId: -2,
+      taskCode: 'T-MAKEUP-WIN',
+      taskName: '补打获胜',
+      taskType: 'daily',
+      description: `这局补打赢了，再领 ${winGold} 金币。`,
+      rewardType: 'money',
+      rewardValue: JSON.stringify({ amount: winGold }),
+      targetCount: 1,
+      progressValue: winStatus > 0 ? 1 : 0,
+      status: winStatus,
+      progressType: winStatus === 2 ? 'MAKEUP_WAIT' : wait,
+    })
+  }
+  return cards
+}
 
 interface FlatTaskEntry {
   task: UserTask
@@ -222,7 +271,7 @@ function progressPercent(task: UserTask): number {
 
 function canGoStart(task: UserTask): boolean {
   const type = (task.progressType || '').toUpperCase()
-  return type !== 'LOGIN_COUNT' && type !== 'LOGIN_STREAK'
+  return type !== 'LOGIN_COUNT' && type !== 'LOGIN_STREAK' && type !== 'MAKEUP_WAIT'
 }
 
 function canClaim(task: UserTask): boolean {
@@ -244,6 +293,7 @@ function hintNames(list: WeeklyPlayerHint[]): string {
 const makeupText = computed(() => makeupLine(makeup.value, lang.value === 'en'))
 
 function restDayBlocked(task: UserTask): boolean {
+  if (task.taskCode === 'T-MAKEUP-FINISH' || task.taskCode === 'T-MAKEUP-WIN') return false
   return restDay.value && task.status === 2 && task.rewardType === 'money'
 }
 
@@ -274,7 +324,11 @@ async function onClaim(task: UserTask) {
   if (claimingId.value != null) return
   claimingId.value = task.id
   try {
-    const result = await claimTask(task.id)
+    const result = task.taskCode === 'T-MAKEUP-WIN'
+      ? await claimMakeup('win')
+      : task.taskCode === 'T-MAKEUP-FINISH'
+        ? await claimMakeup('finish')
+        : await claimTask(task.id)
     ElMessage.success(result.message || '领取成功')
     await loadBoard()
     user.loadMe().catch(() => {})
@@ -361,6 +415,20 @@ function rewardIcon(rewardType: string): string {
 }
 
 function shownTask(task: UserTask) {
+  if (lang.value === 'en' && task.taskCode === 'T-MAKEUP-FINISH') {
+    const slot = makeup.value?.questSlot || 0
+    const when = formatOwedDay(makeup.value?.questDay, true)
+    return {
+      name: `Makeup match ${slot}`,
+      description: `Make up ${when}, match ${slot}. Finish today's 3 matches, check makeup, then claim this.`,
+    }
+  }
+  if (lang.value === 'en' && task.taskCode === 'T-MAKEUP-WIN') {
+    return {
+      name: 'Makeup win',
+      description: 'Win that makeup match to claim the extra gold.',
+    }
+  }
   return localizeTask(task.taskCode, task.taskName, task.description)
 }
 

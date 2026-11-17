@@ -110,10 +110,19 @@ public class TaskServiceImpl implements TaskService {
                 claimable++;
             }
         }
+        MakeupOfferResp makeup = makeupService.describe(userId);
+        if (makeup.finishReady()) {
+            remainingMoney += makeup.questFinishGold();
+            claimable++;
+        }
+        if (makeup.winReady()) {
+            remainingMoney += makeup.questWinGold();
+            claimable++;
+        }
         WeeklyTeammateHints.Hints hints = weeklyTeammateHints.load(userId);
         return new MyTaskBoardResp(visible, remainingMoney, claimable, false, secondsUntilDailyReset(),
                 workDays.used(), workDays.quota(), workDays.restDay(), weeklyClaims, WeeklyClaimLimit.PER_MONTH,
-                hints.teammates(), hints.suggestions(), makeupService.describe(userId));
+                hints.teammates(), hints.suggestions(), makeup);
     }
 
     @Override
