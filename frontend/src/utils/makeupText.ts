@@ -27,8 +27,8 @@ export function makeupLine(offer: MakeupOffer | null | undefined, english: boole
   const finish = offer.finishGold ?? 0
   const win = offer.winGold ?? 10
   return english
-    ? `${when}, match ${slot}: ${finish} for finishing, plus ${win} if you win. Check “makeup” before the match. ${left} still owed.`
-    : `还可补${when}第 ${slot} 局：打完 ${finish}，赢了再加 ${win}。今天可补 1 局，开局前勾选。还欠 ${left} 局。`
+    ? `${when}, match ${slot}: ${finish} for finishing, plus ${win} if you win. It still counts as today’s win or loss. Check “makeup” before the match. ${left} still owed.`
+    : `还可补${when}第 ${slot} 局：打完 ${finish}，赢了再加 ${win}。这局仍算今天的胜负。今天可补 1 局，开局前勾选。还欠 ${left} 局。`
 }
 
 function formatOwedDay(value: string | null | undefined, english: boolean): string {
