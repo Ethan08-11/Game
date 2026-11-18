@@ -1053,19 +1053,21 @@ async function leaveCurrentRoom() {
   align-items: flex-start;
   margin-top: var(--space-4);
   color: #4a3520;
-  font-size: var(--text-sm);
-  line-height: 1.45;
+  font-size: var(--text-xl);
+  line-height: 1.5;
   cursor: pointer;
 }
 .makeup-opt input {
-  margin-top: 3px;
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 .makeup-note {
   margin-top: var(--space-4);
   color: #4a3520;
-  font-size: var(--text-sm);
-  line-height: 1.45;
+  font-size: var(--text-xl);
+  line-height: 1.5;
 }
 .ready-btn {
   width: 100%;

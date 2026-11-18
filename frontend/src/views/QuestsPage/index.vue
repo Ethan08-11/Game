@@ -598,7 +598,7 @@ function rewardText(task: UserTask): string {
 .makeup-line {
   margin: 0 8px 12px;
   color: #4a3520;
-  font-size: var(--text-sm);
+  font-size: var(--text-xl);
   line-height: 1.5;
 }
 .card-hero {
