@@ -29,7 +29,7 @@
             <div class="action-log-title">{{ t('战斗记录') }}</div>
             <div ref="actionLogListRef" class="action-log-list">
               <div v-if="actionLog.length === 0" class="action-log-empty">{{ t('等待行动…') }}</div>
-              <div v-for="entry in actionLog" :key="entry.key" class="action-log-item">{{ entry.text }}</div>
+              <div v-for="entry in actionLog" :key="entry.key" class="action-log-item">{{ lang === 'en' ? entry.en : entry.zh }}</div>
             </div>
           </div>
 
@@ -566,6 +566,8 @@ import { subscribeRoomEvent, sendRoomMessage } from '@/utils/roomSocket'
 import { getImageUrl } from '@/utils/imageUrl'
 import { formatPlayerName } from '@/utils/playerName'
 import { lang, t } from '@/i18n'
+import { phrases } from '@/i18n/phrases'
+import { CARD_NAME_EN } from '@/i18n/cardNames.en'
 import { localizeCustomer } from '@/i18n/catalog'
 import LangSwitch from '@/components/LangSwitch.vue'
 import choosePlayerBg from '@/assets/battle-playerchoose-bg.webp'
@@ -671,7 +673,7 @@ const fireflies = Array.from({ length: 8 }, (_, i) => {
 })
 
 const turnNumber = ref(1)
-type ActionLogEntry = { key: string; text: string }
+type ActionLogEntry = { key: string; zh: string; en: string }
 const actionLog = ref<ActionLogEntry[]>([])
 const actionLogListRef = ref<HTMLElement | null>(null)
 const loggedActionKeys = new Set<string>()
@@ -723,11 +725,11 @@ function scrollActionLogToLatest() {
   })
 }
 
-function addAction(msg: string, key?: string) {
-  const id = String(key || msg)
+function addAction(zh: string, en: string, key?: string) {
+  const id = String(key || zh)
   if (!id || loggedActionKeys.has(id)) return
   loggedActionKeys.add(id)
-  actionLog.value.push({ key: id, text: msg })
+  actionLog.value.push({ key: id, zh, en })
   if (actionLog.value.length > 30) {
     const removed = actionLog.value.shift()
     if (removed) loggedActionKeys.delete(removed.key)
@@ -2863,7 +2865,8 @@ async function submitRevive() {
       adCallbackRaw: JSON.stringify({ completed: true }),
     })
     const hpGained = (res.afterHp ?? 0) - (res.beforeHp ?? 0)
-    addAction(`${playerLabel(user.userId)} 复活，恢复 ${hpGained} 点血量`)
+    const revived = playerTag(user.userId)
+    addAction(`${revived.zh} 复活，恢复 ${hpGained} 点血量`, `${revived.en} revived and regained ${hpGained} HP`)
     reviveVideoWatched.value = false
     reviveVideoError.value = ''
     showReviveDialog.value = false
@@ -3257,10 +3260,22 @@ function normalizeActorId(v: unknown) {
   return id
 }
 
-function playerLabel(userId: unknown) {
+function playerTag(userId: unknown) {
   const uid = normalizeActorId(userId)
   const seat = players.value.findIndex(p => normalizeActorId(p.userId) === uid)
-  return seat >= 0 ? `P${seat + 1}` : '玩家'
+  if (seat >= 0) {
+    const label = `P${seat + 1}`
+    return { zh: label, en: label }
+  }
+  return { zh: '玩家', en: 'Player' }
+}
+
+function englishPhrase(zh: string) {
+  return phrases[zh] ?? zh
+}
+
+function englishCardName(name: string) {
+  return CARD_NAME_EN[name] ?? name
 }
 
 function formatLogCardName(name: unknown, actorUserId?: unknown, extraDept?: unknown) {
@@ -3268,8 +3283,24 @@ function formatLogCardName(name: unknown, actorUserId?: unknown, extraDept?: unk
   const dept = normalizeDept(String(extraDept ?? ''))
     || players.value.find(p => normalizeActorId(p.userId) === normalizeActorId(actorUserId))?.dept
     || ''
-  if (!dept || rawName.includes(dept) || rawName.includes(' - ')) return rawName
-  return `${dept} - ${rawName}`
+  if (rawName.includes(' - ')) {
+    const [left, ...rest] = rawName.split(' - ')
+    const right = rest.join(' - ')
+    return {
+      zh: rawName,
+      en: `${englishPhrase(left)} - ${englishCardName(right)}`,
+    }
+  }
+  if (!dept || rawName.includes(dept)) {
+    return {
+      zh: rawName,
+      en: rawName === '未知卡牌' ? 'Unknown card' : englishCardName(rawName),
+    }
+  }
+  return {
+    zh: `${dept} - ${rawName}`,
+    en: `${englishPhrase(dept)} - ${englishCardName(rawName)}`,
+  }
 }
 
 function unwrapMatchEvent(data: any, message?: any) {
@@ -3293,45 +3324,65 @@ function logMatchEvent(type: string, data: any, message?: any) {
   switch (type) {
     case 'card.played': {
       const actor = d?.actorUserId ?? d?.actor_user_id ?? d?.userId
-      const name = formatLogCardName(d?.cardName ?? d?.card_name, actor, d?.deptType ?? d?.dept_type ?? d?.dept)
-      const key = `play:${d?.actionId ?? d?.clientActionId ?? `${actor}:${name}:${d?.version ?? Date.now()}`}`
-      addAction(`${playerLabel(actor)} 打出「${name}」`, key)
+      const who = playerTag(actor)
+      const card = formatLogCardName(d?.cardName ?? d?.card_name, actor, d?.deptType ?? d?.dept_type ?? d?.dept)
+      const key = `play:${d?.actionId ?? d?.clientActionId ?? `${actor}:${card.zh}:${d?.version ?? Date.now()}`}`
+      addAction(`${who.zh} 打出「${card.zh}」`, `${who.en} played ${card.en}`, key)
       break
     }
     case 'player.turn.ended': {
       const actor = d?.userId ?? d?.actorUserId
-      addAction(`${playerLabel(actor)} 已结束本回合攻击`, `end:${d?.version ?? ''}:${actor}:${d?.resolvedRound ?? d?.currentRound ?? ''}`)
+      const who = playerTag(actor)
+      addAction(`${who.zh} 已结束本回合攻击`, `${who.en} ended this turn's attack`, `end:${d?.version ?? ''}:${actor}:${d?.resolvedRound ?? d?.currentRound ?? ''}`)
       break
     }
     case 'round.started': {
       const r = d?.roundNo ?? d?.round ?? d?.currentRound ?? '?'
-      addAction(`—— 第 ${r} 回合 ——`, `round:${r}`)
+      addAction(`—— 第 ${r} 回合 ——`, `—— Round ${r} ——`, `round:${r}`)
       break
     }
     case 'boss.attack.resolved': {
       const hits = extractBossAttack(d).targets
+      const bossKey = `boss:${d?.resolvedRound ?? d?.currentRound ?? d?.version ?? Date.now()}`
       if (hits.length) {
-        const parts = hits.map((item: any) => {
+        const zhParts: string[] = []
+        const enParts: string[] = []
+        for (const item of hits) {
+          const who = playerTag(item.userId)
           const dmg = Number(item.hpDamage ?? 0)
           const absorbed = Number(item.absorbedDamage ?? 0)
           const attack = Number(item.attack ?? 0)
           const dodged = Boolean(item.dodged) || (dmg <= 0 && absorbed <= 0 && attack > 0)
-          if (dodged) return `${playerLabel(item.userId)} 躲避`
-          if (dmg > 0) return `${playerLabel(item.userId)} -${dmg}`
-          if (absorbed > 0) return `${playerLabel(item.userId)} 格挡`
-          return `${playerLabel(item.userId)} 未受伤`
-        })
-        addAction(`霸凌者发动攻击：${parts.join('，')}`, `boss:${d?.resolvedRound ?? d?.currentRound ?? d?.version ?? Date.now()}`)
+          if (dodged) {
+            zhParts.push(`${who.zh} 躲避`)
+            enParts.push(`${who.en} dodged`)
+          } else if (dmg > 0) {
+            zhParts.push(`${who.zh} -${dmg}`)
+            enParts.push(`${who.en} -${dmg}`)
+          } else if (absorbed > 0) {
+            zhParts.push(`${who.zh} 格挡`)
+            enParts.push(`${who.en} blocked`)
+          } else {
+            zhParts.push(`${who.zh} 未受伤`)
+            enParts.push(`${who.en} unhurt`)
+          }
+        }
+        addAction(`霸凌者发动攻击：${zhParts.join('，')}`, `Bully attacks: ${enParts.join(', ')}`, bossKey)
       } else {
-        addAction('霸凌者发动攻击', `boss:${d?.resolvedRound ?? d?.currentRound ?? d?.version ?? Date.now()}`)
+        addAction('霸凌者发动攻击', 'Bully attacks', bossKey)
       }
       break
     }
     case 'match.ended': {
       const voided = resolveIsVoid(d)
       const won = !voided && (resolveIsVictory(d) || game.isVictory)
+      const deptZh = fallenDeptLabel.value || '护卫'
+      const deptEn = fallenDeptLabel.value
+        ? fallenDeptLabel.value.split('、').map(part => englishPhrase(part)).join(' / ')
+        : 'A guard'
       addAction(
-        voided ? '对局异常，本局作废' : won ? '霸凌者倒下，保护成功' : `${fallenDeptLabel.value || '护卫'}倒下，保护失败`,
+        voided ? '对局异常，本局作废' : won ? '霸凌者倒下，保护成功' : `${deptZh}倒下，保护失败`,
+        voided ? 'Match voided' : won ? 'The Bully falls. Protected.' : `${deptEn} fell. Protection failed.`,
         `ended:${d?.winnerType ?? ''}:${d?.version ?? ''}`,
       )
       break
@@ -3477,7 +3528,8 @@ onMounted(async () => {
       if (revivedUserId && revivedUserId !== String(user.userId)) {
         const hpGained = (d?.afterHp ?? 0) - (d?.beforeHp ?? 0)
         if (hpGained > 0) {
-          addAction(`${playerLabel(revivedUserId)} 复活，恢复 ${hpGained} 点血量`)
+          const revived = playerTag(revivedUserId)
+          addAction(`${revived.zh} 复活，恢复 ${hpGained} 点血量`, `${revived.en} revived and regained ${hpGained} HP`)
         }
       }
       handleMatchEvent(data)
