@@ -6,6 +6,7 @@ import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.LeaderboardService;
+import cc.shturl.wa.demo.service.MakeupQueue;
 import cc.shturl.wa.demo.service.QuestPeriod;
 import cc.shturl.wa.demo.service.WeeklyClaimLimit;
 import cc.shturl.wa.demo.service.WorkDayQuota;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -263,8 +265,8 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     }
 
     /**
-     * 预测总金币 = 已到手金币 + 还来得及打的工作日全胜 150 + 本月还来得及领的周任务。
-     * 没开打的人不进名单。已经结束又没领的周次不能补，不计入。
+     * 预测总金币 = 已到手金币 + 还来得及打的工作日全胜 150 + 已经打过但漏掉的场次按全胜补上 + 本月还来得及领的周任务。
+     * 一把没打的天数补上要扣掉后面一天，不另加金币。没开打的人不进名单。已经结束又没领的周次不能补，不计入。
      * 只算还没结束的周：本周没领也算一次。周次够领满剩余次数时计入；不够时按还能领到的最高次数。
      * 工作日同样只算从今天到月底还来得及打的天数。定额还剩得更多、日历不够时，多出来的天数不计入。
      * 这个结果只在每天 0 点写入锁定名单。对局高压读锁定名单，不读这里的实时排名。
@@ -436,7 +438,57 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                 projection.openWeeks,
                 projection.claims(profile.getUserId()),
                 projection.currentWeekClaimed(profile.getUserId()));
-        return safeMoney(profile) + daily + weeks * WEEKLY_TASK_GOLD;
+        return safeMoney(profile) + daily + weeks * WEEKLY_TASK_GOLD + projection.leaked(profile.getUserId());
+    }
+
+    /**
+     * 已经记过工作日、但没打满的档，按全胜补上。不另占工作日。
+     * 一把没打的日子不在这里加。月底可以把同一天剩下的档补完，所以有两档可补时多算 1 次。
+     */
+    static long leakedMakeupGold(LocalDate today, Map<LocalDate, Integer> occupiedByDay,
+                                 Set<MakeupQueue.DaySlot> claimed, boolean usedMakeupToday) {
+        if (today == null || occupiedByDay == null || occupiedByDay.isEmpty()) {
+            return 0L;
+        }
+        List<Integer> golds = new ArrayList<>();
+        boolean pair = false;
+        for (Map.Entry<LocalDate, Integer> entry : occupiedByDay.entrySet()) {
+            LocalDate day = entry.getKey();
+            if (day == null || !day.isBefore(today)) {
+                continue;
+            }
+            int occupied = Math.min(3, Math.max(entry.getValue() == null ? 0 : entry.getValue(), 0));
+            if (occupied <= 0 || occupied >= 3) {
+                continue;
+            }
+            int missing = 0;
+            for (int slot = occupied + 1; slot <= 3; slot++) {
+                if (claimed != null && claimed.contains(new MakeupQueue.DaySlot(day, slot))) {
+                    continue;
+                }
+                golds.add(MakeupQueue.finishGold(slot) + MakeupQueue.WIN_GOLD);
+                missing++;
+            }
+            if (missing >= 2) {
+                pair = true;
+            }
+        }
+        int budget = remainingCalendarDays(today);
+        if (usedMakeupToday) {
+            budget = Math.max(0, budget - 1);
+        }
+        if (budget > 0 && pair) {
+            budget++;
+        }
+        if (budget <= 0 || golds.isEmpty()) {
+            return 0L;
+        }
+        golds.sort(Comparator.reverseOrder());
+        long sum = 0L;
+        for (int i = 0; i < Math.min(budget, golds.size()); i++) {
+            sum += golds.get(i);
+        }
+        return sum;
     }
 
     /** 当天 0 点之后领走的金币。实领时间按库存的墙钟日期切，不把前一晚 20:00 的补记算进第二天。 */
@@ -510,7 +562,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         } catch (Exception e) {
             log.warn("Skip opening projected roster for {}: {}", day, e.getMessage());
         }
-        return new Projection(quota, openWeeks, remainingCalendarDays(day), facts);
+        return new Projection(quota, openWeeks, remainingCalendarDays(day), facts, loadLeakedMakeupGold(day));
     }
 
     private Projection loadProjection(LocalDate today) {
@@ -560,7 +612,100 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         } catch (Exception e) {
             log.warn("Skip projected high-pressure gold: {}", e.getMessage());
         }
-        return new Projection(quota, openWeeks, remainingCalendarDays(today), facts);
+        return new Projection(quota, openWeeks, remainingCalendarDays(today), facts, loadLeakedMakeupGold(today));
+    }
+
+    /** 已记工作日上还没补的漏档。查询失败时不加，预测退回原来的工作日和周任务。 */
+    private Map<Long, Long> loadLeakedMakeupGold(LocalDate today) {
+        Map<Long, Long> gold = new HashMap<>();
+        if (today == null) {
+            return gold;
+        }
+        try {
+            YearMonth month = YearMonth.from(today);
+            LocalDate start = WorkDayQuota.countStart(month);
+            Map<Long, Map<LocalDate, Integer>> occupied = new HashMap<>();
+            List<Map<String, Object>> slotRows = jdbcTemplate.queryForList("""
+                    SELECT w.user_id AS user_id, w.day_date AS day_date, ut.progress_value AS occupied
+                    FROM user_month_work_days w
+                    LEFT JOIN tasks t ON t.task_code = 'T-DAILY-SLOT'
+                    LEFT JOIN user_tasks ut ON ut.user_id = w.user_id AND ut.task_id = t.id
+                      AND ut.period_key = DATE_FORMAT(w.day_date, '%Y-%m-%d')
+                    WHERE w.day_date >= ? AND w.day_date < ?
+                    """, Date.valueOf(start), Date.valueOf(today));
+            if (slotRows != null) {
+                for (Map<String, Object> row : slotRows) {
+                    Long userId = number(row.get("user_id"));
+                    LocalDate day = asDate(row.get("day_date"));
+                    if (userId == null || day == null) {
+                        continue;
+                    }
+                    occupied.computeIfAbsent(userId, ignored -> new HashMap<>())
+                            .merge(day, (int) numberOrZero(row.get("occupied")), Math::max);
+                }
+            }
+            Map<Long, Set<MakeupQueue.DaySlot>> claimed = new HashMap<>();
+            List<Map<String, Object>> claimRows = jdbcTemplate.queryForList("""
+                    SELECT user_id, owed_day, slot_no
+                    FROM user_makeup_claims
+                    WHERE owed_day >= ? AND owed_day < ?
+                    """, Date.valueOf(start), Date.valueOf(today));
+            if (claimRows != null) {
+                for (Map<String, Object> row : claimRows) {
+                    Long userId = number(row.get("user_id"));
+                    LocalDate day = asDate(row.get("owed_day"));
+                    int slot = (int) numberOrZero(row.get("slot_no"));
+                    if (userId == null || day == null || slot < 1) {
+                        continue;
+                    }
+                    claimed.computeIfAbsent(userId, ignored -> new HashSet<>()).add(new MakeupQueue.DaySlot(day, slot));
+                }
+            }
+            Set<Long> usedToday = new HashSet<>();
+            List<Map<String, Object>> usedRows = jdbcTemplate.queryForList("""
+                    SELECT DISTINCT user_id
+                    FROM user_makeup_claims
+                    WHERE created_at >= ? AND created_at < ?
+                    """, today.atStartOfDay().format(SQL_TIME), today.plusDays(1).atStartOfDay().format(SQL_TIME));
+            if (usedRows != null) {
+                for (Map<String, Object> row : usedRows) {
+                    Long userId = number(row.get("user_id"));
+                    if (userId != null) {
+                        usedToday.add(userId);
+                    }
+                }
+            }
+            for (Map.Entry<Long, Map<LocalDate, Integer>> entry : occupied.entrySet()) {
+                long amount = leakedMakeupGold(today, entry.getValue(), claimed.get(entry.getKey()), usedToday.contains(entry.getKey()));
+                if (amount > 0) {
+                    gold.put(entry.getKey(), amount);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Skip leaked makeup gold: {}", e.getMessage());
+        }
+        return gold;
+    }
+
+    private static LocalDate asDate(Object raw) {
+        if (raw instanceof Date date) {
+            return date.toLocalDate();
+        }
+        if (raw instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (raw == null) {
+            return null;
+        }
+        String text = raw.toString();
+        if (text.length() < 10) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(text.substring(0, 10));
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static Long number(Object raw) {
@@ -571,7 +716,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return raw instanceof Number number ? number.longValue() : 0L;
     }
 
-    private record Projection(int quota, int openWeeks, int daysLeft, Map<Long, int[]> facts) {
+    private record Projection(int quota, int openWeeks, int daysLeft, Map<Long, int[]> facts, Map<Long, Long> leakedGold) {
         boolean started(Long userId) {
             return workDays(userId) > 0;
         }
@@ -590,6 +735,14 @@ public class LeaderboardServiceImpl implements LeaderboardService {
 
         boolean playedToday(Long userId) {
             return fact(userId, 3) > 0;
+        }
+
+        long leaked(Long userId) {
+            if (leakedGold == null || userId == null) {
+                return 0L;
+            }
+            Long amount = leakedGold.get(userId);
+            return amount == null ? 0L : amount;
         }
 
         private int fact(Long userId, int index) {

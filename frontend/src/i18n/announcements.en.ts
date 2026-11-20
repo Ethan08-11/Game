@@ -1,4 +1,8 @@
 export const announcementEn: Record<string, { title: string; content: string }> = {
+  'topic-leaked-makeup-rank': {
+    title: 'Difficulty: missed matches count in the projected rank',
+    content: 'Projected gold now adds matches you played but did not finish. Those count as wins and do not take another work day. Making up a day you did not play replaces one later day, so the daily total stays on the quota and adds no extra gold. The rest of the forecast is unchanged.',
+  },
   'topic-auto-claim-gold': {
     title: 'Quests: unclaimed gold is collected at 23:59',
     content: 'At 23:59 Beijing time, daily gold you already earned this month but did not claim is collected. The current weekly quest and makeup gold are collected the same way. The gold counts on the day you played. Rest days, days past the quota, and expired weekly quests are not paid.',

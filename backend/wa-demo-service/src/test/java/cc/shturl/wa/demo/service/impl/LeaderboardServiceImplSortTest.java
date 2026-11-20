@@ -1,6 +1,7 @@
 package cc.shturl.wa.demo.service.impl;
 
 import cc.shturl.wa.demo.dto.resp.LeaderboardResp;
+import cc.shturl.wa.demo.service.MakeupQueue;
 import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
@@ -19,12 +20,14 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -146,6 +149,25 @@ class LeaderboardServiceImplSortTest {
     }
 
     @Test
+    @DisplayName("高压：漏打的场次按全胜计入，一把没打的日子不加")
+    void leakedMakeupGoldAddsPartialDaysOnly() {
+        LocalDate today = LocalDate.of(2026, 11, 20);
+        Map<LocalDate, Integer> occupied = new HashMap<>();
+        occupied.put(LocalDate.of(2026, 11, 12), 1);
+        occupied.put(LocalDate.of(2026, 11, 13), 0);
+        occupied.put(LocalDate.of(2026, 11, 14), 3);
+        assertThat(LeaderboardServiceImpl.leakedMakeupGold(today, occupied, Set.of(), false)).isEqualTo(110L);
+        assertThat(LeaderboardServiceImpl.leakedMakeupGold(today, occupied,
+                Set.of(new MakeupQueue.DaySlot(LocalDate.of(2026, 11, 12), 2)), false)).isEqualTo(60L);
+
+        Map<LocalDate, Integer> many = new HashMap<>();
+        for (int day = 1; day <= 8; day++) {
+            many.put(LocalDate.of(2026, 11, day), 1);
+        }
+        assertThat(LeaderboardServiceImpl.leakedMakeupGold(today, many, Set.of(), false)).isEqualTo(680L);
+    }
+
+    @Test
     @DisplayName("高压：没开打的人不进潜在前五")
     void playerWhoHasNotStartedIsExcluded() {
         stubSixPlayerBoard();
@@ -203,6 +225,7 @@ class LeaderboardServiceImplSortTest {
                 projectionRow(5L, workDays, claims, currentWeekClaimed),
                 projectionRow(6L, workDays, claims, currentWeekClaimed)))
                 .when(jdbcTemplate).queryForList(anyString(), any(Object.class), any(Object.class), any(Object.class), any(Object.class), any(Object.class));
+        stubNoLeakedMakeup();
     }
 
     private void stubProjectionExcept(long userId, int workDays, int claims, boolean currentWeekClaimed,
@@ -215,6 +238,12 @@ class LeaderboardServiceImplSortTest {
                 projectionRow(5L, userId == 5L ? workDays : othersWorkDays, userId == 5L ? claims : othersClaims, userId == 5L ? currentWeekClaimed : othersCurrentWeekClaimed),
                 projectionRow(6L, userId == 6L ? workDays : othersWorkDays, userId == 6L ? claims : othersClaims, userId == 6L ? currentWeekClaimed : othersCurrentWeekClaimed)))
                 .when(jdbcTemplate).queryForList(anyString(), any(Object.class), any(Object.class), any(Object.class), any(Object.class), any(Object.class));
+        stubNoLeakedMakeup();
+    }
+
+    private void stubNoLeakedMakeup() {
+        lenient().doReturn(List.of()).when(jdbcTemplate)
+                .queryForList(anyString(), any(Object.class), any(Object.class));
     }
 
     private static Map<String, Object> projectionRow(long userId, int workDays, int claims, boolean currentWeekClaimed) {
