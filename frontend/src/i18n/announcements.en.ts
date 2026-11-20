@@ -1,4 +1,8 @@
 export const announcementEn: Record<string, { title: string; content: string }> = {
+  'topic-auto-claim-gold': {
+    title: 'Quests: unclaimed gold is collected at 23:59',
+    content: 'At 23:59 Beijing time, daily gold you already earned this month but did not claim is collected. The current weekly quest and makeup gold are collected the same way. The gold counts on the day you played. Rest days, days past the quota, and expired weekly quests are not paid.',
+  },
   'topic-daily-makeup': {
     title: 'Quests: makeup does not count for the weekly quest',
     content: 'Makeup does not count toward weekly quest progress. The weekly quest only counts teammates from each day’s first 3 matches. Makeup starts after those 3 and does not add a teammate. By Beijing time, the first day of the month has nothing to make up. From the next day, a day you played but did not finish comes first, oldest day first. After those, the newest day you did not play starts at match 1, then 2, then 3. Makeup can be checked only after today’s 3 matches are done. On the last day of the month, the remaining matches of the day you are making up can be finished the same day. Gold already paid is not recalculated. The quest list shows Makeup match N and Makeup win: slots 1 / 2 / 3 pay 30 / 40 / 50 when claimed, plus 10 for a win, and the gold follows the slot you are making up. One makeup a day, except that month-end continuation. A forfeit spends that slot for 0 gold and blocks another makeup today. A void does not, so you can start again. Debt does not cross months. A day that already paid gold still pays when the work-day quota is full. A day that never paid needs a free work day, or the makeup pays nothing.',

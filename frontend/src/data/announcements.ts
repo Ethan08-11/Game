@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-auto-claim-gold',
+    title: '任务：每天 23:59 自动领取没领的金币',
+    date: '2026-11-20',
+    content: '每天北京时间 23:59，本月已经打完、还没点领取的每日任务金币会自动领取。本周还没领的周任务和补打金币同样自动领。金币算在打出那天的工作日上。休息日、定额已经满的日期，以及过期的周任务，不会补发。',
+  },
+  {
     id: 'topic-daily-makeup',
     title: '任务：补打不计入周任务进度',
     date: '2026-11-20',

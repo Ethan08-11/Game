@@ -13,6 +13,12 @@ public interface TaskService {
     MyTaskBoardResp listMyTaskBoard(Long userId);
     TaskClaimResp claimTask(Long userId, Long userTaskId);
 
+    /**
+     * 领取本月已经打完还没领的每日金币、本周周任务和补打。
+     * 已下线任务和过期周任务不补发。由每天 23:59 的定时任务调用。
+     */
+    void claimEarnedGold(Long userId);
+
     void recordLogin(Long userId);
     void recordMatchResult(Long userId, String resultType, Long teammateId);
     /** 放弃 / 掉线超时：只占用当日第 N 局，不算完成、不给获胜任务。 */
