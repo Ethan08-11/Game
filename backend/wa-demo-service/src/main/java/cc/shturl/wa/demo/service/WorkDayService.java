@@ -7,6 +7,9 @@ import org.springframework.stereotype.Service;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +67,24 @@ public class WorkDayService {
             return true;
         }
         return countUsed(userId, month) < WorkDayQuota.days(month);
+    }
+
+    public Set<LocalDate> recordedDays(Long userId, YearMonth month) {
+        if (userId == null || month == null || !tableReady()) {
+            return Set.of();
+        }
+        Date start = Date.valueOf(WorkDayQuota.countStart(month));
+        Date end = Date.valueOf(month.plusMonths(1).atDay(1));
+        List<Date> rows = jdbcTemplate.query(
+                "SELECT day_date FROM user_month_work_days WHERE user_id = ? AND day_date >= ? AND day_date < ?",
+                (rs, row) -> rs.getDate(1), userId, start, end);
+        Set<LocalDate> days = new HashSet<>();
+        for (Date row : rows) {
+            if (row != null) {
+                days.add(row.toLocalDate());
+            }
+        }
+        return days;
     }
 
     private int countUsed(Long userId, YearMonth month) {

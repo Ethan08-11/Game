@@ -54,8 +54,13 @@ public class MakeupService {
             return MakeupOfferResp.none();
         }
         LocalDate today = LocalDate.now(WorkDayQuota.ZONE);
-        LocalDate start = WorkDayQuota.countStart(YearMonth.from(today));
-        MakeupQueue.Next next = MakeupQueue.next(today, start, usedSlots(userId, start, today), claimed(userId, start, today));
+        YearMonth month = YearMonth.from(today);
+        LocalDate start = WorkDayQuota.countStart(month);
+        Map<LocalDate, Integer> used = usedSlots(userId, start, today);
+        Set<MakeupQueue.DaySlot> claimedSlots = claimed(userId, start, today);
+        MakeupQueue.Next next = MakeupQueue.next(today, start, used, claimedSlots);
+        boolean monthClear = MakeupQueue.monthClear(today, start, WorkDayQuota.days(month),
+                used, workDayService.recordedDays(userId, month), claimedSlots);
         Pending pending = findPending(userId);
         if (next == null && pending == null) {
             return MakeupOfferResp.none();
@@ -81,7 +86,7 @@ public class MakeupService {
         return new MakeupOfferResp(available, owedDay, slot, finishGold, MakeupQueue.WIN_GOLD,
                 blockedToday, pays, next == null ? 0 : next.owedCount(), dailyReady,
                 questDay, questSlot, questFinish, questWin, finishReady, winReady,
-                next != null && next.partialDebt());
+                next != null && next.partialDebt(), monthClear);
     }
 
     public Reservation requireReservation(Long userId) {

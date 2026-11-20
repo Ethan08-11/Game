@@ -8,6 +8,7 @@ export interface MakeupOffer {
   paysGold?: boolean
   owedCount?: number
   partialDebt?: boolean
+  monthClear?: boolean
   dailyReady?: boolean
   questDay?: string | null
   questSlot?: number
@@ -24,6 +25,9 @@ export function makeupLine(offer: MakeupOffer | null | undefined, english: boole
   const left = offer.owedCount || 0
   const finish = offer.finishGold ?? 0
   const win = offer.winGold ?? 10
+  if (offer.monthClear === true && offer.partialDebt === false && slot === 1 && left >= 3) {
+    return optionalRecentDay(offer, when, finish, win, english)
+  }
   const owed = owedSentence(offer, when, left, english)
   if (offer.dailyReady === false && slot > 0) {
     return english
@@ -48,6 +52,26 @@ export function makeupLine(offer: MakeupOffer | null | undefined, english: boole
   return english
     ? `${when}, match ${slot}: claim ${finish} for finishing, plus ${win} if you win. Today's 3 matches are done. Check “makeup” before the match. ${owed}`
     : `还可补${when}第 ${slot} 局：打完领 ${finish}，赢了再领 ${win}。今天 3 局已满，开局前勾选。${owed}`
+}
+
+function optionalRecentDay(offer: MakeupOffer, when: string, finish: number, win: number, english: boolean): string {
+  const choice = english
+    ? `Played normally this month, nothing owed. You can make up the most recent day, ${when}: claim ${finish}, plus ${win} for a win.`
+    : `本月正常打，不欠。可补最近的一天${when}：打完领 ${finish}，赢了再领 ${win}。`
+  if (offer.dailyReady === false) {
+    return english ? `Finish today's 3 matches before makeup. ${choice}` : `今天打满 3 局后才能补打。${choice}`
+  }
+  if (offer.paysGold === false) {
+    return english
+      ? `Played normally this month, nothing owed. You can make up the most recent day, ${when}. The work-day quota is full, so it pays no gold.`
+      : `本月正常打，不欠。可补最近的一天${when}。本月工作日已满，这局补打不发金币。`
+  }
+  if (offer.usedToday) {
+    return english ? `Today's makeup is used. ${choice}` : `今天的补打已经用过。${choice}`
+  }
+  return english
+    ? `${choice} Today's 3 matches are done. Check “makeup” before the match.`
+    : `${choice}今天 3 局已满，开局前勾选。`
 }
 
 function owedSentence(offer: MakeupOffer, when: string, left: number, english: boolean): string {
