@@ -16,6 +16,7 @@ export interface MakeupOffer {
   questWinGold?: number
   finishReady?: boolean
   winReady?: boolean
+  questClaimed?: boolean
 }
 
 export function makeupLine(offer: MakeupOffer | null | undefined, english: boolean): string {

@@ -58,6 +58,7 @@ export interface MakeupOffer {
   questWinGold?: number
   finishReady?: boolean
   winReady?: boolean
+  questClaimed?: boolean
 }
 
 export interface MyTaskBoard {
