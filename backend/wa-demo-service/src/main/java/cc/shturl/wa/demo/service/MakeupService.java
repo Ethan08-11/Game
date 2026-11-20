@@ -80,7 +80,8 @@ public class MakeupService {
         boolean winReady = pending != null && pending.winClaimed() == 0 && pending.winGold() > 0;
         return new MakeupOfferResp(available, owedDay, slot, finishGold, MakeupQueue.WIN_GOLD,
                 blockedToday, pays, next == null ? 0 : next.owedCount(), dailyReady,
-                questDay, questSlot, questFinish, questWin, finishReady, winReady);
+                questDay, questSlot, questFinish, questWin, finishReady, winReady,
+                next != null && next.partialDebt());
     }
 
     public Reservation requireReservation(Long userId) {

@@ -7,6 +7,7 @@ export interface MakeupOffer {
   usedToday?: boolean
   paysGold?: boolean
   owedCount?: number
+  partialDebt?: boolean
   dailyReady?: boolean
   questDay?: string | null
   questSlot?: number
@@ -23,10 +24,11 @@ export function makeupLine(offer: MakeupOffer | null | undefined, english: boole
   const left = offer.owedCount || 0
   const finish = offer.finishGold ?? 0
   const win = offer.winGold ?? 10
+  const owed = owedSentence(offer, when, left, english)
   if (offer.dailyReady === false && slot > 0) {
     return english
-      ? `Finish today's 3 matches before makeup. Next is ${when}, match ${slot}: claim ${finish}, plus ${win} for a win. ${left} still owed.`
-      : `今天打满 3 局后才能补打。下一档是${when}第 ${slot} 局：打完领 ${finish}，赢了再领 ${win}。还欠 ${left} 局。`
+      ? `Finish today's 3 matches before makeup. Next is ${when}, match ${slot}: claim ${finish}, plus ${win} for a win. ${owed}`
+      : `今天打满 3 局后才能补打。下一档是${when}第 ${slot} 局：打完领 ${finish}，赢了再领 ${win}。${owed}`
   }
   if (!slot || !left) {
     return offer.finishReady || offer.winReady
@@ -35,17 +37,26 @@ export function makeupLine(offer: MakeupOffer | null | undefined, english: boole
   }
   if (offer.usedToday) {
     return english
-      ? `Today's makeup is used. ${left} still owed. Next is ${when}, match ${slot}: claim ${finish}, plus ${win} for a win.`
-      : `今天的补打已经用过。还欠 ${left} 局，下一局是${when}第 ${slot} 局，打完领 ${finish}，赢了再领 ${win}。`
+      ? `Today's makeup is used. ${owed} Next is ${when}, match ${slot}: claim ${finish}, plus ${win} for a win.`
+      : `今天的补打已经用过。${owed}下一局是${when}第 ${slot} 局，打完领 ${finish}，赢了再领 ${win}。`
   }
   if (offer.paysGold === false) {
     return english
-      ? `${when}, match ${slot} can be made up today. The work-day quota is full, so this one pays no gold. ${left} still owed.`
-      : `还可补${when}第 ${slot} 局。本月工作日已满，这局补打不发金币。今天 3 局已满，开局前勾选。还欠 ${left} 局。`
+      ? `${when}, match ${slot} can be made up today. The work-day quota is full, so this one pays no gold. ${owed}`
+      : `还可补${when}第 ${slot} 局。本月工作日已满，这局补打不发金币。今天 3 局已满，开局前勾选。${owed}`
   }
   return english
-    ? `${when}, match ${slot}: claim ${finish} for finishing, plus ${win} if you win. Today's 3 matches are done. Check “makeup” before the match. ${left} still owed.`
-    : `还可补${when}第 ${slot} 局：打完领 ${finish}，赢了再领 ${win}。今天 3 局已满，开局前勾选。还欠 ${left} 局。`
+    ? `${when}, match ${slot}: claim ${finish} for finishing, plus ${win} if you win. Today's 3 matches are done. Check “makeup” before the match. ${owed}`
+    : `还可补${when}第 ${slot} 局：打完领 ${finish}，赢了再领 ${win}。今天 3 局已满，开局前勾选。${owed}`
+}
+
+function owedSentence(offer: MakeupOffer, when: string, left: number, english: boolean): string {
+  if (offer.partialDebt === false) {
+    return english
+      ? `Making up the most recent day, ${when}. ${left} still left.`
+      : `补最近的一天${when}，还欠 ${left} 局。`
+  }
+  return english ? `${left} missed matches still owed.` : `还欠 ${left} 局。`
 }
 
 export function formatOwedDay(value: string | null | undefined, english: boolean): string {
