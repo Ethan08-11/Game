@@ -43,15 +43,53 @@ class MakeupQueueTest {
     }
 
     @Test
-    @DisplayName("更早的空档排在昨天前面")
-    void olderGapComesFirst() {
+    @DisplayName("打过但没满的缺档，排在更早的空档前面")
+    void partialGapBeforeOlderEmptyDay() {
         LocalDate older = LocalDate.of(2026, 11, 10);
         LocalDate yesterday = LocalDate.of(2026, 11, 15);
         MakeupQueue.Next next = MakeupQueue.next(yesterday.plusDays(1), START,
                 played(yesterday.plusDays(1), Map.of(older, 0, yesterday, 2)), Set.of());
-        assertThat(next.day()).isEqualTo(older);
-        assertThat(next.slot()).isEqualTo(1);
+        assertThat(next.day()).isEqualTo(yesterday);
+        assertThat(next.slot()).isEqualTo(3);
         assertThat(next.owedCount()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("两天都没打时，先补最近一天的第 1 局")
+    void newestEmptyDayComesFirst() {
+        LocalDate older = LocalDate.of(2026, 11, 10);
+        LocalDate newer = LocalDate.of(2026, 11, 15);
+        MakeupQueue.Next next = MakeupQueue.next(newer.plusDays(1), START,
+                played(newer.plusDays(1), Map.of(older, 0, newer, 0)), Set.of());
+        assertThat(next.day()).isEqualTo(newer);
+        assertThat(next.slot()).isEqualTo(1);
+        assertThat(next.owedCount()).isEqualTo(6);
+    }
+
+    @Test
+    @DisplayName("两个没打满的日子，先补更早那天的缺档")
+    void olderPartialBeforeNewerPartial() {
+        LocalDate older = LocalDate.of(2026, 11, 10);
+        LocalDate newer = LocalDate.of(2026, 11, 15);
+        MakeupQueue.Next next = MakeupQueue.next(newer.plusDays(1), START,
+                played(newer.plusDays(1), Map.of(older, 1, newer, 2)), Set.of());
+        assertThat(next.day()).isEqualTo(older);
+        assertThat(next.slot()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("月底可以把同一天剩下的第 2、第 3 局补完")
+    void lastDayContinuesTheSameOwedDay() {
+        LocalDate last = LocalDate.of(2026, 11, 30);
+        LocalDate owed = LocalDate.of(2026, 11, 29);
+        assertThat(MakeupQueue.monthEndContinuation(last, owed, 2,
+                java.util.List.of(new MakeupQueue.DaySlot(owed, 1)))).isTrue();
+        assertThat(MakeupQueue.monthEndContinuation(last, owed, 3,
+                java.util.List.of(new MakeupQueue.DaySlot(owed, 1), new MakeupQueue.DaySlot(owed, 2)))).isTrue();
+        assertThat(MakeupQueue.monthEndContinuation(last.minusDays(1), owed, 2,
+                java.util.List.of(new MakeupQueue.DaySlot(owed, 1)))).isFalse();
+        assertThat(MakeupQueue.monthEndContinuation(last, owed.minusDays(1), 1,
+                java.util.List.of(new MakeupQueue.DaySlot(owed, 1)))).isFalse();
     }
 
     @Test

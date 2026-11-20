@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,8 +28,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 每人每天最多补 1 局，而且要等今天的 3 局打完才能勾选。
- * 补的是本月更早没打完的那一档。打完后到任务列表领取，金币按这一档是第 1、2、3 局变化。
+ * 今天打满 3 局后才能补 1 局。先补没打满的缺档，再补最近的空档。
+ * 已经记在 user_makeup_claims 里的场次和金币不重算。月底可以把同一天剩下的档补完。
  */
 @Service
 @RequiredArgsConstructor
@@ -60,12 +61,17 @@ public class MakeupService {
             return MakeupOfferResp.none();
         }
         boolean usedToday = usedToday(userId, today);
+        boolean inProgress = makeupInProgress(userId);
+        boolean continuation = !inProgress && !forfeitedMakeupToday(userId, today) && next != null
+                && MakeupQueue.monthEndContinuation(
+                today, next.day(), next.slot(), settledMakeupsToday(userId, today));
         boolean dailyReady = playedToday(userId, today) >= 3;
         String owedDay = next == null ? null : next.day().toString();
         int slot = next == null ? 0 : next.slot();
         int finishGold = MakeupQueue.finishGold(slot);
         boolean pays = next != null && workDayService.couldPayGold(userId, next.day());
-        boolean available = next != null && dailyReady && !usedToday;
+        boolean blockedToday = (usedToday || inProgress) && !continuation;
+        boolean available = next != null && dailyReady && !blockedToday;
         String questDay = pending == null ? owedDay : pending.day().toString();
         int questSlot = pending == null ? slot : pending.slot();
         int questFinish = pending == null ? finishGold : pending.finishGold();
@@ -73,7 +79,7 @@ public class MakeupService {
         boolean finishReady = pending != null && pending.finishClaimed() == 0 && pending.finishGold() > 0;
         boolean winReady = pending != null && pending.winClaimed() == 0 && pending.winGold() > 0;
         return new MakeupOfferResp(available, owedDay, slot, finishGold, MakeupQueue.WIN_GOLD,
-                usedToday, pays, next == null ? 0 : next.owedCount(), dailyReady,
+                blockedToday, pays, next == null ? 0 : next.owedCount(), dailyReady,
                 questDay, questSlot, questFinish, questWin, finishReady, winReady);
     }
 
@@ -259,6 +265,54 @@ public class MakeupService {
             claimed.add(new MakeupQueue.DaySlot(day.toLocalDate(), rs.getInt("slot_no")));
         }, userId, Date.valueOf(start), Date.valueOf(today));
         return claimed;
+    }
+
+    private boolean forfeitedMakeupToday(Long userId, LocalDate today) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM match_players me
+                INNER JOIN matches m ON m.id = me.match_id
+                WHERE me.user_id = ?
+                  AND me.makeup_slot IS NOT NULL
+                  AND m.status = 2
+                  AND IFNULL(m.winner_type, 0) = 2
+                  AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
+                  AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
+                """, Integer.class, userId, utcWall(today), utcWall(today.plusDays(1)));
+        return count != null && count > 0;
+    }
+
+    private boolean makeupInProgress(Long userId) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM match_players me
+                INNER JOIN matches m ON m.id = me.match_id
+                WHERE me.user_id = ? AND me.makeup_slot IS NOT NULL AND m.status = 1
+                """, Integer.class, userId);
+        return count != null && count > 0;
+    }
+
+    private List<MakeupQueue.DaySlot> settledMakeupsToday(Long userId, LocalDate today) {
+        List<MakeupQueue.DaySlot> slots = new ArrayList<>();
+        jdbcTemplate.query("""
+                SELECT me.makeup_owed_day, me.makeup_slot
+                FROM match_players me
+                INNER JOIN matches m ON m.id = me.match_id
+                WHERE me.user_id = ?
+                  AND me.makeup_slot IS NOT NULL
+                  AND me.makeup_owed_day IS NOT NULL
+                  AND m.status = 2
+                  AND IFNULL(m.winner_type, 0) IN (1, 2)
+                  AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
+                  AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
+                """, rs -> {
+            Date day = rs.getDate("makeup_owed_day");
+            if (day == null) {
+                return;
+            }
+            slots.add(new MakeupQueue.DaySlot(day.toLocalDate(), rs.getInt("makeup_slot")));
+        }, userId, utcWall(today), utcWall(today.plusDays(1)));
+        return slots;
     }
 
     private boolean usedToday(Long userId, LocalDate today) {

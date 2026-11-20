@@ -85,6 +85,31 @@ public class MakeupSchemaBootstrap implements ApplicationRunner {
                 ADD COLUMN `win_claimed` tinyint NOT NULL DEFAULT 1
                   COMMENT '获胜额外金币已领。旧记录默认已领' AFTER `finish_claimed`
                 """);
+        if (!tableExists("user_makeup_claim_snapshot")) {
+            jdbcTemplate.execute("""
+                    CREATE TABLE `user_makeup_claim_snapshot` (
+                      `snapshot_id` varchar(64) NOT NULL,
+                      `claim_id` bigint NOT NULL,
+                      `user_id` bigint NOT NULL,
+                      `owed_day` date NOT NULL,
+                      `slot_no` tinyint NOT NULL,
+                      `match_id` bigint NOT NULL,
+                      `gold_paid` int NOT NULL,
+                      `finish_gold` int NOT NULL,
+                      `win_gold` int NOT NULL,
+                      `finish_claimed` tinyint NOT NULL,
+                      `win_claimed` tinyint NOT NULL,
+                      `claim_created_at` datetime NULL,
+                      `profile_money` bigint NOT NULL DEFAULT 0,
+                      `profile_weekly_money` bigint NOT NULL DEFAULT 0,
+                      `profile_win_count` int NOT NULL DEFAULT 0,
+                      `profile_lose_count` int NOT NULL DEFAULT 0,
+                      `snapshotted_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      PRIMARY KEY (`snapshot_id`, `claim_id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='改补打顺序前的场次和金币，只插入不改原账'
+                    """);
+            log.info("Created user_makeup_claim_snapshot.");
+        }
     }
 
     private void addClaimColumn(String column, String ddl) {
