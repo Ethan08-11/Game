@@ -127,6 +127,31 @@ class MakeupQueueTest {
     }
 
     @Test
+    @DisplayName("正常打下去还能领满 21 天，最近一天没打也不欠")
+    void emptyRecentDayIsClearWhenDailyQuotaStillFills() {
+        LocalDate today = LocalDate.of(2026, 11, 20);
+        assertThat(MakeupQueue.monthClear(today, START, 21, played(today, Map.of(LocalDate.of(2026, 11, 19), 0)), Set.of(), Set.of())).isTrue();
+    }
+
+    @Test
+    @DisplayName("剩下的天数不够领满每日任务，最近一天没打也算欠")
+    void emptyRecentDayIsNotClearWhenDailyQuotaCannotFill() {
+        LocalDate today = LocalDate.of(2026, 11, 20);
+        Map<LocalDate, Integer> used = new HashMap<>();
+        for (LocalDate day = START; day.isBefore(today); day = day.plusDays(1)) {
+            used.put(day, day.getDayOfMonth() <= 8 ? 3 : 0);
+        }
+        assertThat(MakeupQueue.monthClear(today, START, 21, used, Set.of(), Set.of())).isFalse();
+    }
+
+    @Test
+    @DisplayName("还有打过没满的漏档，不算正常打")
+    void openPartialBlocksClearMonth() {
+        LocalDate today = LocalDate.of(2026, 11, 20);
+        assertThat(MakeupQueue.monthClear(today, START, 21, played(today, Map.of(LocalDate.of(2026, 11, 10), 2)), Set.of(), Set.of())).isFalse();
+    }
+
+    @Test
     @DisplayName("当天三局都打完就没有欠账")
     void fullDayLeavesNothing() {
         LocalDate today = LocalDate.of(2026, 11, 16);

@@ -2,6 +2,7 @@ package cc.shturl.wa.demo.service;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +67,57 @@ public final class MakeupQueue {
             }
         }
         return null;
+    }
+
+    /**
+     * 不欠：没有打过却没打满的漏档，并且从今天起照常打，这个月的每日任务还能领满。
+     * 已经打满或已经记过工作日的日期算领过；今天到月底每天还能再领一天。
+     */
+    public static boolean monthClear(LocalDate today, LocalDate countStart, int quota,
+                                     Map<LocalDate, Integer> usedSlotsByDay,
+                                     Set<LocalDate> recordedDays,
+                                     Set<DaySlot> claimed) {
+        if (today == null || countStart == null || quota <= 0 || hasOpenPartial(today, countStart, usedSlotsByDay, claimed)) {
+            return false;
+        }
+        int covered = 0;
+        LocalDate yesterday = today.minusDays(1);
+        for (LocalDate day = countStart; !day.isAfter(yesterday); day = day.plusDays(1)) {
+            int used = 0;
+            if (usedSlotsByDay != null) {
+                used = Math.max(usedSlotsByDay.getOrDefault(day, 0), 0);
+            }
+            if (used >= 3 || (recordedDays != null && recordedDays.contains(day))) {
+                covered++;
+            }
+        }
+        long ahead = ChronoUnit.DAYS.between(today, YearMonth.from(today).atEndOfMonth()) + 1;
+        return covered + ahead >= quota;
+    }
+
+    private static boolean hasOpenPartial(LocalDate today, LocalDate countStart,
+                                          Map<LocalDate, Integer> usedSlotsByDay,
+                                          Set<DaySlot> claimed) {
+        if (!today.isAfter(countStart)) {
+            return false;
+        }
+        LocalDate yesterday = today.minusDays(1);
+        for (LocalDate day = countStart; !day.isAfter(yesterday); day = day.plusDays(1)) {
+            int used = 0;
+            if (usedSlotsByDay != null) {
+                used = Math.max(usedSlotsByDay.getOrDefault(day, 0), 0);
+            }
+            int occupied = Math.min(used, 3);
+            if (occupied <= 0 || occupied >= 3) {
+                continue;
+            }
+            for (int slot = occupied + 1; slot <= 3; slot++) {
+                if (claimed == null || !claimed.contains(new DaySlot(day, slot))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
