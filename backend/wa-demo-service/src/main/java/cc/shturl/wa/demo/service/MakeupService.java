@@ -49,6 +49,9 @@ public class MakeupService {
                            int finishClaimed, int winClaimed) {
     }
 
+    private record PaidMakeup(LocalDate day, int slot, int finishGold, int winGold) {
+    }
+
     public MakeupOfferResp describe(Long userId) {
         if (userId == null || !ready()) {
             return MakeupOfferResp.none();
@@ -62,7 +65,8 @@ public class MakeupService {
         boolean monthClear = MakeupQueue.monthClear(today, start, WorkDayQuota.days(month),
                 used, workDayService.recordedDays(userId, month), claimedSlots);
         Pending pending = findPending(userId);
-        if (next == null && pending == null) {
+        PaidMakeup paid = pending == null ? paidMakeupToday(userId, today) : null;
+        if (next == null && pending == null && paid == null) {
             return MakeupOfferResp.none();
         }
         boolean usedToday = usedToday(userId, today);
@@ -77,16 +81,17 @@ public class MakeupService {
         boolean pays = next != null && workDayService.couldPayGold(userId, next.day());
         boolean blockedToday = (usedToday || inProgress) && !continuation;
         boolean available = next != null && dailyReady && !blockedToday;
-        String questDay = pending == null ? owedDay : pending.day().toString();
-        int questSlot = pending == null ? slot : pending.slot();
-        int questFinish = pending == null ? finishGold : pending.finishGold();
-        int questWin = pending == null ? MakeupQueue.WIN_GOLD : pending.winGold();
+        String questDay = pending != null ? pending.day().toString()
+                : paid != null ? paid.day().toString() : owedDay;
+        int questSlot = pending != null ? pending.slot() : paid != null ? paid.slot() : slot;
+        int questFinish = pending != null ? pending.finishGold() : paid != null ? paid.finishGold() : finishGold;
+        int questWin = pending != null ? pending.winGold() : paid != null ? paid.winGold() : MakeupQueue.WIN_GOLD;
         boolean finishReady = pending != null && pending.finishClaimed() == 0 && pending.finishGold() > 0;
         boolean winReady = pending != null && pending.winClaimed() == 0 && pending.winGold() > 0;
         return new MakeupOfferResp(available, owedDay, slot, finishGold, MakeupQueue.WIN_GOLD,
                 blockedToday, pays, next == null ? 0 : next.owedCount(), dailyReady,
                 questDay, questSlot, questFinish, questWin, finishReady, winReady,
-                next != null && next.partialDebt(), monthClear);
+                next != null && next.partialDebt(), monthClear, paid != null);
     }
 
     public Reservation requireReservation(Long userId) {
@@ -298,6 +303,35 @@ public class MakeupService {
             claimed.add(new MakeupQueue.DaySlot(day.toLocalDate(), rs.getInt("slot_no")));
         }, userId, Date.valueOf(start), Date.valueOf(today));
         return claimed;
+    }
+
+    private PaidMakeup paidMakeupToday(Long userId, LocalDate today) {
+        List<PaidMakeup> rows = jdbcTemplate.query("""
+                SELECT c.owed_day, c.slot_no, c.finish_gold, c.win_gold
+                FROM user_makeup_claims c
+                INNER JOIN match_players me ON me.user_id = c.user_id
+                  AND me.makeup_owed_day = c.owed_day
+                  AND me.makeup_slot = c.slot_no
+                INNER JOIN matches m ON m.id = me.match_id
+                WHERE c.user_id = ?
+                  AND c.finish_claimed = 1
+                  AND c.win_claimed = 1
+                  AND c.finish_gold > 0
+                  AND m.status = 2
+                  AND IFNULL(m.winner_type, 0) = 1
+                  AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
+                  AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
+                ORDER BY COALESCE(m.ended_at, m.started_at, m.created_at) DESC
+                LIMIT 1
+                """, (rs, row) -> {
+            Date day = rs.getDate("owed_day");
+            return new PaidMakeup(day == null ? null : day.toLocalDate(), rs.getInt("slot_no"),
+                    rs.getInt("finish_gold"), rs.getInt("win_gold"));
+        }, userId, utcWall(today), utcWall(today.plusDays(1)));
+        if (rows.isEmpty() || rows.get(0).day() == null) {
+            return null;
+        }
+        return rows.get(0);
     }
 
     private boolean forfeitedMakeupToday(Long userId, LocalDate today) {

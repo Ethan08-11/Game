@@ -190,8 +190,9 @@ function makeupQuestCards(): UserTask[] {
   const wait = canStart ? 'MATCH_COUNT' : 'MAKEUP_WAIT'
   const finishGold = offer.questFinishGold ?? 0
   const winGold = offer.questWinGold ?? 10
-  const finishStatus = offer.finishReady ? 2 : (offer.winReady ? 3 : 0)
-  const winStatus = offer.winReady ? 2 : (offer.finishReady ? 3 : 0)
+  const claimed = offer.questClaimed === true
+  const finishStatus = offer.finishReady ? 2 : (claimed || offer.winReady ? 3 : 0)
+  const winStatus = offer.winReady ? 2 : (claimed || offer.finishReady ? 3 : 0)
   const cards: UserTask[] = [
     {
       id: -1,
