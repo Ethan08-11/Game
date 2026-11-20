@@ -11,6 +11,12 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
 export const announcements: Announcement[] = [
   {
+    id: 'topic-leaked-makeup-rank',
+    title: '难度：漏打的场次计入潜在排名',
+    date: '2026-11-20',
+    content: '潜在排名的预测总金币，加上已经打过但没打满的场次。这些场次按全胜补上，不另占工作日。一把没打的天数如果补，要扣掉后面一天，每日任务总数仍按定额，不另加金币。其余预测不变。',
+  },
+  {
     id: 'topic-auto-claim-gold',
     title: '任务：每天 23:59 自动领取没领的金币',
     date: '2026-11-20',
