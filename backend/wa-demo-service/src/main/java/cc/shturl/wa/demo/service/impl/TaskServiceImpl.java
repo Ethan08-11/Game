@@ -243,6 +243,31 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
+    public void claimEarnedGold(Long userId) {
+        if (!userExists(userId)) {
+            return;
+        }
+        List<UserTask> ready = userTaskMapper.selectList(Wrappers.<UserTask>lambdaQuery()
+                .eq(UserTask::getUserId, userId)
+                .eq(UserTask::getStatus, 2)
+                .orderByDesc(UserTask::getPeriodKey)
+                .orderByAsc(UserTask::getId));
+        for (UserTask userTask : ready) {
+            try {
+                claimEarnedTask(userId, userTask);
+            } catch (Exception ex) {
+                log.warn("Skip auto claim userId={} userTaskId={}: {}", userId, userTask.getId(), ex.getMessage());
+            }
+        }
+        try {
+            makeupService.claimReady(userId);
+        } catch (Exception ex) {
+            log.warn("Skip auto makeup claim userId={}: {}", userId, ex.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
     public void recordAdWatch(Long userId) {
         if (!userExists(userId)) {
             return;
@@ -734,6 +759,77 @@ public class TaskServiceImpl implements TaskService {
             return "public";
         }
         return value;
+    }
+
+    private void claimEarnedTask(Long userId, UserTask userTask) {
+        if (userTask == null || userTask.getId() == null || userTask.getStatus() == null || userTask.getStatus() != 2) {
+            return;
+        }
+        Tasks task = taskMapper.selectById(userTask.getTaskId());
+        if (!autoClaimable(task, userTask)) {
+            return;
+        }
+        int amount = rewardAmount(task.getRewardValue());
+        if (amount <= 0) {
+            return;
+        }
+        LocalDate day = payDay(task, userTask);
+        if (!workDayService.couldPayGold(userId, day)) {
+            return;
+        }
+        if ("weekly".equalsIgnoreCase(task.getTaskType()) && !WeeklyClaimLimit.allowed(jdbcTemplate, userId)) {
+            return;
+        }
+        if (!workDayService.allowGold(userId, day)) {
+            return;
+        }
+        int updated = userTaskMapper.update(null, Wrappers.<UserTask>lambdaUpdate()
+                .set(UserTask::getStatus, 3)
+                .set(UserTask::getClaimedAt, java.time.LocalDateTime.now())
+                .eq(UserTask::getId, userTask.getId())
+                .eq(UserTask::getUserId, userId)
+                .eq(UserTask::getStatus, 2));
+        if (updated != 1) {
+            return;
+        }
+        leaderboardService.ensureCurrentMonth();
+        userProfileMapper.applyMatchSettlement(userId, 0, 0, 0, 0, amount);
+        log.info("Auto claimed quest gold userId={} task={} day={} gold={}", userId, task.getTaskCode(), day, amount);
+    }
+
+    /** 只自动领当前仍在用的任务：本月每日任务，以及还没过期的本周周任务。 */
+    private boolean autoClaimable(Tasks task, UserTask userTask) {
+        if (task == null || task.getStatus() == null || task.getStatus() != 1 || userTask.getPeriodKey() == null) {
+            return false;
+        }
+        if (!"money".equalsIgnoreCase(task.getRewardType())) {
+            return false;
+        }
+        if ("daily".equalsIgnoreCase(task.getTaskType())) {
+            LocalDate day = parseDay(userTask.getPeriodKey());
+            return day != null && YearMonth.from(day).equals(YearMonth.now(ZONE)) && !day.isAfter(LocalDate.now(ZONE));
+        }
+        return "weekly".equalsIgnoreCase(task.getTaskType())
+                && WEEKLY_TEAM_CODE.equals(task.getTaskCode())
+                && periodKeyFor(task).equals(userTask.getPeriodKey());
+    }
+
+    private LocalDate payDay(Tasks task, UserTask userTask) {
+        if ("daily".equalsIgnoreCase(task.getTaskType())) {
+            LocalDate day = parseDay(userTask.getPeriodKey());
+            if (day != null) {
+                return day;
+            }
+        }
+        return LocalDate.now(ZONE);
+    }
+
+    private LocalDate parseDay(String periodKey) {
+        try {
+            return LocalDate.parse(periodKey);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String periodKeyFor(Tasks task) {

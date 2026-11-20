@@ -156,6 +156,33 @@ public class MakeupService {
         }
     }
 
+    /** 把已经打完、还没领的补打金币领掉。没有可领的不报错。 */
+    @Transactional
+    public int claimReady(Long userId) {
+        if (userId == null || !ready()) {
+            return 0;
+        }
+        int paid = 0;
+        for (int i = 0; i < 6; i++) {
+            Pending pending = findPending(userId);
+            if (pending == null) {
+                return paid;
+            }
+            String part = null;
+            if (pending.finishClaimed() == 0 && pending.finishGold() > 0) {
+                part = "finish";
+            } else if (pending.winClaimed() == 0 && pending.winGold() > 0) {
+                part = "win";
+            }
+            if (part == null) {
+                return paid;
+            }
+            Long awarded = claim(userId, part).moneyAwarded();
+            paid += awarded == null ? 0 : awarded.intValue();
+        }
+        return paid;
+    }
+
     @Transactional
     public TaskClaimResp claim(Long userId, String part) {
         if (userId == null || !ready()) {
