@@ -265,8 +265,8 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     }
 
     /**
-     * 预测总金币 = 已到手金币 + 还来得及打的工作日全胜 150 + 已经打过但漏掉的场次按全胜补上 + 本月还来得及领的周任务。
-     * 一把没打的天数补上要扣掉后面一天，不另加金币。没开打的人不进名单。已经结束又没领的周次不能补，不计入。
+     * 预测总金币 = 已到手金币 + 还来得及打满的整天 × 150 + 今天没打完和过去没打满的档按全胜补上 + 本月还来得及领的周任务。
+     * 这些漏档不另占工作日。一把没打的天数补上要扣掉后面一天，不另加金币。没开打的人不进名单。已经结束又没领的周次不能补，不计入。
      * 只算还没结束的周：本周没领也算一次。周次够领满剩余次数时计入；不够时按还能领到的最高次数。
      * 工作日同样只算从今天到月底还来得及打的天数。定额还剩得更多、日历不够时，多出来的天数不计入。
      * 这个结果只在每天 0 点写入锁定名单。对局高压读锁定名单，不读这里的实时排名。
@@ -491,6 +491,21 @@ public class LeaderboardServiceImpl implements LeaderboardService {
         return sum;
     }
 
+    /** 今天已经占了工作日、但没打满的档。这些局今天还能正常打完，不占补打次数。 */
+    static long todayRemainderGold(int occupied, LocalDate today, Set<MakeupQueue.DaySlot> claimed) {
+        if (today == null || occupied <= 0 || occupied >= 3) {
+            return 0L;
+        }
+        long sum = 0L;
+        for (int slot = occupied + 1; slot <= 3; slot++) {
+            if (claimed != null && claimed.contains(new MakeupQueue.DaySlot(today, slot))) {
+                continue;
+            }
+            sum += MakeupQueue.finishGold(slot) + MakeupQueue.WIN_GOLD;
+        }
+        return sum;
+    }
+
     /** 当天 0 点之后领走的金币。实领时间按库存的墙钟日期切，不把前一晚 20:00 的补记算进第二天。 */
     private Map<Long, Long> goldClaimedOn(LocalDate day) {
         String start = day.atStartOfDay().format(SQL_TIME);
@@ -625,6 +640,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             YearMonth month = YearMonth.from(today);
             LocalDate start = WorkDayQuota.countStart(month);
             Map<Long, Map<LocalDate, Integer>> occupied = new HashMap<>();
+            Map<Long, Integer> todayOccupied = new HashMap<>();
             List<Map<String, Object>> slotRows = jdbcTemplate.queryForList("""
                     SELECT w.user_id AS user_id, w.day_date AS day_date, ut.progress_value AS occupied
                     FROM user_month_work_days w
@@ -632,7 +648,7 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                     LEFT JOIN user_tasks ut ON ut.user_id = w.user_id AND ut.task_id = t.id
                       AND ut.period_key = DATE_FORMAT(w.day_date, '%Y-%m-%d')
                     WHERE w.day_date >= ? AND w.day_date < ?
-                    """, Date.valueOf(start), Date.valueOf(today));
+                    """, Date.valueOf(start), Date.valueOf(today.plusDays(1)));
             if (slotRows != null) {
                 for (Map<String, Object> row : slotRows) {
                     Long userId = number(row.get("user_id"));
@@ -640,8 +656,12 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                     if (userId == null || day == null) {
                         continue;
                     }
-                    occupied.computeIfAbsent(userId, ignored -> new HashMap<>())
-                            .merge(day, (int) numberOrZero(row.get("occupied")), Math::max);
+                    int slots = (int) numberOrZero(row.get("occupied"));
+                    if (day.equals(today)) {
+                        todayOccupied.merge(userId, slots, Math::max);
+                    } else {
+                        occupied.computeIfAbsent(userId, ignored -> new HashMap<>()).merge(day, slots, Math::max);
+                    }
                 }
             }
             Map<Long, Set<MakeupQueue.DaySlot>> claimed = new HashMap<>();
@@ -675,10 +695,14 @@ public class LeaderboardServiceImpl implements LeaderboardService {
                     }
                 }
             }
-            for (Map.Entry<Long, Map<LocalDate, Integer>> entry : occupied.entrySet()) {
-                long amount = leakedMakeupGold(today, entry.getValue(), claimed.get(entry.getKey()), usedToday.contains(entry.getKey()));
+            Set<Long> players = new HashSet<>(occupied.keySet());
+            players.addAll(todayOccupied.keySet());
+            for (Long userId : players) {
+                Set<MakeupQueue.DaySlot> claimedSlots = claimed.get(userId);
+                long amount = leakedMakeupGold(today, occupied.get(userId), claimedSlots, usedToday.contains(userId));
+                amount += todayRemainderGold(todayOccupied.getOrDefault(userId, 0), today, claimedSlots);
                 if (amount > 0) {
-                    gold.put(entry.getKey(), amount);
+                    gold.put(userId, amount);
                 }
             }
         } catch (Exception e) {

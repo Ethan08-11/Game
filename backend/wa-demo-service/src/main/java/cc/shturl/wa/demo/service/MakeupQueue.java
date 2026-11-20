@@ -9,7 +9,7 @@ import java.util.Set;
 
 /**
  * 补打队列只决定下一档，不改已经记过的场次和金币。
- * 始终补最近一天没打满的局。打过但没满的，还欠就是漏掉的那几局；一把没打，这一天还欠 3 局。
+ * 先补打过但没满的日子，再补一把没打的日子。同一类里补最近的一天。
  */
 public final class MakeupQueue {
     public static final int WIN_GOLD = 10;
@@ -43,6 +43,17 @@ public final class MakeupQueue {
         if (today == null || countStart == null || !today.isAfter(countStart)) {
             return null;
         }
+        Next partial = scan(today, countStart, usedSlotsByDay, claimed, true);
+        if (partial != null) {
+            return partial;
+        }
+        return scan(today, countStart, usedSlotsByDay, claimed, false);
+    }
+
+    /** partialOnly 为真时只看打过但没满的日子，否则只看一把没打的日子。都从昨天往前找最近的一天。 */
+    private static Next scan(LocalDate today, LocalDate countStart,
+                             Map<LocalDate, Integer> usedSlotsByDay,
+                             Set<DaySlot> claimed, boolean partialOnly) {
         LocalDate yesterday = today.minusDays(1);
         for (LocalDate day = yesterday; !day.isBefore(countStart); day = day.minusDays(1)) {
             int used = 0;
@@ -50,6 +61,9 @@ public final class MakeupQueue {
                 used = Math.max(usedSlotsByDay.getOrDefault(day, 0), 0);
             }
             int occupied = Math.min(used, 3);
+            if (partialOnly ? occupied <= 0 : occupied > 0) {
+                continue;
+            }
             DaySlot first = null;
             int owed = 0;
             for (int slot = occupied + 1; slot <= 3; slot++) {
