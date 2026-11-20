@@ -84,16 +84,16 @@ class MakeupQueueTest {
     }
 
     @Test
-    @DisplayName("最近一天一把没打，就补这一天，不先补更早没打满的日子")
-    void newestDayWinsOverOlderPartial() {
+    @DisplayName("最近一天一把没打，仍先补更早打过没满的日子")
+    void olderPartialComesBeforeNewerEmptyDay() {
         LocalDate older = LocalDate.of(2026, 11, 10);
         LocalDate newer = LocalDate.of(2026, 11, 15);
         MakeupQueue.Next next = MakeupQueue.next(newer.plusDays(1), START,
                 played(newer.plusDays(1), Map.of(older, 1, newer, 0)), Set.of());
-        assertThat(next.day()).isEqualTo(newer);
-        assertThat(next.slot()).isEqualTo(1);
-        assertThat(next.owedCount()).isEqualTo(3);
-        assertThat(next.partialDebt()).isFalse();
+        assertThat(next.day()).isEqualTo(older);
+        assertThat(next.slot()).isEqualTo(2);
+        assertThat(next.owedCount()).isEqualTo(2);
+        assertThat(next.partialDebt()).isTrue();
     }
 
     @Test

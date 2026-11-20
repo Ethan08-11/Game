@@ -165,6 +165,8 @@ class LeaderboardServiceImplSortTest {
             many.put(LocalDate.of(2026, 11, day), 1);
         }
         assertThat(LeaderboardServiceImpl.leakedMakeupGold(today, many, Set.of(), false)).isEqualTo(680L);
+        assertThat(LeaderboardServiceImpl.todayRemainderGold(1, today, Set.of())).isEqualTo(110L);
+        assertThat(LeaderboardServiceImpl.todayRemainderGold(3, today, Set.of())).isZero();
     }
 
     @Test
