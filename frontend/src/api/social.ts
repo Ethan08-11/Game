@@ -49,6 +49,7 @@ export interface MakeupOffer {
   usedToday?: boolean
   paysGold?: boolean
   owedCount?: number
+  partialDebt?: boolean
   dailyReady?: boolean
   questDay?: string | null
   questSlot?: number

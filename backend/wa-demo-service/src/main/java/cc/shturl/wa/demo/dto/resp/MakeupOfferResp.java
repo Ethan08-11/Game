@@ -19,10 +19,11 @@ public record MakeupOfferResp(
         int questFinishGold,
         int questWinGold,
         boolean finishReady,
-        boolean winReady
+        boolean winReady,
+        boolean partialDebt
 ) {
     public static MakeupOfferResp none() {
         return new MakeupOfferResp(false, null, 0, 0, 0, false, false, 0,
-                false, null, 0, 0, 0, false, false);
+                false, null, 0, 0, 0, false, false, false);
     }
 }
