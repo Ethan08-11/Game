@@ -1529,10 +1529,13 @@ async function refreshBattleState() {
 
 function requiresSelfShield(card: BattleCard) {
   const code = String(card.cardCode || '').toUpperCase()
+  // 采购部 Kad3（P-37）要先有自己的防御。技术部 Kad3（IT-06）同名，但是攻击牌，不耗防御。
+  if (code === 'IT-06') return false
   if (code === 'P-37') return true
-  if (String(card.name || '') === 'Kad3') return true
   const desc = String(card.description || '')
-  return desc.includes('自己防御 -1') || desc.includes('自己防御-1')
+  if (desc.includes('自己防御 -1') || desc.includes('自己防御-1')) return true
+  const dept = String(card.dept || '')
+  return String(card.name || '') === 'Kad3' && (dept === '采购部' || dept === 'purchase')
 }
 
 function canAffordCard(card: BattleCard) {
