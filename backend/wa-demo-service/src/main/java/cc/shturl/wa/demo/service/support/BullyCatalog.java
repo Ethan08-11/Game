@@ -23,6 +23,10 @@ public final class BullyCatalog {
     public static final String CUSTOMER_WEALTHY = "CUSTOMER_WEALTHY";
     public static final String CUSTOMER_HARSH = "CUSTOMER_HARSH";
     public static final String CUSTOMER_CLEMENT = "CUSTOMER_CLEMENT";
+    public static final String CUSTOMER_HOTPOT = "CUSTOMER_HOTPOT";
+    public static final String CUSTOMER_DELAYED = "CUSTOMER_DELAYED";
+    public static final String CUSTOMER_JUJUBE = "CUSTOMER_JUJUBE";
+    public static final String CUSTOMER_PHONE = "CUSTOMER_PHONE";
 
     public static final String BULLY_FOCUS = "BULLY_FOCUS_001";
     public static final String BULLY_SHIELD = "BULLY_SHIELD_001";
@@ -46,14 +50,18 @@ public final class BullyCatalog {
     public static final int REVENGE_BONUS = 8;
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final Map<String, String> CUSTOMER_TO_BULLY = Map.of(
-            CUSTOMER_KIND, BULLY_SHIELD,
-            CUSTOMER_TIMID, BULLY_SHIELD,
-            CUSTOMER_ANXIOUS, BULLY_SHIELD,
-            CUSTOMER_WINDOW, BULLY_SHIELD,
-            CUSTOMER_WEALTHY, BULLY_SHIELD,
-            CUSTOMER_HARSH, BULLY_SHIELD,
-            CUSTOMER_CLEMENT, BULLY_SHIELD
+    private static final Map<String, String> CUSTOMER_TO_BULLY = Map.ofEntries(
+            Map.entry(CUSTOMER_KIND, BULLY_SHIELD),
+            Map.entry(CUSTOMER_TIMID, BULLY_SHIELD),
+            Map.entry(CUSTOMER_ANXIOUS, BULLY_SHIELD),
+            Map.entry(CUSTOMER_WINDOW, BULLY_SHIELD),
+            Map.entry(CUSTOMER_WEALTHY, BULLY_SHIELD),
+            Map.entry(CUSTOMER_HARSH, BULLY_SHIELD),
+            Map.entry(CUSTOMER_CLEMENT, BULLY_SHIELD),
+            Map.entry(CUSTOMER_HOTPOT, BULLY_SHIELD),
+            Map.entry(CUSTOMER_DELAYED, BULLY_SHIELD),
+            Map.entry(CUSTOMER_JUJUBE, BULLY_SHIELD),
+            Map.entry(CUSTOMER_PHONE, BULLY_SHIELD)
     );
 
     private BullyCatalog() {
@@ -153,7 +161,8 @@ public final class BullyCatalog {
             return false;
         }
         String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
-        if (CUSTOMER_TIMID.equals(code) || CUSTOMER_ANXIOUS.equals(code) || CUSTOMER_HARSH.equals(code)) {
+        if (CUSTOMER_TIMID.equals(code) || CUSTOMER_ANXIOUS.equals(code) || CUSTOMER_HARSH.equals(code)
+                || CUSTOMER_HOTPOT.equals(code) || CUSTOMER_JUJUBE.equals(code) || CUSTOMER_PHONE.equals(code)) {
             return true;
         }
         String type = customer.getEffectType() == null ? "" : customer.getEffectType().trim();
@@ -162,8 +171,20 @@ public final class BullyCatalog {
                 || "player_action_hp_down".equalsIgnoreCase(type);
     }
 
-    /** 图鉴走库里的 trigger_chance；负面顾客对局内暗改为 60%。 */
+    public static boolean isDualCustomer(CustomerTypes customer) {
+        if (customer == null) {
+            return false;
+        }
+        String code = customer.getCustomerCode() == null ? "" : customer.getCustomerCode().trim();
+        return CUSTOMER_JUJUBE.equals(code) || CUSTOMER_PHONE.equals(code);
+    }
+
+    /** 图鉴走库里的 trigger_chance；纯负面顾客对局内暗改为 60%。双面顾客的 50% 是好坏面，不走这里。 */
     public static int combatTriggerChance(CustomerTypes customer) {
+        if (isDualCustomer(customer)) {
+            Integer stored = customer.getTriggerChance();
+            return stored == null ? 0 : stored;
+        }
         if (isNegativeCustomer(customer)) {
             return NEGATIVE_COMBAT_TRIGGER_CHANCE;
         }

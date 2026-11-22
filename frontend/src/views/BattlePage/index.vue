@@ -1273,6 +1273,14 @@ function effectLabel(effectType?: string) {
     player_hp_up: '我方血值恢复',
     player_action_up: '一名玩家调用机会增加',
     player_draw: '两名玩家抽牌',
+    player_discard: '一名玩家弃牌',
+    player_shield_next: '下回合两人获得护盾',
+    dual_jujube: '好坏两面',
+    dual_phone: '好坏两面',
+    clear_boss_shield: '清掉霸凌者护盾',
+    nullify_next_card: '销售下一张牌无效',
+    zero_defense_shield: '采购防御牌没有护盾',
+    multiply_next_shield: '下一张防御牌护盾翻倍',
     player_action_hp_down: '一名玩家调用机会-1且失血3',
     bully_defense_up: '霸凌者防御提升',
     ADD_BOSS_SHIELD: '霸凌者防御提升',
@@ -1380,7 +1388,15 @@ function syncToStore(detail: any) {
     helpMax: 0,
     hinderMin: 0,
     hinderMax: 0,
-    effectType: /player_draw|draw_cards/i.test(detail.customer.effectType || '')
+    effectType: /player_discard/i.test(detail.customer.effectType || '')
+      ? 'player_discard'
+      : /player_shield_next|shield_next/i.test(detail.customer.effectType || '')
+        ? 'player_shield_next'
+        : /dual_jujube/i.test(detail.customer.effectType || '')
+          ? 'dual_jujube'
+          : /dual_phone/i.test(detail.customer.effectType || '')
+            ? 'dual_phone'
+            : /player_draw|draw_cards/i.test(detail.customer.effectType || '')
       ? 'player_draw'
       : /player_action_hp|harsh/i.test(detail.customer.effectType || '')
       ? 'player_harsh'
@@ -2308,6 +2324,12 @@ function customerFxKind(effectType: string) {
     case 'player_action_up': return 'wealthy'
     case 'player_action_hp_down': return 'harsh'
     case 'player_draw': return 'clement'
+    case 'player_discard': return 'hotpot'
+    case 'player_shield_next': return 'delayed'
+    case 'clear_boss_shield': return 'jujube'
+    case 'nullify_next_card': return 'jujube'
+    case 'multiply_next_shield': return 'phone'
+    case 'zero_defense_shield': return 'phone'
     default: return ''
   }
 }
@@ -2323,6 +2345,12 @@ function customerResultPhrase(effectType: string, value: number) {
       case 'player_action_up': return `Call +${n || 1}`
       case 'player_action_hp_down': return `Call −1, HP −${n || 3}`
       case 'player_draw': return 'Each draws 1'
+      case 'player_discard': return 'Discard 1'
+      case 'player_shield_next': return 'Next round, both +4 shield'
+      case 'clear_boss_shield': return 'Clear bully shield'
+      case 'nullify_next_card': return 'Sales next card fizzles'
+      case 'zero_defense_shield': return 'Purchase defense gives 0'
+      case 'multiply_next_shield': return 'Next defense ×2'
       default: return effectLabel(effectType)
     }
   }
@@ -2334,6 +2362,12 @@ function customerResultPhrase(effectType: string, value: number) {
     case 'player_action_up': return `调用 +${n || 1}`
     case 'player_action_hp_down': return `调用 −1，血 −${n || 3}`
     case 'player_draw': return '双方各抽 1'
+    case 'player_discard': return '弃 1 张牌'
+    case 'player_shield_next': return '下回合双方盾 +4'
+    case 'clear_boss_shield': return '清掉护盾'
+    case 'nullify_next_card': return '销售下一张无效'
+    case 'zero_defense_shield': return '采购防御为 0'
+    case 'multiply_next_shield': return '防御 ×2'
     default: return effectLabel(effectType)
   }
 }
@@ -2411,6 +2445,17 @@ async function playCustomerTriggerFx(spec: {
   spawnHeroBurst(from, tone, 0.5, 0.42)
   await waitFx(220)
   if (!heroFxAlive) return
+  if (spec.effectType === 'clear_boss_shield') {
+    const dest = bullyHudRef.value || bullyRectRef.value
+    if (!dest) return
+    spawnHeroBolt(from, dest, tone, 680, 0.3, 0.42)
+    await waitFx(680)
+    if (!heroFxAlive) return
+    spawnHeroBurst(dest, tone, 0.5, 0.55)
+    spawnHeroFloat(dest, customerResultPhrase(spec.effectType, spec.value), tone, 0.16, 58)
+    await waitFx(820)
+    return
+  }
   const magnitude = Math.abs(Math.round(Number.isFinite(spec.value) ? spec.value : 0))
   if (kind === 'kind' || kind === 'anxious' || kind === 'timid') {
     const dest = bullyHudRef.value || bullyRectRef.value
@@ -2469,6 +2514,8 @@ async function playCustomerTriggerFx(spec: {
     } else if (kind === 'harsh') {
       pulseGlow([item.seat], 'harm', 980)
       spawnHeroFloat(item.el, t('调用 −1'), tone, 0.06, 44)
+    } else if (kind === 'hotpot' || kind === 'delayed' || kind === 'jujube' || kind === 'phone') {
+      spawnHeroFloat(item.el, customerResultPhrase(spec.effectType, spec.value), tone, 0.12, 50)
     }
   }
   if (kind === 'harsh') {
@@ -5040,6 +5087,10 @@ onUnmounted(() => {
 .pos-rect-customer.is-wealthy { --customer-glow: #ffcc33; }
 .pos-rect-customer.is-harsh { --customer-glow: #ff4d4d; }
 .pos-rect-customer.is-clement { --customer-glow: #f3e2b0; }
+.pos-rect-customer.is-hotpot { --customer-glow: #e07030; }
+.pos-rect-customer.is-delayed { --customer-glow: #7ec8ff; }
+.pos-rect-customer.is-jujube { --customer-glow: #d24a3a; }
+.pos-rect-customer.is-phone { --customer-glow: #f0c36a; }
 .pos-rect-customer.is-miss { --customer-glow: #c8c2b4; }
 .pos-rect-customer.is-silenced {
   --customer-glow: #6e6a64;
@@ -5071,7 +5122,11 @@ onUnmounted(() => {
 .hero-bolt.tone-customer-window,
 .hero-bolt.tone-customer-wealthy,
 .hero-bolt.tone-customer-harsh,
-.hero-bolt.tone-customer-clement {
+.hero-bolt.tone-customer-clement,
+.hero-bolt.tone-customer-hotpot,
+.hero-bolt.tone-customer-delayed,
+.hero-bolt.tone-customer-jujube,
+.hero-bolt.tone-customer-phone {
   width: 40px;
   height: 40px;
   margin: -20px 0 0 -20px;
@@ -5112,13 +5167,33 @@ onUnmounted(() => {
   background: linear-gradient(180deg, #fff6df, #e4d2a4 42%, #c4a46a);
   box-shadow: 0 0 16px 6px rgba(230, 200, 120, 0.95);
 }
+.hero-bolt.tone-customer-hotpot {
+  background: radial-gradient(circle, #fff4e0 0%, #e07030 40%, #8a3010 76%, transparent 84%);
+  box-shadow: 0 0 18px 8px rgba(224, 96, 32, 0.95);
+}
+.hero-bolt.tone-customer-delayed {
+  background: radial-gradient(circle, #f4fbff 0%, #7ec8ff 40%, #1a6a9a 76%, transparent 84%);
+  box-shadow: 0 0 18px 8px rgba(90, 180, 255, 0.95);
+}
+.hero-bolt.tone-customer-jujube {
+  background: radial-gradient(circle, #ffe8dc 0%, #d24a3a 40%, #6a1810 76%, transparent 84%);
+  box-shadow: 0 0 18px 8px rgba(210, 70, 50, 0.95);
+}
+.hero-bolt.tone-customer-phone {
+  background: radial-gradient(circle, #fff8e0 0%, #f0c36a 40%, #8a6820 76%, transparent 84%);
+  box-shadow: 0 0 18px 8px rgba(240, 190, 80, 0.95);
+}
 .hero-burst.tone-customer-kind,
 .hero-burst.tone-customer-timid,
 .hero-burst.tone-customer-anxious,
 .hero-burst.tone-customer-window,
 .hero-burst.tone-customer-wealthy,
 .hero-burst.tone-customer-harsh,
-.hero-burst.tone-customer-clement {
+.hero-burst.tone-customer-clement,
+.hero-burst.tone-customer-hotpot,
+.hero-burst.tone-customer-delayed,
+.hero-burst.tone-customer-jujube,
+.hero-burst.tone-customer-phone {
   width: 150px;
   height: 150px;
   margin: -75px 0 0 -75px;
@@ -5145,10 +5220,18 @@ onUnmounted(() => {
   -webkit-text-stroke: 2px #0c3a18;
   text-shadow: 0 0 18px rgba(80, 255, 120, 1), 0 4px 0 #062010;
 }
-.hero-float.tone-customer-clement {
+.hero-float.tone-customer-clement,
+.hero-float.tone-customer-delayed,
+.hero-float.tone-customer-phone {
   color: #fff4d2;
   -webkit-text-stroke: 2px #4a3818;
   text-shadow: 0 0 16px rgba(255, 220, 140, 1), 0 4px 0 #241808;
+}
+.hero-float.tone-customer-hotpot,
+.hero-float.tone-customer-jujube {
+  color: #ffd0b0;
+  -webkit-text-stroke: 2px #4a1808;
+  text-shadow: 0 0 16px rgba(255, 120, 60, 1), 0 4px 0 #241008;
 }
 .hero-mark.tone-customer-miss,
 .hero-mark.tone-customer-silenced {

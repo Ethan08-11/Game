@@ -96,6 +96,14 @@ function normalizeRate(value?: number) {
 
 function normalizeEffectType(customer: CustomerApiItem): EmployerTrait['effectType'] {
   const raw = `${customer.effectType || ''}`
+  if (/player_discard/i.test(raw)) return 'player_discard'
+  if (/player_shield_next|shield_next/i.test(raw)) return 'player_shield_next'
+  if (/clear_boss_shield/i.test(raw)) return 'clear_boss_shield'
+  if (/nullify_next_card/i.test(raw)) return 'nullify_next_card'
+  if (/zero_defense_shield/i.test(raw)) return 'zero_defense_shield'
+  if (/multiply_next_shield/i.test(raw)) return 'multiply_next_shield'
+  if (/dual_jujube/i.test(raw)) return 'dual_jujube'
+  if (/dual_phone/i.test(raw)) return 'dual_phone'
   if (/player_draw|draw_cards/i.test(raw)) return 'player_draw'
   if (/player_action_hp|harsh/i.test(raw)) return 'player_harsh'
   if (/player_action|action_points|调用机会/i.test(raw)) return 'player_action'

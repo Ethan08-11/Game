@@ -1,4 +1,8 @@
 export const announcementEn: Record<string, { title: string; content: string }> = {
+  'topic-four-customers': {
+    title: 'Customers: four new guests',
+    content: 'Four customers join the gallery. A normal match draws evenly from all eleven. Empty Asker makes one living guard discard 1 card. Late Payer gives each living guard 4 shield at the next round start. Jujube Two-Face and Smile Then Sharp flip good or bad every round: the good face clears the Bully shield or doubles the next defense card; the bad face nullifies Sales’ next card or makes Purchase defense cards give 0 shield. A bad face does nothing if that role is absent. Pressure matches draw from six harsh customers, and the two-face guests keep only the bad face.',
+  },
   'topic-leaked-makeup-rank': {
     title: 'Difficulty: missed matches count in the projected rank',
     content: 'Full-win days in the forecast stay at 150 each. Matches left today, and matches missed on a work day you already started, are added at that slot’s win gold and do not take another work day. Making up a day you did not play replaces one later day, so the daily total stays on the quota and adds no extra gold.',
