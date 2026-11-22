@@ -43,6 +43,10 @@ import customer3 from '@/assets/avatars/customer-3.webp'
 import customer5 from '@/assets/avatars/customer-5.webp'
 import customer6 from '@/assets/avatars/customer-6.webp'
 import customer7 from '@/assets/avatars/customer-7.webp'
+import customer8 from '@/assets/avatars/customer-8.webp'
+import customer9 from '@/assets/avatars/customer-9.webp'
+import customer10 from '@/assets/avatars/customer-10.webp'
+import customer11 from '@/assets/avatars/customer-11.webp'
 
 export interface AvatarPreset {
   id: string
@@ -98,6 +102,10 @@ export const PRESET_AVATAR_SRC: Record<string, string> = {
   '/images/customer/p5.webp': customer5,
   '/images/customer/p6.webp': customer6,
   '/images/customer/p7.webp': customer7,
+  '/images/customer/p8.webp': customer8,
+  '/images/customer/p9.webp': customer9,
+  '/images/customer/p10.webp': customer10,
+  '/images/customer/p11.webp': customer11,
 }
 
 export const PRESET_AVATARS: AvatarPreset[] = [
@@ -146,4 +154,8 @@ export const PRESET_AVATARS: AvatarPreset[] = [
   { id: 'customer-5', name: '阔绰金客', url: '/images/customer/p5.webp' },
   { id: 'customer-6', name: '刻薄尖客', url: '/images/customer/p6.webp' },
   { id: 'customer-7', name: '爽快应客', url: '/images/customer/p7.webp' },
+  { id: 'customer-8', name: '白问刺客', url: '/images/customer/p8.webp' },
+  { id: 'customer-9', name: '迟来金客', url: '/images/customer/p9.webp' },
+  { id: 'customer-10', name: '红枣双客', url: '/images/customer/p10.webp' },
+  { id: 'customer-11', name: '笑后苛客', url: '/images/customer/p11.webp' },
 ]

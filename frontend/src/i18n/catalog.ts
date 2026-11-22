@@ -31,6 +31,22 @@ const CUSTOMERS: Record<string, { name: string; description: string }> = {
     name: 'Ready Guest',
     description: 'Says OK with a smile. On trigger, each living guard draws 1.',
   },
+  CUSTOMER_HOTPOT: {
+    name: 'Empty Asker',
+    description: 'Asks for a quote and buys elsewhere. On trigger, one living guard discards 1 card.',
+  },
+  CUSTOMER_DELAYED: {
+    name: 'Late Payer',
+    description: 'Pays after a wait. On trigger, each living guard gains 4 shield at the next round start.',
+  },
+  CUSTOMER_JUJUBE: {
+    name: 'Jujube Two-Face',
+    description: 'Normal matches flip good or bad each round. Good clears the Bully shield. Bad makes Sales’ next card do nothing. Pressure matches keep only the bad face.',
+  },
+  CUSTOMER_PHONE: {
+    name: 'Smile Then Sharp',
+    description: 'Normal matches flip good or bad each round. Good doubles the next defense card. Bad makes Purchase defense cards give 0 shield. Pressure matches keep only the bad face.',
+  },
 }
 
 const TASKS: Record<string, { name: string; description: string }> = {

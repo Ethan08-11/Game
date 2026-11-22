@@ -8,6 +8,8 @@ export interface EmployerTrait {
   hinderMin: number
   hinderMax: number
   effectType?: 'attack' | 'hp' | 'player_hp' | 'player_action' | 'player_harsh' | 'player_draw'
+    | 'player_discard' | 'player_shield_next' | 'clear_boss_shield' | 'nullify_next_card'
+    | 'zero_defense_shield' | 'multiply_next_shield' | 'dual_jujube' | 'dual_phone'
   effectValue?: number
   typeTriggerRate?: number
   effectTriggerRate?: number

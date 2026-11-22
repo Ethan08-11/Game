@@ -45,6 +45,7 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         runScript("db/045_customer_trigger_50.sql");
         runScript("db/046_timid_anxious_range.sql");
         runScript("db/047_clement_customer.sql");
+        runScript("db/048_four_customers.sql");
         runScript("db/019_customer_bound_bullies.sql");
         runScript("db/023_bully_focus_no_pierce.sql");
         runScript("db/024_all_customers_hard_shield.sql");
@@ -75,6 +76,10 @@ public class CustomerCatalogBootstrap implements ApplicationRunner {
         update("CUSTOMER_WEALTHY", 1, 50, 10);
         update("CUSTOMER_HARSH", 3, 50, 10);
         update("CUSTOMER_CLEMENT", 1, 50, 10);
+        update("CUSTOMER_HOTPOT", 1, 50, 10);
+        update("CUSTOMER_DELAYED", 4, 50, 10);
+        update("CUSTOMER_JUJUBE", 0, 50, 10);
+        update("CUSTOMER_PHONE", 0, 50, 10);
         log.info("Customer catalog difficulty tuned.");
     }
 

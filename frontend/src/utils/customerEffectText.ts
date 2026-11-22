@@ -15,5 +15,9 @@ export function customerEffectSummary(input: {
   const ranged = rangedCustomerEffectText(input)
   if (ranged) return ranged
   if (input.effectType === 'player_draw') return '两名存活护卫各抽 1 张牌'
+  if (input.effectType === 'player_discard') return '随机一名存活护卫弃掉 1 张牌'
+  if (input.effectType === 'player_shield_next') return '下回合两名存活护卫各得 4 点护盾'
+  if (input.effectType === 'dual_jujube') return '好面清盾；坏面让销售的下一张牌无效'
+  if (input.effectType === 'dual_phone') return '好面防御翻倍；坏面采购的防御牌没有护盾'
   return null
 }

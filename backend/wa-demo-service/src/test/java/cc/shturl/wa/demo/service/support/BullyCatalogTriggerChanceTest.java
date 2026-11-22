@@ -17,6 +17,8 @@ class BullyCatalogTriggerChanceTest {
                 .isEqualTo(60);
         assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_HARSH", "player_action_hp_down", 50)))
                 .isEqualTo(60);
+        assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_HOTPOT", "player_discard", 50)))
+                .isEqualTo(60);
     }
 
     @Test
@@ -29,6 +31,12 @@ class BullyCatalogTriggerChanceTest {
         assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_WEALTHY", "player_action_up", 50)))
                 .isEqualTo(50);
         assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_CLEMENT", "player_draw", 50)))
+                .isEqualTo(50);
+        assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_DELAYED", "player_shield_next", 50)))
+                .isEqualTo(50);
+        assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_JUJUBE", "dual_jujube", 50)))
+                .isEqualTo(50);
+        assertThat(BullyCatalog.combatTriggerChance(customer("CUSTOMER_PHONE", "dual_phone", 50)))
                 .isEqualTo(50);
     }
 
