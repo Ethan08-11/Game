@@ -19,4 +19,12 @@ class MakeupServiceDayTest {
         assertThat(MakeupService.shanghaiDay("2026-11-18 13:51:00"))
                 .isEqualTo(LocalDate.of(2026, 11, 18));
     }
+
+    @Test
+    @DisplayName("任务已领但正常局不够时，这一档补打仍可领")
+    void claimedTaskWithoutEnoughMatchesStaysPayable() {
+        assertThat(MakeupService.slotCoveredByNormalMatches(2, 3, 3)).isFalse();
+        assertThat(MakeupService.slotCoveredByNormalMatches(3, 2, 3)).isTrue();
+        assertThat(MakeupService.slotCoveredByNormalMatches(3, 2, 0)).isFalse();
+    }
 }
