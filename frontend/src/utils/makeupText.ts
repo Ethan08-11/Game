@@ -41,9 +41,10 @@ export function makeupLine(offer: MakeupOffer | null | undefined, english: boole
       : ''
   }
   if (offer.usedToday) {
+    const played = playedSentence(offer, english)
     return english
-      ? `Today's makeup is used. ${owed} Next is ${when}, match ${slot}: claim ${finish}, plus ${win} for a win.`
-      : `今天的补打已经用过。${owed}下一局是${when}第 ${slot} 局，打完领 ${finish}，赢了再领 ${win}。`
+      ? `${played}Today's makeup is used. ${owed} Next is ${when}, match ${slot}: claim ${finish}, plus ${win} for a win.`
+      : `${played}今天的补打已经用过。${owed}下一局是${when}第 ${slot} 局，打完领 ${finish}，赢了再领 ${win}。`
   }
   if (offer.paysGold === false) {
     return english
@@ -68,11 +69,30 @@ function optionalRecentDay(offer: MakeupOffer, when: string, finish: number, win
       : `本月正常打，不欠。可补最近的一天${when}。本月工作日已满，这局补打不发金币。`
   }
   if (offer.usedToday) {
-    return english ? `Today's makeup is used. ${choice}` : `今天的补打已经用过。${choice}`
+    const played = playedSentence(offer, english)
+    return english ? `${played}Today's makeup is used. ${choice}` : `${played}今天的补打已经用过。${choice}`
   }
   return english
     ? `${choice} Today's 3 matches are done. Check “makeup” before the match.`
     : `${choice}今天 3 局已满，开局前勾选。`
+}
+
+function playedSentence(offer: MakeupOffer, english: boolean): string {
+  if (offer.questClaimed !== true || !offer.questSlot) return ''
+  const day = formatOwedDay(offer.questDay, english)
+  const slot = offer.questSlot
+  const finish = offer.questFinishGold ?? 0
+  const win = offer.questWinGold ?? 0
+  if (english) {
+    if (win > 0) {
+      return `Today's makeup, ${day} match ${slot}, is claimed: ${finish} for finishing and ${win} for the win. `
+    }
+    return `Today's makeup, ${day} match ${slot}, is claimed: ${finish} for finishing. That match was not a win, so there is no extra 10. `
+  }
+  if (win > 0) {
+    return `今天补的${day}第 ${slot} 局已领取：打完 ${finish}，胜利 ${win}。`
+  }
+  return `今天补的${day}第 ${slot} 局已领取完成金币 ${finish}。这局没赢，没有额外的 10。`
 }
 
 function owedSentence(offer: MakeupOffer, when: string, left: number, english: boolean): string {
