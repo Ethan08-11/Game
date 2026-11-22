@@ -462,27 +462,12 @@ public class MakeupService {
                 LIMIT 1
                 """, (rs, row) -> rs.getInt("status"), userId, day.toString(), "T-DAILY-MATCH-" + slot);
         int taskStatus = status.isEmpty() || status.get(0) == null ? 0 : status.get(0);
-        return slotCoveredByNormalMatches(normalMatchesOn(userId, day), slot, taskStatus);
+        return dailySlotAlreadyClaimed(taskStatus);
     }
 
-    /** 当天这一档既已领取，又确实有对应的正常局，补打才不再发。任务被标成已领、但正常局不够时，仍可领。 */
-    static boolean slotCoveredByNormalMatches(int normalMatches, int slot, int taskStatus) {
-        return taskStatus >= 3 && normalMatches >= slot;
-    }
-
-    private int normalMatchesOn(Long userId, LocalDate day) {
-        Integer count = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                FROM matches m
-                INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
-                WHERE m.status = 2
-                  AND IFNULL(m.winner_type, 0) IN (1, 2)
-                  AND me.makeup_slot IS NULL
-                  AND (SELECT COUNT(*) FROM match_players mp WHERE mp.match_id = m.id) >= 2
-                  AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
-                  AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
-                """, Integer.class, userId, utcWall(day), utcWall(day.plusDays(1)));
-        return count == null ? 0 : count;
+    /** 每日完成金币已经领取时，这一档补打不再发金币。 */
+    static boolean dailySlotAlreadyClaimed(int taskStatus) {
+        return taskStatus >= 3;
     }
 
     /**

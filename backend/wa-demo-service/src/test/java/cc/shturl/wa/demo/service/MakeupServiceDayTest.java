@@ -21,10 +21,10 @@ class MakeupServiceDayTest {
     }
 
     @Test
-    @DisplayName("任务已领但正常局不够时，这一档补打仍可领")
-    void claimedTaskWithoutEnoughMatchesStaysPayable() {
-        assertThat(MakeupService.slotCoveredByNormalMatches(2, 3, 3)).isFalse();
-        assertThat(MakeupService.slotCoveredByNormalMatches(3, 2, 3)).isTrue();
-        assertThat(MakeupService.slotCoveredByNormalMatches(3, 2, 0)).isFalse();
+    @DisplayName("每日完成金币已领取后，这一档补打不再发")
+    void claimedDailySlotIsNotPaidAgain() {
+        assertThat(MakeupService.dailySlotAlreadyClaimed(3)).isTrue();
+        assertThat(MakeupService.dailySlotAlreadyClaimed(2)).isFalse();
+        assertThat(MakeupService.dailySlotAlreadyClaimed(0)).isFalse();
     }
 }
