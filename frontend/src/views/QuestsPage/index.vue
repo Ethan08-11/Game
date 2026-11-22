@@ -200,7 +200,9 @@ function makeupQuestCards(): UserTask[] {
       taskCode: 'T-MAKEUP-FINISH',
       taskName: `补打第 ${offer.questSlot} 局`,
       taskType: 'daily',
-      description: `补${day}第 ${offer.questSlot} 局。今天打满 3 局后勾选补打，打完在这里领取。`,
+      description: claimed
+        ? `补${day}第 ${offer.questSlot} 局，完成金币已领取。`
+        : `补${day}第 ${offer.questSlot} 局。今天打满 3 局后勾选补打，打完在这里领取。`,
       rewardType: 'money',
       rewardValue: JSON.stringify({ amount: finishGold }),
       targetCount: 1,

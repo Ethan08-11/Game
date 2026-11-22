@@ -317,8 +317,9 @@ public class MakeupService {
                   AND c.finish_claimed = 1
                   AND c.win_claimed = 1
                   AND c.finish_gold > 0
+                  AND m.id = c.match_id
                   AND m.status = 2
-                  AND IFNULL(m.winner_type, 0) = 1
+                  AND IFNULL(m.winner_type, 0) IN (1, 2)
                   AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
                   AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
                 ORDER BY COALESCE(m.ended_at, m.started_at, m.created_at) DESC
