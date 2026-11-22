@@ -148,7 +148,9 @@ public class MakeupService {
         int winGold = 0;
         int finishClaimed = 1;
         int winClaimed = 1;
-        if (!forfeit && workDayService.couldPayGold(userId, owedDay)) {
+        // 这一档的每日完成金币已经领过时，补打只占名额，不再发一次。
+        if (!forfeit && workDayService.couldPayGold(userId, owedDay)
+                && !dailyMatchAlreadyClaimed(userId, owedDay, slot)) {
             finishGold = MakeupQueue.finishGold(slot);
             winGold = won ? MakeupQueue.WIN_GOLD : 0;
             finishClaimed = 0;
@@ -212,6 +214,18 @@ public class MakeupService {
         if (claimed != 0 || gold <= 0) {
             throw new BusinessException("补打奖励已领取");
         }
+        if (dailyMatchAlreadyClaimed(userId, pending.day(), pending.slot())) {
+            int closed = jdbcTemplate.update("""
+                    UPDATE user_makeup_claims
+                    SET finish_claimed = 1, win_claimed = 1
+                    WHERE id = ? AND user_id = ? AND (finish_claimed = 0 OR win_claimed = 0)
+                    """, pending.id(), userId);
+            if (closed != 1) {
+                throw new BusinessException("补打奖励已领取");
+            }
+            return new TaskClaimResp(pending.id(), pending.id(), 1, 1, 3,
+                    "这一档当天已经领过，补打不再发金币", 0L, 0);
+        }
         if (!workDayService.allowGold(userId, pending.day())) {
             gold = 0;
         }
@@ -269,7 +283,7 @@ public class MakeupService {
     private Map<LocalDate, Integer> usedSlots(Long userId, LocalDate start, LocalDate today) {
         Map<LocalDate, Integer> counts = new HashMap<>();
         jdbcTemplate.query("""
-                SELECT COALESCE(m.ended_at, m.started_at, m.created_at) AS ended_at
+                SELECT DATE_FORMAT(COALESCE(m.ended_at, m.started_at, m.created_at), '%Y-%m-%d %H:%i:%s') AS ended_at
                 FROM matches m
                 INNER JOIN match_players me ON me.match_id = m.id AND me.user_id = ?
                 WHERE m.status = 2
@@ -279,11 +293,10 @@ public class MakeupService {
                   AND COALESCE(m.ended_at, m.started_at, m.created_at) >= ?
                   AND COALESCE(m.ended_at, m.started_at, m.created_at) < ?
                 """, rs -> {
-            Timestamp ended = rs.getTimestamp("ended_at");
-            if (ended == null) {
+            LocalDate day = shanghaiDay(rs.getString("ended_at"));
+            if (day == null) {
                 return;
             }
-            LocalDate day = shanghaiDay(ended.toLocalDateTime());
             counts.merge(day, 1, Integer::sum);
         }, userId, utcWall(start), utcWall(today));
         return counts;
@@ -431,7 +444,41 @@ public class MakeupService {
                 .format(SQL_TIME);
     }
 
-    private LocalDate shanghaiDay(LocalDateTime utcWall) {
+    /**
+     * 当天这一档的完成金币已经领过。补打不能再发同一档。
+     */
+    private boolean dailyMatchAlreadyClaimed(Long userId, LocalDate day, int slot) {
+        if (userId == null || day == null || slot < 1 || slot > 3
+                || !tableExists("user_tasks") || !tableExists("tasks")) {
+            return false;
+        }
+        List<Integer> status = jdbcTemplate.query("""
+                SELECT ut.status
+                FROM user_tasks ut
+                INNER JOIN tasks t ON t.id = ut.task_id
+                WHERE ut.user_id = ?
+                  AND ut.period_key = ?
+                  AND t.task_code = ?
+                LIMIT 1
+                """, (rs, row) -> rs.getInt("status"), userId, day.toString(), "T-DAILY-MATCH-" + slot);
+        return !status.isEmpty() && status.get(0) != null && status.get(0) >= 3;
+    }
+
+    /**
+     * ended_at 存的是 UTC 墙钟。按字符串读取，避免 JDBC 按会话时区把凌晨的局算到前一天。
+     */
+    static LocalDate shanghaiDay(String storedUtcWall) {
+        if (storedUtcWall == null || storedUtcWall.isBlank()) {
+            return null;
+        }
+        String text = storedUtcWall.trim();
+        if (text.length() >= 19) {
+            text = text.substring(0, 19);
+        }
+        return shanghaiDay(LocalDateTime.parse(text, SQL_TIME));
+    }
+
+    private static LocalDate shanghaiDay(LocalDateTime utcWall) {
         return utcWall.atZone(ZoneOffset.UTC).withZoneSameInstant(WorkDayQuota.ZONE).toLocalDate();
     }
 }
