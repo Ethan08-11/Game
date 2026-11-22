@@ -200,9 +200,11 @@ function makeupQuestCards(): UserTask[] {
       taskCode: 'T-MAKEUP-FINISH',
       taskName: `补打第 ${offer.questSlot} 局`,
       taskType: 'daily',
-      description: claimed
-        ? `补${day}第 ${offer.questSlot} 局，完成金币已领取。`
-        : `补${day}第 ${offer.questSlot} 局。今天打满 3 局后勾选补打，打完在这里领取。`,
+      description: offer.finishReady
+        ? `补${day}第 ${offer.questSlot} 局已打完，完成金币可领取。`
+        : claimed
+          ? `补${day}第 ${offer.questSlot} 局，完成金币已领取。`
+          : `补${day}第 ${offer.questSlot} 局。今天打满 3 局后勾选补打，打完在这里领取。`,
       rewardType: 'money',
       rewardValue: JSON.stringify({ amount: finishGold }),
       targetCount: 1,
@@ -218,7 +220,9 @@ function makeupQuestCards(): UserTask[] {
       taskCode: 'T-MAKEUP-WIN',
       taskName: '补打获胜',
       taskType: 'daily',
-      description: `这局补打赢了，再领 ${winGold} 金币。`,
+      description: offer.winReady
+        ? `这局补打赢了，胜利金币可领取。`
+        : `这局补打赢了，再领 ${winGold} 金币。`,
       rewardType: 'money',
       rewardValue: JSON.stringify({ amount: winGold }),
       targetCount: 1,
@@ -423,13 +427,17 @@ function shownTask(task: UserTask) {
     const when = formatOwedDay(makeup.value?.questDay, true)
     return {
       name: `Makeup match ${slot}`,
-      description: `Make up ${when}, match ${slot}. Finish today's 3 matches, check makeup, then claim this.`,
+      description: makeup.value?.finishReady
+        ? `Make up ${when}, match ${slot}. The finish gold can be claimed.`
+        : `Make up ${when}, match ${slot}. Finish today's 3 matches, check makeup, then claim this.`,
     }
   }
   if (lang.value === 'en' && task.taskCode === 'T-MAKEUP-WIN') {
     return {
       name: 'Makeup win',
-      description: 'Win that makeup match to claim the extra gold.',
+      description: makeup.value?.winReady
+        ? 'The makeup win gold can be claimed.'
+        : 'Win that makeup match to claim the extra gold.',
     }
   }
   return localizeTask(task.taskCode, task.taskName, task.description)

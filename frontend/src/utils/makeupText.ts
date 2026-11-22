@@ -21,6 +21,8 @@ export interface MakeupOffer {
 
 export function makeupLine(offer: MakeupOffer | null | undefined, english: boolean): string {
   if (!offer) return ''
+  const ready = readySentence(offer, english)
+  if (ready) return ready
   const when = formatOwedDay(offer.owedDay, english)
   const slot = offer.slot || 0
   const left = offer.owedCount || 0
@@ -75,6 +77,35 @@ function optionalRecentDay(offer: MakeupOffer, when: string, finish: number, win
   return english
     ? `${choice} Today's 3 matches are done. Check “makeup” before the match.`
     : `${choice}今天 3 局已满，开局前勾选。`
+}
+
+function readySentence(offer: MakeupOffer, english: boolean): string {
+  if (!offer.finishReady && !offer.winReady) return ''
+  const day = formatOwedDay(offer.questDay, english)
+  const slot = offer.questSlot || offer.slot || 0
+  if (!slot) return ''
+  const finish = offer.questFinishGold ?? 0
+  const win = offer.questWinGold ?? 0
+  if (english) {
+    if (offer.finishReady && offer.winReady) {
+      return `Today's makeup, ${day} match ${slot}, can be claimed: ${finish} for finishing and ${win} for the win.`
+    }
+    if (offer.finishReady) {
+      return win > 0
+        ? `Today's makeup, ${day} match ${slot}, can be claimed: ${finish} for finishing.`
+        : `Today's makeup, ${day} match ${slot}, can be claimed: ${finish} for finishing. That match was not a win, so there is no extra 10.`
+    }
+    return `Today's makeup, ${day} match ${slot}, can be claimed: ${win} for the win.`
+  }
+  if (offer.finishReady && offer.winReady) {
+    return `今天补的${day}第 ${slot} 局可领取：打完 ${finish}，胜利 ${win}。`
+  }
+  if (offer.finishReady) {
+    return win > 0
+      ? `今天补的${day}第 ${slot} 局可领取完成金币 ${finish}。`
+      : `今天补的${day}第 ${slot} 局可领取完成金币 ${finish}。这局没赢，没有额外的 10。`
+  }
+  return `今天补的${day}第 ${slot} 局可领取胜利金币 ${win}。`
 }
 
 function playedSentence(offer: MakeupOffer, english: boolean): string {
