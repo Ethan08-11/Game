@@ -3089,6 +3089,7 @@ public class MatchServiceImpl implements MatchService {
         pending.setMatchId(match.getId());
         pending.setMatchPlayerId(player.getId());
         pending.setSourceUserId(player.getUserId());
+        pending.setSourceCardInstanceId(0L);
         pending.setEffectType(effectType);
         pending.setTargetType("PLAYER");
         pending.setTargetUserId(player.getUserId());
