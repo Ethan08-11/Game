@@ -6,7 +6,7 @@ INSERT INTO `customer_types` (
 ) SELECT
   'CUSTOMER_HOTPOT',
   '白问刺客',
-  '开火锅店，问得很细却不下单，还拿报价去别处成交。效果触发时，随机一名存活护卫弃掉手里 1 张牌。',
+  '开火锅店，问得很细却不下单。效果触发时，随机一名存活护卫弃掉手里 1 张牌。',
   '/images/customer/p8.webp',
   'player_discard',
   1, 50, 10, 1, 8
@@ -15,7 +15,7 @@ WHERE NOT EXISTS (SELECT 1 FROM `customer_types` WHERE `customer_code` = 'CUSTOM
 UPDATE `customer_types`
 SET
   `customer_name` = '白问刺客',
-  `description` = '开火锅店，问得很细却不下单，还拿报价去别处成交。效果触发时，随机一名存活护卫弃掉手里 1 张牌。',
+  `description` = '开火锅店，问得很细却不下单。效果触发时，随机一名存活护卫弃掉手里 1 张牌。',
   `image_url` = '/images/customer/p8.webp',
   `effect_type` = 'player_discard',
   `effect_value` = 1,
