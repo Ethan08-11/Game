@@ -58,7 +58,7 @@ INSERT INTO `customer_types` (
 ) SELECT
   'CUSTOMER_JUJUBE',
   '红枣双客',
-  '新加坡红枣业大亨。正常局每回合一半走好面、一半走坏面。好面清掉霸凌者当前护盾。坏面让销售本回合的下一张牌没有效果；场上没有销售时落空。针对局只有坏面。',
+  '红枣业大亨，打钱爽快。好坏各半：好面清盾，坏面销售下一张无效。针对局只留坏面。',
   '/images/customer/p10.webp',
   'dual_jujube',
   0, 50, 10, 1, 10
@@ -67,7 +67,7 @@ WHERE NOT EXISTS (SELECT 1 FROM `customer_types` WHERE `customer_code` = 'CUSTOM
 UPDATE `customer_types`
 SET
   `customer_name` = '红枣双客',
-  `description` = '新加坡红枣业大亨。正常局每回合一半走好面、一半走坏面。好面清掉霸凌者当前护盾。坏面让销售本回合的下一张牌没有效果；场上没有销售时落空。针对局只有坏面。',
+  `description` = '红枣业大亨，打钱爽快。好坏各半：好面清盾，坏面销售下一张无效。针对局只留坏面。',
   `image_url` = '/images/customer/p10.webp',
   `effect_type` = 'dual_jujube',
   `effect_value` = 0,
@@ -84,7 +84,7 @@ INSERT INTO `customer_types` (
 ) SELECT
   'CUSTOMER_PHONE',
   '笑后苛客',
-  '电话里笑嘻嘻，产品出问题后变刻薄。正常局每回合一半走好面、一半走坏面。好面让每名存活护卫的下一张防御牌护盾 ×2。坏面让采购本回合打出的防御牌护盾为 0；场上没有采购时落空。针对局只有坏面。',
+  '电话里笑嘻嘻。好坏各半：好面防御翻倍，坏面采购防御为 0。针对局只留坏面。',
   '/images/customer/p11.webp',
   'dual_phone',
   0, 50, 10, 1, 11
@@ -93,7 +93,7 @@ WHERE NOT EXISTS (SELECT 1 FROM `customer_types` WHERE `customer_code` = 'CUSTOM
 UPDATE `customer_types`
 SET
   `customer_name` = '笑后苛客',
-  `description` = '电话里笑嘻嘻，产品出问题后变刻薄。正常局每回合一半走好面、一半走坏面。好面让每名存活护卫的下一张防御牌护盾 ×2。坏面让采购本回合打出的防御牌护盾为 0；场上没有采购时落空。针对局只有坏面。',
+  `description` = '电话里笑嘻嘻。好坏各半：好面防御翻倍，坏面采购防御为 0。针对局只留坏面。',
   `image_url` = '/images/customer/p11.webp',
   `effect_type` = 'dual_phone',
   `effect_value` = 0,

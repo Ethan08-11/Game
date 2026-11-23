@@ -41,11 +41,11 @@ const CUSTOMERS: Record<string, { name: string; description: string }> = {
   },
   CUSTOMER_JUJUBE: {
     name: 'Jujube Two-Face',
-    description: 'Normal matches flip good or bad each round. Good clears the Bully shield. Bad makes Sales’ next card do nothing. Pressure matches keep only the bad face.',
+    description: 'Pays fast. Faces flip each round: good clears shield, bad nullifies Sales’ next card. Pressure stays bad.',
   },
   CUSTOMER_PHONE: {
     name: 'Smile Then Sharp',
-    description: 'Normal matches flip good or bad each round. Good doubles the next defense card. Bad makes Purchase defense cards give 0 shield. Pressure matches keep only the bad face.',
+    description: 'Smiles on the phone. Faces flip each round: good doubles defense, bad zeroes Purchase defense. Pressure stays bad.',
   },
 }
 
