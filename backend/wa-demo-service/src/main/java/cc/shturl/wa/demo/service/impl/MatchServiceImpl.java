@@ -104,8 +104,8 @@ public class MatchServiceImpl implements MatchService {
     private static final int SHARED_COLLECTIBLE_SLOTS = 6;
     private static final int SHARED_STARTER_SLOTS = 6;
     private static final int INITIAL_HAND_SIZE = 5;
-    /** 开局抽顾客时，双方各自回看这么多把，尽量避开刚见过的顾客。 */
-    private static final int CUSTOMER_LOOKBACK = 16;
+    /** 双方各自只看上一把。连续两把顾客不同，隔一把可以再遇到同一位。 */
+    private static final int CUSTOMER_LOOKBACK = 1;
     private static final String SALES = "sales";
     private static final String PURCHASE = "purchase";
     private static final String PLAYER_ACTION = "PLAYER_ACTION";

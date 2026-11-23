@@ -26,7 +26,14 @@ class CustomerDrawTest {
     }
 
     @Test
-    @DisplayName("近期盖满整池时留下最久没出现的一位")
+    @DisplayName("只排除上一把，更早见过的顾客可以再出现")
+    void olderCustomersCanReturn() {
+        List<CustomerTypes> fresh = CustomerDraw.preferFresh(pool(1L, 2L, 3L, 6L), List.of(6L, 3L));
+        assertThat(fresh).extracting(CustomerTypes::getId).containsExactly(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("上一把盖满整池时仍留下一位")
     void fullCoverageLeavesOldest() {
         List<CustomerTypes> fresh = CustomerDraw.preferFresh(pool(1L, 2L, 3L), List.of(3L, 2L, 1L));
         assertThat(fresh).extracting(CustomerTypes::getId).containsExactly(1L);
