@@ -1279,7 +1279,7 @@ function effectLabel(effectType?: string) {
     dual_phone: '好坏两面',
     clear_boss_shield: '清掉霸凌者护盾',
     nullify_next_card: '销售下一张牌无效',
-    zero_defense_shield: '采购防御牌没有护盾',
+    zero_defense_shield: '采购下一张防御为 0',
     multiply_next_shield: '下一张防御牌护盾翻倍',
     player_action_hp_down: '一名玩家调用机会-1且失血3',
     bully_defense_up: '霸凌者防御提升',
@@ -2349,7 +2349,7 @@ function customerResultPhrase(effectType: string, value: number) {
       case 'player_shield_next': return 'Next round, both +4 shield'
       case 'clear_boss_shield': return 'Clear bully shield'
       case 'nullify_next_card': return 'Sales next card fizzles'
-      case 'zero_defense_shield': return 'Purchase defense gives 0'
+      case 'zero_defense_shield': return 'Next defense gives 0'
       case 'multiply_next_shield': return 'Next defense ×2'
       default: return effectLabel(effectType)
     }
@@ -2366,7 +2366,7 @@ function customerResultPhrase(effectType: string, value: number) {
     case 'player_shield_next': return '下回合双方盾 +4'
     case 'clear_boss_shield': return '清掉护盾'
     case 'nullify_next_card': return '销售下一张无效'
-    case 'zero_defense_shield': return '采购防御为 0'
+    case 'zero_defense_shield': return '下一张防御为 0'
     case 'multiply_next_shield': return '防御 ×2'
     default: return effectLabel(effectType)
   }

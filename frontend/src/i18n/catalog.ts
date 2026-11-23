@@ -45,7 +45,7 @@ const CUSTOMERS: Record<string, { name: string; description: string }> = {
   },
   CUSTOMER_PHONE: {
     name: 'Smile Then Sharp',
-    description: 'Smiles on the phone. Faces flip each round: good doubles defense, bad zeroes Purchase defense. Pressure stays bad.',
+    description: 'Smiles on the phone. Faces flip each round: good doubles defense, bad zeroes Purchase’s next defense. Pressure stays bad.',
   },
 }
 
