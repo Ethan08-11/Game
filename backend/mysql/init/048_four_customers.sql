@@ -84,7 +84,7 @@ INSERT INTO `customer_types` (
 ) SELECT
   'CUSTOMER_PHONE',
   '笑后苛客',
-  '电话里笑嘻嘻。好坏各半：好面防御翻倍，坏面采购防御为 0。针对局只留坏面。',
+  '电话里笑嘻嘻。好坏各半：好面防御翻倍，坏面采购下一张防御为 0。针对局只留坏面。',
   '/images/customer/p11.webp',
   'dual_phone',
   0, 50, 10, 1, 11
@@ -93,7 +93,7 @@ WHERE NOT EXISTS (SELECT 1 FROM `customer_types` WHERE `customer_code` = 'CUSTOM
 UPDATE `customer_types`
 SET
   `customer_name` = '笑后苛客',
-  `description` = '电话里笑嘻嘻。好坏各半：好面防御翻倍，坏面采购防御为 0。针对局只留坏面。',
+  `description` = '电话里笑嘻嘻。好坏各半：好面防御翻倍，坏面采购下一张防御为 0。针对局只留坏面。',
   `image_url` = '/images/customer/p11.webp',
   `effect_type` = 'dual_phone',
   `effect_value` = 0,

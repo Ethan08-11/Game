@@ -788,6 +788,14 @@ public class MatchServiceImpl implements MatchService {
                 multiplierEffect.setStatus("RESOLVED");
                 matchPendingEffectsMapper.updateById(multiplierEffect);
             }
+            if (configuredEffects.stream().anyMatch(effect -> "ADD_SHIELD".equals(effect.getEffectType()))) {
+                MatchPendingEffects zeroShield = findHookPending(matchId, currentUserId, "ZERO_DEFENSE_SHIELD");
+                if (zeroShield != null) {
+                    zeroShield.setRemainingTriggers(0);
+                    zeroShield.setStatus("RESOLVED");
+                    matchPendingEffectsMapper.updateById(zeroShield);
+                }
+            }
         }
         matchPlayersMapper.updateById(actor);
         int damageDealt = 0;
