@@ -33,7 +33,7 @@ const CUSTOMERS: Record<string, { name: string; description: string }> = {
   },
   CUSTOMER_HOTPOT: {
     name: 'Empty Asker',
-    description: 'Asks for a quote and buys elsewhere. On trigger, one living guard discards 1 card.',
+    description: 'Asks a lot and never orders. On trigger, one living guard discards 1 card.',
   },
   CUSTOMER_DELAYED: {
     name: 'Late Payer',
