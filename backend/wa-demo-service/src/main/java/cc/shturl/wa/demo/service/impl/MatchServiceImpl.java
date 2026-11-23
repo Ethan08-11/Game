@@ -59,6 +59,7 @@ import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import cc.shturl.wa.demo.service.support.BullyCatalog;
+import cc.shturl.wa.demo.service.support.CustomerDraw;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -103,6 +104,8 @@ public class MatchServiceImpl implements MatchService {
     private static final int SHARED_COLLECTIBLE_SLOTS = 6;
     private static final int SHARED_STARTER_SLOTS = 6;
     private static final int INITIAL_HAND_SIZE = 5;
+    /** 开局抽顾客时，双方各自回看这么多把，尽量避开刚见过的顾客。 */
+    private static final int CUSTOMER_LOOKBACK = 16;
     private static final String SALES = "sales";
     private static final String PURCHASE = "purchase";
     private static final String PLAYER_ACTION = "PLAYER_ACTION";
@@ -1257,6 +1260,7 @@ public class MatchServiceImpl implements MatchService {
             }
             pool = customers;
         }
+        pool = CustomerDraw.preferFresh(pool, recentCustomerIds(members));
         int totalWeight = pool.stream()
                 .mapToInt(customer -> customerWeight(customer, highPressure))
                 .sum();
@@ -1276,6 +1280,36 @@ public class MatchServiceImpl implements MatchService {
             }
         }
         return pool.get(0);
+    }
+
+    private List<Long> recentCustomerIds(List<RoomMembers> members) {
+        try {
+            Map<Long, Long> customerByMatch = new HashMap<>();
+            for (RoomMembers member : members) {
+                Long userId = member.getUserId();
+                if (userId == null) {
+                    continue;
+                }
+                List<Matches> rows = matchesMapper.selectList(Wrappers.<Matches>lambdaQuery()
+                        .select(Matches::getId, Matches::getCustomerTypeId)
+                        .inSql(Matches::getId, "SELECT match_id FROM match_players WHERE user_id = " + userId)
+                        .isNotNull(Matches::getCustomerTypeId)
+                        .orderByDesc(Matches::getId)
+                        .last("LIMIT " + CUSTOMER_LOOKBACK));
+                for (Matches row : rows) {
+                    if (row.getId() != null && row.getCustomerTypeId() != null) {
+                        customerByMatch.putIfAbsent(row.getId(), row.getCustomerTypeId());
+                    }
+                }
+            }
+            return customerByMatch.entrySet().stream()
+                    .sorted(Map.Entry.<Long, Long>comparingByKey().reversed())
+                    .map(Map.Entry::getValue)
+                    .toList();
+        } catch (RuntimeException ex) {
+            logger.warn("Skip recent customer exclusion: {}", ex.getMessage());
+            return List.of();
+        }
     }
 
     private boolean isHighPressureNegativeCustomer(CustomerTypes customer) {
