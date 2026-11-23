@@ -9,7 +9,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 开局抽顾客时尽量避开双方最近见过的顾客。最近的优先排除，池子至少留 1 位。
+ * 开局只避开调用方给出的上一把顾客，保证连续两把不同。再往前的可以再遇到。
+ * 这些顾客把池子挤空时，留下最久的一位，避免无顾客可开。
  */
 public final class CustomerDraw {
 
