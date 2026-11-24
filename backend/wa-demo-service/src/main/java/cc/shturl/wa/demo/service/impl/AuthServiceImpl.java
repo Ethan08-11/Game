@@ -17,6 +17,7 @@ import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.AuthService;
 import cc.shturl.wa.demo.service.GameEdition;
+import cc.shturl.wa.demo.service.PublicAccountNames;
 import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.TokenService;
@@ -36,7 +37,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -307,7 +307,6 @@ public class AuthServiceImpl implements AuthService {
         if (trimmed.isEmpty()) {
             return "";
         }
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+        return PublicAccountNames.titleCase(trimmed);
     }
 }
