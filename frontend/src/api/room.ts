@@ -37,6 +37,22 @@ export interface RoomDetailResp {
   matchId?: number | string
   members?: RoomPlayerResp[]
   players?: RoomPlayerResp[]
+  selectedCustomerId?: number | string | null
+  selectedCustomerCode?: string | null
+  selectedCustomerName?: string | null
+  customerConfirmed?: number
+  audience?: string
+}
+
+export function chooseRoomCustomer(roomId: number | string, customerTypeId: number) {
+  return apiCall<RoomDetailResp>(`/rooms/${roomId}/customer`, {
+    method: 'POST',
+    body: { customerTypeId },
+  })
+}
+
+export function confirmRoomCustomer(roomId: number | string) {
+  return apiCall<RoomDetailResp>(`/rooms/${roomId}/customer/confirm`, { method: 'POST' })
 }
 
 export interface RoomInviteResp {

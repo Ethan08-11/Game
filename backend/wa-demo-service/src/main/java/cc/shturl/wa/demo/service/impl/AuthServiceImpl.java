@@ -16,6 +16,8 @@ import cc.shturl.wa.demo.mapper.FriendshipsMapper;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
 import cc.shturl.wa.demo.service.AuthService;
+import cc.shturl.wa.demo.service.GameEdition;
+import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.TaskService;
 import cc.shturl.wa.demo.service.TokenService;
 import cc.shturl.wa.demo.service.ClientNetworkService;
@@ -48,6 +50,7 @@ public class AuthServiceImpl implements AuthService {
     private final RoomWebSocketSessionService roomWebSocketSessionService;
     private final ClientNetworkService clientNetworkService;
     private final JdbcTemplate jdbcTemplate;
+    private final GameEditionService gameEditionService;
 
     @Override
     @Transactional
@@ -57,6 +60,7 @@ public class AuthServiceImpl implements AuthService {
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setStatus(1);
+        user.setAudience(GameEdition.normalize(request.audience()));
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException exception) {
@@ -116,7 +120,8 @@ public class AuthServiceImpl implements AuthService {
         rememberLoginIp(userId);
         String displayName = profile == null ? user.getUsername() : profile.getDisplayName();
         return new AuthResp(rotated.accessToken(), rotated.refreshToken(),
-                new AuthResp.UserSummary(user.getId(), user.getUsername(), displayName, user.getAvatarUrl()));
+                new AuthResp.UserSummary(user.getId(), user.getUsername(), displayName, user.getAvatarUrl(),
+                        gameEditionService.audienceOf(user.getId())));
     }
 
     @Override
@@ -153,7 +158,8 @@ public class AuthServiceImpl implements AuthService {
                 profile == null ? 0 : profile.getWinCount(),
                 profile == null ? 0 : profile.getLoseCount(),
                 profile == null ? 0 : profile.getDrawCount(),
-                profile == null || profile.getMoney() == null ? 0L : profile.getMoney());
+                profile == null || profile.getMoney() == null ? 0L : profile.getMoney(),
+                gameEditionService.audienceOf(user.getId()));
     }
 
     @Override
@@ -263,7 +269,8 @@ public class AuthServiceImpl implements AuthService {
         rememberLoginIp(user.getId());
         String displayName = profile == null ? user.getUsername() : profile.getDisplayName();
         return new AuthResp(tokens.accessToken(), tokens.refreshToken(),
-                new AuthResp.UserSummary(user.getId(), user.getUsername(), displayName, user.getAvatarUrl()));
+                new AuthResp.UserSummary(user.getId(), user.getUsername(), displayName, user.getAvatarUrl(),
+                        gameEditionService.audienceOf(user.getId())));
     }
 
     private void rememberLoginIp(Long userId) {
@@ -276,11 +283,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void linkExistingFriends(Long newUserId) {
+        String audience = gameEditionService.audienceOf(newUserId);
         List<User> others = userMapper.selectList(Wrappers.<User>lambdaQuery()
                 .ne(User::getId, newUserId)
                 .eq(User::getStatus, 1));
         for (User other : others) {
-            if (other.getId() == null) {
+            if (other.getId() == null || !audience.equals(gameEditionService.audienceOf(other.getId()))) {
                 continue;
             }
             Friendships friendships = new Friendships();

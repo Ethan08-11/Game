@@ -12,6 +12,7 @@ export interface LoginParams {
 export interface RegisterParams {
   username: string
   password: string
+  audience?: 'INTERNAL' | 'PUBLIC'
 }
 
 export interface UserInfo {
@@ -19,6 +20,7 @@ export interface UserInfo {
   username: string
   displayName: string
   avatarUrl: string | null
+  audience?: 'INTERNAL' | 'PUBLIC' | string
 }
 
 export interface MeInfo {
@@ -35,6 +37,7 @@ export interface MeInfo {
   drawCount: number
   money: number
   points: number
+  audience?: 'INTERNAL' | 'PUBLIC' | string
 }
 
 export interface AuthResult {

@@ -200,7 +200,7 @@ function monthModeName(now = new Date()): string {
   return MONTH_MODE_NAMES[week]
 }
 
-const modeText = computed(() => `${t('本周模式：')}${t(monthModeName())}`)
+const modeText = computed(() => `${user.audience === 'PUBLIC' ? t('对外版') : t('内部版')} · ${t('本周模式：')}${t(monthModeName())}`)
 
 const avatarDialogVisible = ref(false)
 const hallReady = ref(false)

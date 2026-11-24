@@ -35,6 +35,7 @@ export const useUserStore = defineStore('user', () => {
   const userId = ref<string>(localStorage.getItem('userId') || '')
   const username = ref<string>(formatPlayerName(localStorage.getItem('loginUsername') || ''))
   const avatar = ref<string>('')
+  const audience = ref<'INTERNAL' | 'PUBLIC'>(localStorage.getItem('gameAudience') === 'PUBLIC' ? 'PUBLIC' : 'INTERNAL')
   const friends = ref<Friend[]>([])
   const points = ref<number>(0)
   const money = ref<number>(0)
@@ -243,13 +244,13 @@ export const useUserStore = defineStore('user', () => {
     applyAuth(fallback)
   }
 
-  async function register(user: string, pass: string) {
+  async function register(user: string, pass: string, edition: 'INTERNAL' | 'PUBLIC' = 'INTERNAL') {
     friends.value = []
     achievements.value = []
     profile.value = null
     stats.value = null
     myLeaderboardRank.value = null
-    const result = await api.register({ username: user, password: pass })
+    const result = await api.register({ username: user, password: pass, audience: edition })
     applyAuth(result)
     await loadMe()
     await loadAll().catch(() => {})
@@ -272,6 +273,7 @@ export const useUserStore = defineStore('user', () => {
     userId.value = String(result.user.id)
     username.value = formatPlayerName(result.user.displayName || result.user.username)
     avatar.value = result.user.avatarUrl || ''
+    setAudience(result.user.audience)
     token.value = result.token
     localStorage.setItem('userId', userId.value)
     localStorage.setItem('token', result.token)
@@ -288,6 +290,7 @@ export const useUserStore = defineStore('user', () => {
       localStorage.setItem('userId', userId.value)
       money.value = me.money ?? 0
       points.value = me.points ?? 0
+      setAudience(me.audience)
     } catch { /* token 无效时不做额外处理 */ }
   }
 
@@ -301,6 +304,7 @@ export const useUserStore = defineStore('user', () => {
     userId.value = ''
     username.value = ''
     avatar.value = ''
+    audience.value = 'INTERNAL'
     points.value = 0
     money.value = 0
     achievements.value = []
@@ -312,11 +316,17 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('loginUsername')
+    localStorage.removeItem('gameAudience')
     api.logout().catch(() => {})
   }
 
+  function setAudience(value?: string) {
+    audience.value = value === 'PUBLIC' ? 'PUBLIC' : 'INTERNAL'
+    localStorage.setItem('gameAudience', audience.value)
+  }
+
   return {
-    token, userId, username, avatar, friends, points, money, achievements, profile, stats, myLeaderboardRank, isLoggedIn,
+    token, userId, username, avatar, audience, friends, points, money, achievements, profile, stats, myLeaderboardRank, isLoggedIn,
     login, register, refreshToken, logout, loadMe,
     loadProfile, updateProfile, loadStats, loadMyLeaderboardRank,
     loadFriends, addFriend, sendFriendRequest, acceptFriendRequest, deleteFriend, updateFriendOnline, updateFriendPresence,

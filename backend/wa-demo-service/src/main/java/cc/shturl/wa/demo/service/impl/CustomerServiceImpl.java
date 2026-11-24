@@ -6,6 +6,8 @@ import cc.shturl.wa.demo.entity.CustomerTypes;
 import cc.shturl.wa.demo.mapper.BulliesMapper;
 import cc.shturl.wa.demo.mapper.CustomerTypesMapper;
 import cc.shturl.wa.demo.service.CustomerService;
+import cc.shturl.wa.demo.service.GameEdition;
+import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.support.BullyCatalog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
@@ -19,13 +21,12 @@ import java.util.concurrent.ThreadLocalRandom;
 public class CustomerServiceImpl implements CustomerService {
     private final CustomerTypesMapper customerTypesMapper;
     private final BulliesMapper bulliesMapper;
+    private final GameEditionService gameEditionService;
 
     @Override
-    public CustomerInfoResp getCurrentCustomer() {
-        List<CustomerTypes> customers = customerTypesMapper.selectList(Wrappers.<CustomerTypes>lambdaQuery()
-                .eq(CustomerTypes::getStatus, 1)
-                .orderByAsc(CustomerTypes::getSortNo, CustomerTypes::getId));
-        if (customers == null || customers.isEmpty()) {
+    public CustomerInfoResp getCurrentCustomer(Long userId) {
+        List<CustomerTypes> customers = visibleCustomers(userId, true);
+        if (customers.isEmpty()) {
             return BullyCatalog.toCustomerResp(null, null);
         }
         CustomerTypes customer = pickWeightedCustomer(customers);
@@ -33,12 +34,33 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public List<CustomerInfoResp> listCustomers() {
-        List<CustomerTypes> customers = customerTypesMapper.selectList(Wrappers.<CustomerTypes>lambdaQuery()
-                .orderByAsc(CustomerTypes::getSortNo, CustomerTypes::getId));
-        return customers.stream()
+    public List<CustomerInfoResp> listCustomers(Long userId) {
+        return visibleCustomers(userId, false).stream()
                 .map(customer -> BullyCatalog.toCustomerResp(customer, findBullyForCustomer(customer.getCustomerCode())))
                 .toList();
+    }
+
+    private List<CustomerTypes> visibleCustomers(Long userId, boolean enabledOnly) {
+        boolean publicEdition = gameEditionService.isPublic(userId);
+        List<CustomerTypes> customers = customerTypesMapper.selectList(Wrappers.<CustomerTypes>lambdaQuery()
+                .orderByAsc(CustomerTypes::getSortNo, CustomerTypes::getId));
+        if (customers == null) {
+            return List.of();
+        }
+        return customers.stream()
+                .filter(customer -> !enabledOnly || customer.getStatus() == null || customer.getStatus() == 1)
+                .filter(customer -> publicEdition ? isPublicCustomer(customer) : isInternalCustomer(customer))
+                .toList();
+    }
+
+    private boolean isPublicCustomer(CustomerTypes customer) {
+        return customer != null
+                && GameEdition.PUBLIC.equalsIgnoreCase(customer.getEdition())
+                && GameEdition.isPublicCustomer(customer.getCustomerCode());
+    }
+
+    private boolean isInternalCustomer(CustomerTypes customer) {
+        return customer != null && !isPublicCustomer(customer);
     }
 
     private Bullies findBullyForCustomer(String customerCode) {

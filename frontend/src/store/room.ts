@@ -16,6 +16,11 @@ export const useRoomStore = defineStore('room', () => {
   const players = ref<Player[]>([])
   const isConnected = ref<boolean>(false)
   const hostUserId = ref<string>('')
+  const selectedCustomerId = ref<string>('')
+  const selectedCustomerCode = ref<string>('')
+  const selectedCustomerName = ref<string>('')
+  const customerConfirmed = ref(false)
+  const audience = ref<string>('INTERNAL')
   const currentUserId = ref<string>('')
 
   const player1Dept = ref<string>('')
@@ -78,6 +83,11 @@ export const useRoomStore = defineStore('room', () => {
     }
     roomCode.value = String(detail.roomCode ?? detail.code ?? roomCode.value)
     hostUserId.value = String(detail.hostUserId ?? detail.ownerId ?? detail.createdBy ?? hostUserId.value)
+    selectedCustomerId.value = detail.selectedCustomerId == null ? '' : String(detail.selectedCustomerId)
+    selectedCustomerCode.value = detail.selectedCustomerCode || ''
+    selectedCustomerName.value = detail.selectedCustomerName || ''
+    customerConfirmed.value = detail.customerConfirmed === 1
+    audience.value = detail.audience === 'PUBLIC' ? 'PUBLIC' : 'INTERNAL'
     if (detail.matchId != null && detail.matchId !== '') {
       matchId.value = String(detail.matchId)
     }
@@ -206,6 +216,11 @@ export const useRoomStore = defineStore('room', () => {
     roomId.value = ''
     roomCode.value = ''
     hostUserId.value = ''
+    selectedCustomerId.value = ''
+    selectedCustomerCode.value = ''
+    selectedCustomerName.value = ''
+    customerConfirmed.value = false
+    audience.value = 'INTERNAL'
     players.value = []
     sessionStorage.removeItem(ACTIVE_ROOM_KEY)
     resetReady()
@@ -213,6 +228,7 @@ export const useRoomStore = defineStore('room', () => {
 
   return {
     roomId, roomCode, players, isConnected, hostUserId, currentUserId,
+    selectedCustomerId, selectedCustomerCode, selectedCustomerName, customerConfirmed, audience,
     player1Dept, player2Dept, player1Ready, player2Ready,
     inviteId, invitedBy, matchRoomId, matchId, isHost, firstPlayerIndex,
     depts, bothReady, canStart,

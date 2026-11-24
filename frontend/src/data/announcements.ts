@@ -9,6 +9,21 @@ export interface Announcement {
 
 export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 
+export const publicAnnouncements: Announcement[] = [
+  {
+    id: 'public-choose-customer',
+    title: '对外版：开局自己选顾客',
+    date: '2026-11-24',
+    content: '对外版账号只和对外版组队。双方选好部门后，房主从对外顾客里选一位，队友确认后才能准备。没有随机抽取，也没有高压局。图鉴里只有这四位虚构顾客：稳当客、结伴客、发牌客、护盾客。复活仍要看完视频，视频和内部版不是同一套。',
+  },
+  {
+    id: 'topic-auto-claim-gold',
+    title: '任务：每天 23:59 自动领取没领的金币',
+    date: '2026-11-20',
+    content: '每天北京时间 23:59，本月已经打完、还没点领取的每日任务金币会自动领取。本周还没领的周任务和补打金币同样自动领。金币算在打出那天的工作日上。休息日、定额已经满的日期，以及过期的周任务，不会补发。',
+  },
+]
+
 export const announcements: Announcement[] = [
   {
     id: 'topic-four-customers',

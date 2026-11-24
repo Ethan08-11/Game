@@ -1,6 +1,14 @@
 /** 界面上会整句出现的中文。键是中文原文。 */
 export const phrases: Record<string, string> = {
   '登录': 'Log in',
+  '内部版': 'Staff edition',
+  '对外版': 'Customer edition',
+  '对外版账号只能和对外版组队，开局自己选顾客。': 'Customer accounts only team with customer accounts, and they choose the customer.',
+  '内部版账号继续和同事组队，顾客仍由系统抽取。': 'Staff accounts keep teaming with coworkers. The customer is still drawn by the game.',
+  '选择本局顾客': 'Choose this match’s customer',
+  '确认这位顾客': 'Confirm this customer',
+  '队友已确认': 'Teammate confirmed',
+  '等待队友确认': 'Waiting for teammate',
   '注册': 'Sign up',
   '修改密码': 'Password',
   '用户名': 'Username',

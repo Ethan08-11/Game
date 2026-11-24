@@ -1,4 +1,8 @@
 export const announcementEn: Record<string, { title: string; content: string }> = {
+  'public-choose-customer': {
+    title: 'Customer edition: you choose the customer',
+    content: 'Customer accounts only team with customer accounts. After both departments are chosen, the host picks one public customer and the teammate confirms before anyone can ready. There is no random draw and no pressure match. The gallery has four fictional customers: Steady, Pair, Draw, and Shield. Revive still requires watching the video, and that video is not the staff one.',
+  },
   'topic-four-customers': {
     title: 'Customers: four new guests',
     content: 'Four customers join the gallery. A normal match draws evenly from all eleven. Empty Asker makes one living guard discard 1 card. Late Payer gives each living guard 4 shield at the next round start. Jujube Two-Face and Smile Then Sharp flip good or bad every round: the good face clears the Bully shield or doubles the next defense card; the bad face nullifies Sales’ next card or makes Purchase’s next defense card give 0 shield. A bad face does nothing if that role is absent. Pressure matches draw from six harsh customers, and the two-face guests keep only the bad face.',

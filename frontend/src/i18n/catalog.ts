@@ -3,6 +3,22 @@ import { translateEffectTemplate } from './effects.en'
 import { CARD_NAME_EN } from './cardNames.en'
 
 const CUSTOMERS: Record<string, { name: string; description: string }> = {
+  PUBLIC_STEADY: {
+    name: 'Steady',
+    description: 'Quiet. On half the rounds the Bully’s attack is −1.',
+  },
+  PUBLIC_PAIR: {
+    name: 'Pair',
+    description: 'They come together. On half the rounds each living guard heals 1.',
+  },
+  PUBLIC_DRAW: {
+    name: 'Dealer',
+    description: 'Likes to see people act. On half the rounds each living guard draws 1.',
+  },
+  PUBLIC_SHIELD: {
+    name: 'Shield',
+    description: 'Settles the table first. On half the rounds, next round each living guard gains 4 defense.',
+  },
   CUSTOMER_KIND: {
     name: 'Kind Steady',
     description: 'Calm and steady. On trigger, the Bully’s attack is −1 this round.',

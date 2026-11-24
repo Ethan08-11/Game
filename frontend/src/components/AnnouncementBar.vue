@@ -51,19 +51,21 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { visibleAnnouncements, type Announcement } from '@/data/announcements'
+import { publicAnnouncements, visibleAnnouncements, type Announcement } from '@/data/announcements'
+import { useUserStore } from '@/store/user'
 import { lang, t } from '@/i18n'
 import { announcementEn } from '@/i18n/announcements.en'
 
-const notices = visibleAnnouncements
+const user = useUserStore()
+const notices = computed(() => user.audience === 'PUBLIC' ? publicAnnouncements : visibleAnnouncements)
 
 const index = ref(0)
 const paused = ref(false)
 const dialogVisible = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const current = computed(() => notices[index.value] || notices[0])
-const activeNotice = computed<Announcement>(() => notices[index.value] || notices[0])
+const current = computed(() => notices.value[index.value] || notices.value[0])
+const activeNotice = computed<Announcement>(() => notices.value[index.value] || notices.value[0])
 
 function noticeTitle(item: Announcement) {
   if (lang.value === 'en') return announcementEn[item.id]?.title || item.title
@@ -76,7 +78,7 @@ function noticeBody(item: Announcement) {
 }
 
 function go(i: number) {
-  if (i < 0 || i >= notices.length) return
+  if (i < 0 || i >= notices.value.length) return
   index.value = i
 }
 
@@ -91,8 +93,8 @@ function closeDialog() {
 }
 
 function tick() {
-  if (paused.value || dialogVisible.value || notices.length < 2) return
-  index.value = (index.value + 1) % notices.length
+  if (paused.value || dialogVisible.value || notices.value.length < 2) return
+  index.value = (index.value + 1) % notices.value.length
 }
 
 onMounted(() => {
