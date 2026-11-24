@@ -200,7 +200,7 @@ function monthModeName(now = new Date()): string {
   return MONTH_MODE_NAMES[week]
 }
 
-const modeText = computed(() => `${user.audience === 'PUBLIC' ? t('对外版') : t('内部版')} · ${t('本周模式：')}${t(monthModeName())}`)
+const modeText = computed(() => `${t('本周模式：')}${t(monthModeName())}`)
 
 const avatarDialogVisible = ref(false)
 const hallReady = ref(false)
@@ -538,7 +538,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: center;
   padding: 4px var(--space-4);
-  margin-left: 252px;
+  margin-left: 288px;
   isolation: isolate;
 }
 .money-wrap::before {
@@ -547,7 +547,7 @@ async function handleLogout() {
   inset: 0;
   z-index: -1;
   background: var(--money-bg) center/contain no-repeat;
-  transform: scale(6);
+  transform: scale(9);
   transform-origin: center center;
   pointer-events: none;
 }
