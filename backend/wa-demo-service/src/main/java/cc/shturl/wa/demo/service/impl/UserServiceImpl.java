@@ -18,6 +18,7 @@ import cc.shturl.wa.demo.mapper.FriendRemarkMapper;
 import cc.shturl.wa.demo.mapper.FriendshipsMapper;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
+import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import cc.shturl.wa.demo.service.UserService;
@@ -44,6 +45,7 @@ public class UserServiceImpl implements UserService {
     private final FriendRemarkMapper friendRemarkMapper;
     private final UserPresenceService userPresenceService;
     private final RoomNotificationService notificationService;
+    private final GameEditionService gameEditionService;
 
     // ==================== 用户资料与统计 ====================
 
@@ -143,7 +145,10 @@ public class UserServiceImpl implements UserService {
                 .and(wrapper -> wrapper.eq(Friendships::getUserId, currentUserId)
                         .or()
                         .eq(Friendships::getFriendId, currentUserId)));
-        return list.stream().map(friendships -> toFriendResp(friendships, currentUserId)).toList();
+        return list.stream()
+                .filter(friendships -> sameAudience(currentUserId, otherUserId(friendships, currentUserId)))
+                .map(friendships -> toFriendResp(friendships, currentUserId))
+                .toList();
     }
 
     @Override
@@ -154,6 +159,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("不能添加自己为好友");
         }
         User target = requireUser(targetId);
+        gameEditionService.requireSameAudience(currentUserId, targetId);
 
         // 双向查重（任意方向存在记录都视为已有关系）
         Friendships existing = findAnyRelation(currentUserId, targetId);
@@ -200,6 +206,7 @@ public class UserServiceImpl implements UserService {
         if (current != FriendshipStatus.PENDING) {
             throw new BusinessException("该申请当前不可接受");
         }
+        gameEditionService.requireSameAudience(friendships.getUserId(), friendships.getFriendId());
         friendships.setStatus(FriendshipStatus.ACCEPTED.getCode());
         friendships.setRemarkName(request == null ? null : request.remarkName());
         friendshipsMapper.updateById(friendships);
@@ -368,7 +375,9 @@ public class UserServiceImpl implements UserService {
         Map<Long, Friendships> relationMap = loadRelationsFor(currentUserId,
                 users.stream().map(User::getId).toList());
 
+        String audience = gameEditionService.audienceOf(currentUserId);
         return users.stream()
+                .filter(user -> audience.equals(gameEditionService.audienceOf(user.getId())))
                 .map(u -> toSearchResp(u, currentUserId, relationMap.get(u.getId())))
                 .toList();
     }
@@ -496,6 +505,16 @@ public class UserServiceImpl implements UserService {
                 remarkName, friend.getUsername(),
                 profile == null || profile.getDisplayName() == null ? friend.getUsername() : profile.getDisplayName(),
                 friend.getAvatarUrl(), 0, "OFFLINE", false);
+    }
+
+    private Long otherUserId(Friendships friendships, Long currentUserId) {
+        return Objects.equals(friendships.getUserId(), currentUserId)
+                ? friendships.getFriendId()
+                : friendships.getUserId();
+    }
+
+    private boolean sameAudience(Long leftUserId, Long rightUserId) {
+        return gameEditionService.audienceOf(leftUserId).equals(gameEditionService.audienceOf(rightUserId));
     }
 
     private String resolveFriendRemark(Long currentUserId, Long friendId, String relationRemarkName, String fallbackUsername) {

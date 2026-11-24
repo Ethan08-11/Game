@@ -10,9 +10,11 @@ import cc.shturl.wa.demo.entity.Friendships;
 import cc.shturl.wa.demo.entity.User;
 import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.enums.FriendshipStatus;
+import cc.shturl.wa.demo.mapper.FriendRemarkMapper;
 import cc.shturl.wa.demo.mapper.FriendshipsMapper;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
+import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -55,12 +58,21 @@ class UserServiceImplTest {
     @Mock
     private FriendshipsMapper friendshipsMapper;
     @Mock
+    private FriendRemarkMapper friendRemarkMapper;
+    @Mock
     private UserPresenceService userPresenceService;
     @Mock
     private RoomNotificationService notificationService;
+    @Mock
+    private GameEditionService gameEditionService;
 
     @InjectMocks
     private UserServiceImpl userService;
+
+    @BeforeEach
+    void sameEditionByDefault() {
+        lenient().when(gameEditionService.audienceOf(any())).thenReturn("INTERNAL");
+    }
 
     private static final Long ME = 1L;
     private static final Long OTHER = 2L;
