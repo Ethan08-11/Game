@@ -61,12 +61,13 @@ public class GameEditionService {
             throw new BusinessException("请先选择本局顾客");
         }
         CustomerTypes customer = customerTypesMapper.selectById(customerTypeId);
-        if (customer == null
+        String edition = customer == null ? null : customer.getEdition();
+        boolean internalCatalog = customer != null
+                && (edition == null || edition.isBlank() || GameEdition.INTERNAL.equalsIgnoreCase(edition));
+        if (!internalCatalog
                 || customer.getStatus() == null
-                || customer.getStatus() != 1
-                || !GameEdition.PUBLIC.equalsIgnoreCase(customer.getEdition())
-                || !GameEdition.isPublicCustomer(customer.getCustomerCode())) {
-            throw new BusinessException("只能选择对外版顾客");
+                || customer.getStatus() != 1) {
+            throw new BusinessException("请选择有效顾客");
         }
         return customer;
     }

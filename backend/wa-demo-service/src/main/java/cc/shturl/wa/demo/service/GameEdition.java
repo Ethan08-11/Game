@@ -2,7 +2,7 @@ package cc.shturl.wa.demo.service;
 
 import java.util.Set;
 
-/** 内部版沿用现在的顾客和随机规则。对外版用另一套顾客，开局由玩家选定。 */
+/** 内部版随机顾客。对外版开局从同一套顾客里选定，效果以后再改。 */
 public final class GameEdition {
     public static final String INTERNAL = "INTERNAL";
     public static final String PUBLIC = "PUBLIC";

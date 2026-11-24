@@ -7,7 +7,6 @@ import cc.shturl.wa.demo.mapper.BulliesMapper;
 import cc.shturl.wa.demo.mapper.CustomerTypesMapper;
 import cc.shturl.wa.demo.service.CustomerService;
 import cc.shturl.wa.demo.service.GameEdition;
-import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.support.BullyCatalog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
@@ -21,11 +20,10 @@ import java.util.concurrent.ThreadLocalRandom;
 public class CustomerServiceImpl implements CustomerService {
     private final CustomerTypesMapper customerTypesMapper;
     private final BulliesMapper bulliesMapper;
-    private final GameEditionService gameEditionService;
 
     @Override
     public CustomerInfoResp getCurrentCustomer(Long userId) {
-        List<CustomerTypes> customers = visibleCustomers(userId, true);
+        List<CustomerTypes> customers = visibleCustomers(true);
         if (customers.isEmpty()) {
             return BullyCatalog.toCustomerResp(null, null);
         }
@@ -35,13 +33,12 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<CustomerInfoResp> listCustomers(Long userId) {
-        return visibleCustomers(userId, false).stream()
+        return visibleCustomers(false).stream()
                 .map(customer -> BullyCatalog.toCustomerResp(customer, findBullyForCustomer(customer.getCustomerCode())))
                 .toList();
     }
 
-    private List<CustomerTypes> visibleCustomers(Long userId, boolean enabledOnly) {
-        boolean publicEdition = gameEditionService.isPublic(userId);
+    private List<CustomerTypes> visibleCustomers(boolean enabledOnly) {
         List<CustomerTypes> customers = customerTypesMapper.selectList(Wrappers.<CustomerTypes>lambdaQuery()
                 .orderByAsc(CustomerTypes::getSortNo, CustomerTypes::getId));
         if (customers == null) {
@@ -49,7 +46,7 @@ public class CustomerServiceImpl implements CustomerService {
         }
         return customers.stream()
                 .filter(customer -> !enabledOnly || customer.getStatus() == null || customer.getStatus() == 1)
-                .filter(customer -> publicEdition ? isPublicCustomer(customer) : isInternalCustomer(customer))
+                .filter(this::isInternalCustomer)
                 .toList();
     }
 
