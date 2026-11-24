@@ -35,8 +35,25 @@ public class AccountRepairBootstrap implements ApplicationRunner {
         if (!tableExists("users") || !tableExists("friendships")) {
             return;
         }
+        removeCrossAudienceFriends();
         repairSeanAccount();
         backfillMissingFriends();
+    }
+
+    /** 内部版和对外版不能互为好友。上次启动补好友时把两边连上了，这里拆开。 */
+    private void removeCrossAudienceFriends() {
+        if (!columnExists("users", "audience")) {
+            return;
+        }
+        int removed = jdbcTemplate.update("""
+                DELETE f FROM friendships f
+                JOIN users a ON a.id = f.user_id
+                JOIN users b ON b.id = f.friend_id
+                WHERE UPPER(IFNULL(a.audience, 'INTERNAL')) <> UPPER(IFNULL(b.audience, 'INTERNAL'))
+                """);
+        if (removed > 0) {
+            log.info("Removed {} friend rows that crossed editions.", removed);
+        }
     }
 
     private void repairSeanAccount() {
@@ -84,8 +101,24 @@ public class AccountRepairBootstrap implements ApplicationRunner {
     }
 
     private int linkUserToExistingPlayers(Long userId) {
+        boolean splitEditions = columnExists("users", "audience");
         Integer inserted = jdbcTemplate.update(
-                """
+                splitEditions
+                        ? """
+                        INSERT INTO friendships (user_id, friend_id, status, created_at, updated_at)
+                        SELECT ?, u.id, 1, NOW(), NOW()
+                        FROM users u
+                        JOIN users me ON me.id = ?
+                        WHERE u.id <> me.id
+                          AND u.status = 1
+                          AND UPPER(IFNULL(u.audience, 'INTERNAL')) = UPPER(IFNULL(me.audience, 'INTERNAL'))
+                          AND NOT EXISTS (
+                            SELECT 1 FROM friendships f
+                            WHERE (f.user_id = me.id AND f.friend_id = u.id)
+                               OR (f.user_id = u.id AND f.friend_id = me.id)
+                          )
+                        """
+                        : """
                         INSERT INTO friendships (user_id, friend_id, status, created_at, updated_at)
                         SELECT ?, u.id, 1, NOW(), NOW()
                         FROM users u
@@ -97,7 +130,7 @@ public class AccountRepairBootstrap implements ApplicationRunner {
                                OR (f.user_id = u.id AND f.friend_id = ?)
                           )
                         """,
-                userId, userId, userId, userId);
+                splitEditions ? new Object[]{userId, userId} : new Object[]{userId, userId, userId, userId});
         return inserted == null ? 0 : inserted;
     }
 
@@ -106,6 +139,15 @@ public class AccountRepairBootstrap implements ApplicationRunner {
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
                 Integer.class,
                 tableName);
+        return count != null && count > 0;
+    }
+
+    private boolean columnExists(String tableName, String columnName) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?",
+                Integer.class,
+                tableName,
+                columnName);
         return count != null && count > 0;
     }
 }
