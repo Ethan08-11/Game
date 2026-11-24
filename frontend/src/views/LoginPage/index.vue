@@ -1,5 +1,5 @@
 <template>
-  <div class="login-page" :class="{ 'is-password-tab': activeTab === 'password', 'is-register-tab': activeTab === 'register' }" :style="{ '--login-bg': `url(${bgImage})` }">
+  <div class="login-page" :class="{ 'is-tall-tab': activeTab === 'password' || activeTab === 'register' }" :style="{ '--login-bg': `url(${bgImage})` }">
     <LangSwitch class="login-lang" />
     <div class="parchment-layer" :style="{ '--parchment': `url(${parchmentBg})` }"></div>
     <h1 class="logo">{{ t('这单我们护了！！！！') }}</h1>
@@ -19,7 +19,7 @@
           </div>
           <p class="edition-note">{{ registerEdition === 'PUBLIC' ? t('对外版账号只能和对外版组队，开局自己选顾客。') : t('内部版账号继续和同事组队，顾客仍由系统抽取。') }}</p>
           <el-form @submit.prevent="handleRegister">
-            <el-form-item><el-input :model-value="regForm.username" :placeholder="t('用户名（4-50位字母、数字或下划线）')" @update:model-value="onRegUsername" /></el-form-item>
+            <el-form-item><el-input :model-value="regForm.username" :placeholder="t('用户名')" @update:model-value="onRegUsername" /></el-form-item>
             <el-form-item><el-input v-model="regForm.password" type="password" :placeholder="t('密码（至少3位）')" /></el-form-item>
             <el-form-item><el-button type="success" @click="handleRegister" style="width:100%">{{ t('注册') }}</el-button></el-form-item>
           </el-form>
@@ -199,11 +199,8 @@ async function handleChangePassword() {
   right: 28px;
   z-index: 5;
 }
-.login-page.is-password-tab {
+.login-page.is-tall-tab {
   padding-bottom: 108px;
-}
-.login-page.is-register-tab {
-  padding-bottom: 340px;
 }
 .login-page::before {
   content: '';
@@ -251,20 +248,20 @@ async function handleChangePassword() {
   font-size: 16px;
   padding: 0 14px;
 }
-.login-page.is-password-tab .login-card :deep(.el-tabs__header) {
+.login-page.is-tall-tab .login-card :deep(.el-tabs__header) {
   margin-bottom: 16px;
 }
-.login-page.is-password-tab .login-card :deep(.el-tabs__nav-wrap::after) {
+.login-page.is-tall-tab .login-card :deep(.el-tabs__nav-wrap::after) {
   display: none;
 }
-.login-page.is-password-tab .login-card :deep(.el-tabs__nav-scroll) {
+.login-page.is-tall-tab .login-card :deep(.el-tabs__nav-scroll) {
   display: flex;
   justify-content: center;
 }
-.login-page.is-password-tab .login-card :deep(.el-tabs__nav) {
+.login-page.is-tall-tab .login-card :deep(.el-tabs__nav) {
   float: none;
 }
-.login-page.is-password-tab .login-card :deep(.el-tabs__item) {
+.login-page.is-tall-tab .login-card :deep(.el-tabs__item) {
   padding: 0 18px;
 }
 .login-card :deep(.el-tabs__item.is-active) {
@@ -327,10 +324,11 @@ async function handleChangePassword() {
   color: #e0d5c0;
 }
 .edition-note {
-  margin: 0 0 8px;
+  margin: 0 0 12px;
   color: #6b4e32;
   font-size: 13px;
   line-height: 1.35;
+  text-align: center;
 }
 
 @media (max-width: 767px) {
