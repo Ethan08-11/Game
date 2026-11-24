@@ -15,6 +15,8 @@ public class GameRooms extends BaseEntity {
     private Integer playerCount;
     private Integer maxPlayers;
     private Long matchId;
+    private Long selectedCustomerId;
+    private Integer customerConfirmed;
     private LocalDateTime closedAt;
 }
 

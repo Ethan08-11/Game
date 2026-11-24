@@ -1,5 +1,6 @@
 package cc.shturl.wa.demo.service;
 
+import cc.shturl.wa.demo.dto.req.RoomCustomerReq;
 import cc.shturl.wa.demo.dto.req.RoomDeptReq;
 import cc.shturl.wa.demo.dto.req.RoomMakeupReq;
 import cc.shturl.wa.demo.dto.req.RoomInviteReq;
@@ -19,6 +20,8 @@ public interface RoomService {
     RoomDetailResp getCurrentRoom(Long currentUserId);
     void releaseIdleRoom(Long currentUserId);
     RoomDetailResp setDepartment(Long currentUserId, Long roomId, RoomDeptReq request);
+    RoomDetailResp chooseCustomer(Long currentUserId, Long roomId, RoomCustomerReq request);
+    RoomDetailResp confirmCustomer(Long currentUserId, Long roomId);
     RoomDetailResp setReady(Long currentUserId, Long roomId);
     RoomDetailResp setMakeup(Long currentUserId, Long roomId, RoomMakeupReq request);
     RoomDetailResp leaveRoom(Long currentUserId, Long roomId);

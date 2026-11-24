@@ -8,11 +8,13 @@ import cc.shturl.wa.common.dto.RoomInviteCreatedEvent;
 import cc.shturl.wa.common.dto.RoomInviteRejectedEvent;
 import cc.shturl.wa.common.dto.RoomMemberDepartmentChangedEvent;
 import cc.shturl.wa.common.dto.RoomMemberReadyEvent;
+import cc.shturl.wa.demo.dto.req.RoomCustomerReq;
 import cc.shturl.wa.demo.dto.req.RoomDeptReq;
 import cc.shturl.wa.demo.dto.req.RoomMakeupReq;
 import cc.shturl.wa.demo.dto.req.RoomInviteReq;
 import cc.shturl.wa.demo.dto.resp.RoomDetailResp;
 import cc.shturl.wa.demo.dto.resp.RoomMemberResp;
+import cc.shturl.wa.demo.entity.CustomerTypes;
 import cc.shturl.wa.demo.entity.Friendships;
 import cc.shturl.wa.demo.entity.GameRooms;
 import cc.shturl.wa.demo.entity.Matches;
@@ -25,6 +27,8 @@ import cc.shturl.wa.demo.mapper.MatchesMapper;
 import cc.shturl.wa.demo.mapper.RoomInvitesMapper;
 import cc.shturl.wa.demo.mapper.RoomMembersMapper;
 import cc.shturl.wa.demo.mapper.UserMapper;
+import cc.shturl.wa.demo.mapper.CustomerTypesMapper;
+import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.MakeupService;
 import cc.shturl.wa.demo.service.MatchService;
 import cc.shturl.wa.demo.service.RoomEventPublisher;
@@ -68,6 +72,8 @@ public class RoomServiceImpl implements RoomService {
     private final RoomPresenceCleanupService roomPresenceCleanupService;
     private final ClientNetworkService clientNetworkService;
     private final MakeupService makeupService;
+    private final GameEditionService gameEditionService;
+    private final CustomerTypesMapper customerTypesMapper;
 
     @Override
     @Transactional
@@ -76,6 +82,7 @@ public class RoomServiceImpl implements RoomService {
         User fromUser = requireUser(currentUserId);
         User toUser = requireUser(friendId);
         requireFriend(currentUserId, friendId);
+        gameEditionService.requireSameAudience(currentUserId, friendId);
         roomPresenceCleanupService.releaseIdleRooms(currentUserId);
         roomPresenceCleanupService.releaseIdleRooms(friendId);
         requireInvitableUser(currentUserId, "你当前不在线，请刷新页面后重试");
@@ -204,6 +211,7 @@ public class RoomServiceImpl implements RoomService {
             throw new BusinessException("邀请已超时");
         }
         requireFriend(invite.getFromUserId(), invite.getToUserId());
+        gameEditionService.requireSameAudience(invite.getFromUserId(), invite.getToUserId());
         cleanupStaleMemberships(invite.getFromUserId());
         cleanupStaleMemberships(invite.getToUserId());
         requireOnlineAndIdle(invite.getFromUserId());
@@ -291,8 +299,19 @@ public class RoomServiceImpl implements RoomService {
                             member.getMakeupOptIn() == null ? 0 : member.getMakeupOptIn());
                 })
                 .toList();
+        CustomerTypes selected = room.getSelectedCustomerId() == null
+                ? null
+                : customerTypesMapper.selectById(room.getSelectedCustomerId());
+        String audience = members.isEmpty()
+                ? gameEditionService.audienceOf(room.getHostUserId())
+                : gameEditionService.audienceOf(members.get(0).getUserId());
         return new RoomDetailResp(room.getId(), room.getRoomCode(), room.getHostUserId(), room.getStatus(),
-                room.getPlayerCount(), room.getMaxPlayers(), room.getMatchId(), room.getClosedAt(), memberResps);
+                room.getPlayerCount(), room.getMaxPlayers(), room.getMatchId(), room.getClosedAt(), memberResps,
+                room.getSelectedCustomerId(),
+                selected == null ? null : selected.getCustomerCode(),
+                selected == null ? null : selected.getCustomerName(),
+                room.getCustomerConfirmed() == null ? 0 : room.getCustomerConfirmed(),
+                audience);
     }
 
     @Override
@@ -345,6 +364,64 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     @Transactional
+    public RoomDetailResp chooseCustomer(Long currentUserId, Long roomId, RoomCustomerReq request) {
+        requireOpenRoom(roomId);
+        GameRooms room = gameRoomsMapper.selectById(roomId);
+        if (!currentUserId.equals(room.getHostUserId())) {
+            throw new BusinessException("只有房主可以选择顾客");
+        }
+        if (!gameEditionService.isPublic(currentUserId)) {
+            throw new BusinessException("内部版开局仍由系统抽取顾客");
+        }
+        CustomerTypes customer = gameEditionService.requirePublicCustomer(request.customerTypeId());
+        room.setSelectedCustomerId(customer.getId());
+        room.setCustomerConfirmed(0);
+        gameRoomsMapper.updateById(room);
+        clearReady(roomId);
+        return getRoomDetail(currentUserId, roomId);
+    }
+
+    @Override
+    @Transactional
+    public RoomDetailResp confirmCustomer(Long currentUserId, Long roomId) {
+        requireOpenRoom(roomId);
+        GameRooms room = gameRoomsMapper.selectById(roomId);
+        requireMember(roomId, currentUserId);
+        if (currentUserId.equals(room.getHostUserId())) {
+            throw new BusinessException("请由队友确认这位顾客");
+        }
+        if (!gameEditionService.isPublic(currentUserId)) {
+            throw new BusinessException("内部版不用确认顾客");
+        }
+        gameEditionService.requirePublicCustomer(room.getSelectedCustomerId());
+        room.setCustomerConfirmed(1);
+        gameRoomsMapper.updateById(room);
+        clearReady(roomId);
+        return getRoomDetail(currentUserId, roomId);
+    }
+
+    private void requirePublicCustomerReady(Long roomId) {
+        GameRooms room = gameRoomsMapper.selectById(roomId);
+        if (room == null || !gameEditionService.isPublic(room.getHostUserId())) {
+            return;
+        }
+        if (room.getSelectedCustomerId() == null) {
+            throw new BusinessException("请先选择本局顾客");
+        }
+        if (room.getCustomerConfirmed() == null || room.getCustomerConfirmed() != 1) {
+            throw new BusinessException("队友还没确认这位顾客");
+        }
+        gameEditionService.requirePublicCustomer(room.getSelectedCustomerId());
+    }
+
+    private void clearReady(Long roomId) {
+        roomMembersMapper.update(null, Wrappers.<RoomMembers>lambdaUpdate()
+                .eq(RoomMembers::getRoomId, roomId)
+                .set(RoomMembers::getReadyStatus, 0));
+    }
+
+    @Override
+    @Transactional
     public RoomDetailResp setReady(Long currentUserId, Long roomId) {
         requireOpenRoom(roomId);
         clearFinishedMatchBinding(roomId);
@@ -352,6 +429,7 @@ public class RoomServiceImpl implements RoomService {
         if (member.getDeptType() == null || member.getDeptType().isBlank()) {
             throw new BusinessException("请先选择部门");
         }
+        requirePublicCustomerReady(roomId);
         RoomDetailResp beforeReady = getRoomDetail(currentUserId, roomId);
         Long otherId = beforeReady.members().stream()
                 .map(RoomMemberResp::userId)
@@ -573,6 +651,7 @@ public class RoomServiceImpl implements RoomService {
         room.setStatus(0);
         room.setPlayerCount(0);
         room.setMaxPlayers(2);
+        room.setCustomerConfirmed(0);
         gameRoomsMapper.insert(room);
         return room;
     }

@@ -16,6 +16,7 @@ public class User extends BaseEntity {
     private String phone;
     private String avatarUrl;
     private Integer status;
+    private String audience;
     private LocalDateTime lastLoginAt;
 }
 

@@ -103,14 +103,43 @@
       </label>
       <p v-else-if="makeupText" class="makeup-note">{{ makeupText }}</p>
 
+      <section v-if="publicEdition" class="public-customer">
+        <p class="public-customer-title">{{ t('选择本局顾客') }}</p>
+        <div class="public-customer-list">
+          <button
+            v-for="customer in publicCustomers"
+            :key="customer.customerTypeId"
+            type="button"
+            class="public-customer-btn"
+            :class="{ on: String(customer.customerTypeId) === room.selectedCustomerId }"
+            :disabled="!room.isHost || customerSaving"
+            @click="chooseCustomer(customer.customerTypeId)"
+          >
+            {{ localizeCustomer({ code: customer.customerCode, name: customer.customerName, description: customer.description }).name }}
+          </button>
+        </div>
+        <p v-if="room.selectedCustomerName" class="public-customer-state">
+          {{ localizeCustomer({ code: room.selectedCustomerCode, name: room.selectedCustomerName }).name }} · {{ room.customerConfirmed ? t('队友已确认') : t('等待队友确认') }}
+        </p>
+        <button
+          v-if="room.roomId && !room.isHost"
+          type="button"
+          class="public-confirm-btn"
+          :disabled="!room.selectedCustomerId || room.customerConfirmed || customerSaving"
+          @click="confirmCustomer"
+        >
+          {{ t('确认这位顾客') }}
+        </button>
+      </section>
+
       <button
         class="ready-btn"
         :class="{
-          disabled: !room.canStart,
-          active: room.canStart && !isSelfReady,
+          disabled: !canReady,
+          active: canReady && !isSelfReady,
           readied: isSelfReady
         }"
-        :disabled="!room.canStart"
+        :disabled="!canReady"
         @click="toggleReady"
       >
         {{ isSelfReady ? '已准备' : '准备' }}
@@ -129,9 +158,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { QuestionFilled, Check } from '@element-plus/icons-vue'
 import { lang, t } from '@/i18n'
+import { localizeCustomer } from '@/i18n/catalog'
 import { useRoomStore } from '@/store/room'
 import { useUserStore } from '@/store/user'
-import { extractRoomId, getRoomDetail, getCurrentRoom, leaveRoom as leaveRoomApi, abandonMatch, sendRoomInvite, setRoomDepartment, setRoomReady, setRoomMakeup, fetchMyTaskBoard } from '@/api'
+import { extractRoomId, getRoomDetail, getCurrentRoom, leaveRoom as leaveRoomApi, abandonMatch, sendRoomInvite, setRoomDepartment, setRoomReady, setRoomMakeup, fetchMyTaskBoard, chooseRoomCustomer, confirmRoomCustomer, getCustomerCatalog } from '@/api'
+import type { CustomerApiItem } from '@/api/game'
 import { makeupLine, type MakeupOffer } from '@/utils/makeupText'
 import type { Friend } from '@/api'
 import BackButton from '@/components/BackButton.vue'
@@ -216,6 +247,49 @@ const displayPlayers = computed(() => {
 const selfIndex = computed(() => displayPlayers.value.findIndex(p => String(p.id) === String(user.userId)))
 const mySeatIndex = computed<0 | 1>(() => (selfIndex.value === 1 ? 1 : 0))
 const isSelfReady = computed(() => (mySeatIndex.value === 0 ? room.player1Ready : room.player2Ready))
+const publicEdition = computed(() => user.audience === 'PUBLIC' || room.audience === 'PUBLIC')
+const publicCustomers = ref<CustomerApiItem[]>([])
+const customerSaving = ref(false)
+const canReady = computed(() => {
+  if (!room.canStart) return false
+  if (!publicEdition.value) return true
+  return Boolean(room.selectedCustomerId) && room.customerConfirmed
+})
+
+async function loadPublicCustomers() {
+  if (!publicEdition.value) return
+  try {
+    publicCustomers.value = await getCustomerCatalog()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '顾客列表加载失败')
+  }
+}
+
+async function chooseCustomer(customerTypeId?: number | string) {
+  if (!room.roomId || customerTypeId == null || !room.isHost) return
+  customerSaving.value = true
+  try {
+    const detail = await chooseRoomCustomer(room.roomId, Number(customerTypeId))
+    room.syncRoomDetail(detail, user.userId, user.username)
+  } catch (e: any) {
+    ElMessage.error(e?.message || '选择顾客失败')
+  } finally {
+    customerSaving.value = false
+  }
+}
+
+async function confirmCustomer() {
+  if (!room.roomId || room.isHost) return
+  customerSaving.value = true
+  try {
+    const detail = await confirmRoomCustomer(room.roomId)
+    room.syncRoomDetail(detail, user.userId, user.username)
+  } catch (e: any) {
+    ElMessage.error(e?.message || '确认顾客失败')
+  } finally {
+    customerSaving.value = false
+  }
+}
 
 function slotAvatar(player: { id: string; avatarUrl?: string | null }): string | null {
   if (player.avatarUrl) return player.avatarUrl
@@ -479,7 +553,8 @@ onMounted(async () => {
     room.setCurrentUser(user.userId)
   }
   void loadMakeupOffer()
-  void user.loadMe().catch(() => {})
+  await user.loadMe().catch(() => {})
+  await loadPublicCustomers()
   if (user.token) {
     connectRoomSocket(user.token)
   }
@@ -1106,6 +1181,41 @@ async function leaveCurrentRoom() {
   color: #c4a962;
   font-size: var(--text-md);
   animation: pulse 1s infinite;
+}
+.public-customer {
+  margin: 12px 0;
+  text-align: left;
+}
+.public-customer-title {
+  margin: 0 0 8px;
+  color: #3e2a14;
+}
+.public-customer-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.public-customer-btn,
+.public-confirm-btn {
+  border: 1px solid #4a3520;
+  background: transparent;
+  color: #4a3520;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.public-customer-btn.on,
+.public-confirm-btn {
+  background: #4a3520;
+  color: #e0d5c0;
+}
+.public-customer-btn:disabled,
+.public-confirm-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.public-customer-state {
+  margin: 8px 0 0;
+  color: #6b4e32;
 }
 .leave-room-btn {
   width: 100%;

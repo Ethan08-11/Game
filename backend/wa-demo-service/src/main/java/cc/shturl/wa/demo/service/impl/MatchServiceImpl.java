@@ -53,6 +53,8 @@ import cc.shturl.wa.demo.entity.User;
 import cc.shturl.wa.demo.service.AchievementService;
 import cc.shturl.wa.demo.service.CardCollectionService;
 import cc.shturl.wa.demo.service.ClientNetworkService;
+import cc.shturl.wa.demo.service.GameEdition;
+import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.MakeupService;
 import cc.shturl.wa.demo.service.MatchService;
@@ -165,6 +167,7 @@ public class MatchServiceImpl implements MatchService {
     private final ClientNetworkService clientNetworkService;
     private final AchievementService achievementService;
     private final MakeupService makeupService;
+    private final GameEditionService gameEditionService;
 
     @Override
     @Transactional
@@ -209,7 +212,7 @@ public class MatchServiceImpl implements MatchService {
                 roomMembersMapper.updateById(member);
             }
         }
-        CustomerTypes customer = pickCustomer(members);
+        CustomerTypes customer = customerForMatch(room, members);
         Bullies bully = requireBullyForCustomer(customer);
 
         Matches match = buildMatch(roomId, customer, bully, members);
@@ -1241,10 +1244,28 @@ public class MatchServiceImpl implements MatchService {
         }
     }
 
+    private CustomerTypes customerForMatch(GameRooms room, List<RoomMembers> members) {
+        Long first = members.get(0).getUserId();
+        Long second = members.size() > 1 ? members.get(1).getUserId() : null;
+        gameEditionService.requireSameAudience(first, second);
+        if (gameEditionService.isPublic(first)) {
+            return gameEditionService.requirePublicCustomer(room.getSelectedCustomerId());
+        }
+        return pickCustomer(members);
+    }
+
+    private boolean internalEditionCustomer(CustomerTypes customer) {
+        String edition = customer == null ? null : customer.getEdition();
+        return edition == null || edition.isBlank() || GameEdition.INTERNAL.equalsIgnoreCase(edition);
+    }
+
     private CustomerTypes pickCustomer(List<RoomMembers> members) {
         List<CustomerTypes> customers = customerTypesMapper.selectList(Wrappers.<CustomerTypes>lambdaQuery()
                 .eq(CustomerTypes::getStatus, 1)
-                .orderByAsc(CustomerTypes::getSortNo));
+                .orderByAsc(CustomerTypes::getSortNo))
+                .stream()
+                .filter(this::internalEditionCustomer)
+                .toList();
         if (customers.isEmpty()) {
             throw new BusinessException("没有可用的顾客配置");
         }

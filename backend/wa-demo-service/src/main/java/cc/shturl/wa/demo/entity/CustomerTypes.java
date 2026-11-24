@@ -18,4 +18,5 @@ public class CustomerTypes extends BaseEntity {
     private Integer selectionWeight;
     private Integer status;
     private Integer sortNo;
+    private String edition;
 }

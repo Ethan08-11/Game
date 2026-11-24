@@ -845,7 +845,10 @@ const reviveAdLoaders = [
 let reviveVideoLoading = false
 
 async function loadReviveAdVideo() {
-  const loader = reviveAdLoaders[Math.floor(Math.random() * reviveAdLoaders.length)]
+  const loaders = user.audience === 'PUBLIC'
+    ? [reviveAdLoaders[0]]
+    : reviveAdLoaders
+  const loader = loaders[Math.floor(Math.random() * loaders.length)]
   const mod = await loader()
   return mod.default
 }

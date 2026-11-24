@@ -5,6 +5,8 @@ import cc.shturl.wa.demo.entity.User;
 import cc.shturl.wa.demo.entity.UserProfile;
 import cc.shturl.wa.demo.mapper.UserMapper;
 import cc.shturl.wa.demo.mapper.UserProfileMapper;
+import cc.shturl.wa.demo.service.GameEdition;
+import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.MakeupQueue;
 import cc.shturl.wa.demo.service.QuestPeriod;
@@ -56,14 +58,19 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     private final UserProfileMapper userProfileMapper;
     private final UserMapper userMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final GameEditionService gameEditionService;
 
     @Override
     public List<LeaderboardResp> listLeaderboard(Long currentUserId, String type, int page, int size) {
         ensureCurrentMonth();
         boolean winRateBoard = isWinRateBoard(type);
+        Set<Long> sameEdition = gameEditionService.userIds(gameEditionService.audienceOf(currentUserId));
         List<UserProfile> eligible = new ArrayList<>();
         for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
             if (profile.getUserId() == null) {
+                continue;
+            }
+            if (sameEdition != null && !sameEdition.contains(profile.getUserId())) {
                 continue;
             }
             if (winRateBoard) {
@@ -287,9 +294,13 @@ public class LeaderboardServiceImpl implements LeaderboardService {
     }
 
     private List<UserProfile> rankWith(Projection projection, Map<Long, Long> spentSinceOpen) {
+        Set<Long> internalIds = gameEditionService.userIds(GameEdition.INTERNAL);
         List<UserProfile> eligible = new ArrayList<>();
         for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
             if (profile.getUserId() == null || !projection.started(profile.getUserId())) {
+                continue;
+            }
+            if (internalIds != null && !internalIds.contains(profile.getUserId())) {
                 continue;
             }
             UserProfile row = copyRankProfile(profile);
@@ -326,10 +337,14 @@ public class LeaderboardServiceImpl implements LeaderboardService {
             return false;
         }
         Projection projection = loadProjection(today);
+        Set<Long> sameEdition = gameEditionService.userIds(gameEditionService.audienceOf(userId));
         List<UserProfile> eligible = new ArrayList<>();
         UserProfile self = null;
         for (UserProfile profile : userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery())) {
             if (profile.getUserId() == null) {
+                continue;
+            }
+            if (sameEdition != null && !sameEdition.contains(profile.getUserId())) {
                 continue;
             }
             UserProfile row = copyRankProfile(profile);

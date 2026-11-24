@@ -1,5 +1,5 @@
 <template>
-  <div class="login-page" :class="{ 'is-password-tab': activeTab === 'password' }" :style="{ '--login-bg': `url(${bgImage})` }">
+  <div class="login-page" :class="{ 'is-password-tab': activeTab === 'password', 'is-register-tab': activeTab === 'register' }" :style="{ '--login-bg': `url(${bgImage})` }">
     <LangSwitch class="login-lang" />
     <div class="parchment-layer" :style="{ '--parchment': `url(${parchmentBg})` }"></div>
     <h1 class="logo">{{ t('这单我们护了！！！！') }}</h1>
@@ -13,6 +13,11 @@
           </el-form>
         </el-tab-pane>
         <el-tab-pane :label="t('注册')" name="register">
+          <div class="edition-row">
+            <button type="button" class="edition-btn" :class="{ on: registerEdition === 'INTERNAL' }" @click="registerEdition = 'INTERNAL'">{{ t('内部版') }}</button>
+            <button type="button" class="edition-btn" :class="{ on: registerEdition === 'PUBLIC' }" @click="registerEdition = 'PUBLIC'">{{ t('对外版') }}</button>
+          </div>
+          <p class="edition-note">{{ registerEdition === 'PUBLIC' ? t('对外版账号只能和对外版组队，开局自己选顾客。') : t('内部版账号继续和同事组队，顾客仍由系统抽取。') }}</p>
           <el-form @submit.prevent="handleRegister">
             <el-form-item><el-input :model-value="regForm.username" :placeholder="t('用户名（4-50位字母、数字或下划线）')" @update:model-value="onRegUsername" /></el-form-item>
             <el-form-item><el-input v-model="regForm.password" type="password" :placeholder="t('密码（至少3位）')" /></el-form-item>
@@ -53,6 +58,7 @@ const router = useRouter()
 const user = useUserStore()
 const common = useCommonStore()
 const activeTab = ref('login')
+const registerEdition = ref<'INTERNAL' | 'PUBLIC'>('INTERNAL')
 
 const loginForm = reactive({ username: '', password: '' })
 const regForm = reactive({ username: '', password: '' })
@@ -123,7 +129,7 @@ async function handleRegister() {
   }
   try {
     common.showLoading()
-    await user.register(username, password)
+    await user.register(username, password, registerEdition.value)
     if (user.token) connectRoomSocket(user.token)
     ElMessage.success('注册成功')
     router.push('/game-hall')
@@ -195,6 +201,9 @@ async function handleChangePassword() {
 }
 .login-page.is-password-tab {
   padding-bottom: 108px;
+}
+.login-page.is-register-tab {
+  padding-bottom: 340px;
 }
 .login-page::before {
   content: '';
@@ -295,6 +304,33 @@ async function handleChangePassword() {
 .login-card :deep(.el-button--success:hover) {
   background-color: #5c3d2e;
   border-color: #5c3d2e;
+}
+
+.edition-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.edition-btn {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #4a3520;
+  background: transparent;
+  color: #4a3520;
+  padding: 4px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.edition-btn.on {
+  background: #4a3520;
+  color: #e0d5c0;
+}
+.edition-note {
+  margin: 0 0 8px;
+  color: #6b4e32;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 @media (max-width: 767px) {
