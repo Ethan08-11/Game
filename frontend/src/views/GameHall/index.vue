@@ -538,7 +538,7 @@ async function handleLogout() {
   align-items: center;
   justify-content: center;
   padding: 4px var(--space-4);
-  margin-left: 288px;
+  margin-left: 252px;
   isolation: isolate;
 }
 .money-wrap::before {
@@ -547,7 +547,7 @@ async function handleLogout() {
   inset: 0;
   z-index: -1;
   background: var(--money-bg) center/contain no-repeat;
-  transform: scale(9);
+  transform: scale(6);
   transform-origin: center center;
   pointer-events: none;
 }
