@@ -60,6 +60,7 @@ import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import cc.shturl.wa.demo.service.support.BullyCatalog;
 import cc.shturl.wa.demo.service.support.CustomerDraw;
+import cc.shturl.wa.demo.service.support.CustomerHookRevert;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -3187,7 +3188,7 @@ public class MatchServiceImpl implements MatchService {
                         .eq(MatchPendingEffects::getStatus, "PENDING"));
         for (MatchPendingEffects pending : pendings) {
             String extra = pending.getExtraData() == null ? "" : pending.getExtraData();
-            if (!extra.contains("\"fromCustomer\":true") || !extra.contains("\"grantedRound\":" + grantedRound)) {
+            if (!CustomerHookRevert.fromRound(extra, grantedRound)) {
                 continue;
             }
             pending.setRemainingTriggers(0);
