@@ -580,26 +580,27 @@ async function handleLogout() {
 }
 .user-avatar-wrap {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 96px;
+  height: 96px;
   flex-shrink: 0;
+  transform: translateY(16px);
 }
 .user-avatar {
-  width: 56px;
-  height: 56px;
+  width: 96px;
+  height: 96px;
 }
 .avatar-edit-dot {
   position: absolute;
-  right: -4px;
-  bottom: -2px;
-  min-width: 22px;
-  height: 20px;
-  padding: 0 5px;
+  right: 6px;
+  bottom: 8px;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
   border-radius: 999px;
   background: #8b6914;
   color: #fff8e6;
-  font-size: 12px;
-  line-height: 20px;
+  font-size: 14px;
+  line-height: 24px;
   font-weight: 700;
   box-shadow: 0 0 0 2px rgba(40, 24, 8, 0.35);
 }
