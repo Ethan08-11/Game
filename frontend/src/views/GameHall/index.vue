@@ -537,6 +537,7 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   padding: 4px var(--space-4);
   margin-left: 288px;
   isolation: isolate;
@@ -547,7 +548,7 @@ async function handleLogout() {
   inset: 0;
   z-index: -1;
   background: var(--money-bg) center/contain no-repeat;
-  transform: scale(9);
+  transform: translateX(-26px) scale(7.7);
   transform-origin: center center;
   pointer-events: none;
 }
@@ -556,8 +557,17 @@ async function handleLogout() {
   font-weight: var(--weight-bold);
   font-size: var(--text-lg);
   margin-left: 16px;
+  white-space: nowrap;
+  transform: translateX(-26px);
 }
-.header-right { display: flex; align-items: center; gap: var(--space-3); }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+}
 .user-profile-btn {
   display: flex;
   align-items: center;
