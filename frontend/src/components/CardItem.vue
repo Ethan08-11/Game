@@ -119,7 +119,7 @@ const typeIcon = computed(() => {
 
 const typeLabel = computed(() => {
   const labels: Record<string, string> = {
-    defend: '防御',
+    defend: '守护',
     attack: '攻击',
     draw: '过牌',
     consume: '消耗',

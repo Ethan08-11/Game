@@ -190,7 +190,7 @@ function typeLabel(type: string | null | undefined): string {
   if (!type) return '未知'
   const labels: Record<string, string> = {
     attack: '攻击',
-    defend: '防御',
+    defend: '守护',
     draw: '抽牌',
     consume: '消耗',
     attack_defend: '攻防',
