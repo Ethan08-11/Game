@@ -583,8 +583,7 @@ async function handleLogout() {
   width: 96px;
   height: 96px;
   flex-shrink: 0;
-  transform: translate(14px, -8px) scale(0.64);
-  transform-origin: center center;
+  transform: translate(14px, 1px);
 }
 .user-avatar {
   width: 96px;
