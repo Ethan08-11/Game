@@ -2,7 +2,7 @@
   <main class="customer-page" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
     <BackButton to="/game-hall" :text="t('返回大厅')" />
 
-    <section class="customer-card" :class="{ 'is-en': lang === 'en' }">
+    <section class="customer-card" :class="{ 'is-en': lang === 'en', 'is-public': publicEdition }">
       <p class="eyebrow">{{ t('顾客图鉴') }}</p>
       <h1>{{ t('全部顾客') }}</h1>
 
@@ -14,7 +14,7 @@
             </div>
 
             <div class="traits-section">
-              <p class="customer-desc">{{ shownCustomer(customer).description }}</p>
+              <p v-if="!publicEdition" class="customer-desc">{{ shownCustomer(customer).description }}</p>
 
               <div class="customer-meta">
                 <span>{{ t('效果触发概率') }}</span>
@@ -48,7 +48,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useUserStore } from '@/store/user'
 import BackButton from '@/components/BackButton.vue'
 import { getCustomerCatalog, type CustomerApiItem } from '@/api'
 import bg1 from '@/assets/hall-bg.webp'
@@ -60,6 +61,8 @@ import { customerEffectSummary } from '@/utils/customerEffectText'
 import { lang, t } from '@/i18n'
 import { localizeCustomer, localizeEffect } from '@/i18n/catalog'
 
+const user = useUserStore()
+const publicEdition = computed(() => user.audience === 'PUBLIC')
 const bgDay = bg2
 const bgNight = bg1
 const bgImage = ref('')
@@ -327,8 +330,22 @@ h2 {
   text-align: justify;
   overflow: hidden;
 }
+.customer-card.is-public .traits-section {
+  justify-content: center;
+}
+.customer-card.is-public .customer-meta {
+  padding: 10px 0;
+  font-size: 15px;
+}
 .customer-card.is-en .traits-section {
   overflow: hidden;
+}
+.customer-card.is-public.is-en .customer-meta {
+  padding: 6px 0;
+  font-size: 13px;
+}
+.customer-card.is-public.is-en .customer-meta strong {
+  white-space: normal;
 }
 .customer-card.is-en .customer-desc {
   min-height: 0;
