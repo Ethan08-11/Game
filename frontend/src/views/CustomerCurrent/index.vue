@@ -2,7 +2,32 @@
   <main class="customer-page" :class="{ 'is-en': lang === 'en' }" :style="{ '--hall-bg': bgImage ? `url(${bgImage})` : '' }">
     <BackButton to="/game-hall" :text="t('返回大厅')" />
 
-    <section v-if="customerReady" class="customer-card" :style="{ '--panel-bg': `url(${panelBg})` }">
+    <section v-if="publicEdition" class="customer-card pick-panel" :style="{ '--panel-bg': `url(${panelBg})` }">
+      <div class="card-title" :style="{ backgroundImage: `url(${titleBanner})` }">{{ t('选择本局顾客') }}</div>
+      <div v-if="catalogReady" class="pick-grid">
+        <button
+          v-for="customer in customers"
+          :key="customer.customerTypeId ?? customer.customerCode"
+          type="button"
+          class="pick-item"
+          :class="{ on: String(customer.customerTypeId) === selectedCustomerId }"
+          @click="selectedCustomerId = String(customer.customerTypeId ?? '')"
+        >
+          <img :src="getImageUrl(customer.imageUrl) || ''" :alt="t('顾客形象')" />
+          <strong>{{ shownCatalog(customer).name }}</strong>
+          <span><em>{{ t('效果触发概率') }}</em><b>{{ formatCatalogRate(customer.triggerChance) }}</b></span>
+          <span><em>{{ t('效果类型') }}</em><b>{{ t(effectLabel(customer.effectType)) }}</b></span>
+          <span><em>{{ t('效果数值') }}</em><b>{{ localizeEffect(formatCatalogEffect(customer)) }}</b></span>
+        </button>
+      </div>
+      <div class="card-footer">
+        <button type="button" class="primary-btn" :disabled="!selectedCustomerId || jumping" :style="{ backgroundImage: `url(${titleBanner})` }" @click.stop.prevent="goMatchMaking">
+          {{ jumping ? t('跳转中...') : t('保护我们的顾客') }}
+        </button>
+      </div>
+    </section>
+
+    <section v-else-if="customerReady" class="customer-card" :style="{ '--panel-bg': `url(${panelBg})` }">
       <div class="card-title" :style="{ backgroundImage: `url(${titleBanner})` }">{{ t('顾客来访') }}</div>
       <div class="card-layout">
         <div class="card-body">
@@ -56,9 +81,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/store/game'
+import { useUserStore } from '@/store/user'
+import { getCustomerCatalog, type CustomerApiItem } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import bg1 from '@/assets/hall-bg.webp'
 import bg2 from '@/assets/hall-bg2.webp'
@@ -73,9 +100,15 @@ const bgDay = bg2
 const bgNight = bg1
 const bgImage = ref('')
 
+const PUBLIC_CUSTOMER_KEY = 'publicSelectedCustomerId'
 const router = useRouter()
 const game = useGameStore()
+const user = useUserStore()
+const publicEdition = computed(() => user.audience === 'PUBLIC')
 const jumping = ref(false)
+const customers = ref<CustomerApiItem[]>([])
+const catalogReady = ref(false)
+const selectedCustomerId = ref(sessionStorage.getItem(PUBLIC_CUSTOMER_KEY) || '')
 const trait = computed(() => game.employerTrait)
 const customerReady = computed(() => {
   const name = (game.employerName || '').trim()
@@ -118,12 +151,77 @@ function formatRate(value?: number) {
 
 const hour = new Date().getHours()
 bgImage.value = hour >= 6 && hour < 18 ? bgDay : bgNight
-void game.loadCurrentCustomer()
+if (!publicEdition.value) void game.loadCurrentCustomer()
+
+function shownCatalog(customer: CustomerApiItem) {
+  return localizeCustomer({
+    code: customer.customerCode,
+    name: customer.customerName,
+    description: customer.description,
+  })
+}
+
+function formatCatalogRate(value?: number) {
+  if (value == null) return t('后端未配置')
+  return `${Math.round((value > 1 ? value / 100 : value) * 100)}%`
+}
+
+function effectLabel(effectType?: string) {
+  const map: Record<string, string> = {
+    bully_attack_down: '霸凌者攻击降低',
+    bully_hp_up: '霸凌者血量提升',
+    bully_attack_up: '霸凌者攻击提升',
+    player_hp_up: '我方血值恢复',
+    player_action_up: '一名玩家调用机会增加',
+    player_draw: '两名玩家抽牌',
+    player_discard: '一名玩家弃牌',
+    player_shield_next: '下回合两人获得护盾',
+    dual_jujube: '好坏两面',
+    dual_phone: '好坏两面',
+    player_action_hp_down: '一名玩家调用机会减少并失血',
+    bully_defense_up: '霸凌者防御提升',
+    hp: '血量变化',
+    attack: '攻击变化',
+  }
+  return map[effectType || ''] || effectType || '未知'
+}
+
+function formatCatalogEffect(customer: CustomerApiItem) {
+  const summary = customerEffectSummary({
+    id: customer.customerCode,
+    name: customer.customerName,
+    effectType: customer.effectType,
+  })
+  if (summary) return summary
+  const effectType = customer.effectType
+  const num = customer.effectValue ?? 0
+  const prefix = num >= 0 ? '+' : ''
+  if (effectType === 'player_action_hp_down' || /action_hp|harsh/i.test(effectType || '')) {
+    return `调用机会-1且失血${Math.abs(num)}`
+  }
+  if (effectType === 'player_action_up' || /action/i.test(effectType || '')) return `调用机会${prefix}${num}`
+  if (effectType === 'player_hp_up' || /heal_player/i.test(effectType || '')) return `血值${prefix}${num}`
+  const unit = effectType?.includes('hp') ? 'HP' : '攻击'
+  return `${unit}${prefix}${num}`
+}
+
+onMounted(async () => {
+  if (!publicEdition.value) return
+  try {
+    customers.value = await getCustomerCatalog()
+  } catch {
+    customers.value = []
+  } finally {
+    catalogReady.value = true
+  }
+})
 
 async function goMatchMaking() {
   if (jumping.value) return
+  if (publicEdition.value && !selectedCustomerId.value) return
   jumping.value = true
   try {
+    if (publicEdition.value) sessionStorage.setItem(PUBLIC_CUSTOMER_KEY, selectedCustomerId.value)
     await router.push({ path: '/matchmaking', query: { openDept: '1' } })
   } finally {
     jumping.value = false
@@ -336,6 +434,68 @@ h1 {
 .primary-btn:hover {
   transform: translateY(-1px);
   filter: brightness(1.1);
+}
+.primary-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+.pick-panel {
+  width: min(92%, 1080px);
+  padding: 48px 28px 24px;
+}
+.pick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-height: min(58vh, 520px);
+  overflow: auto;
+  padding-right: 4px;
+}
+.pick-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 248, 230, 0.72);
+  color: #3a1f0d;
+  cursor: pointer;
+  text-align: left;
+}
+.pick-item.on {
+  border-color: #8b6914;
+  background: rgba(255, 244, 214, 0.95);
+}
+.pick-item img {
+  width: 100%;
+  height: 88px;
+  object-fit: contain;
+  object-position: center bottom;
+}
+.pick-item strong {
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: center;
+}
+.pick-item span {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.pick-item em {
+  font-style: normal;
+  color: #5c3d2e;
+  flex: 0 0 auto;
+}
+.pick-item b {
+  font-weight: 700;
+  text-align: right;
+  min-width: 0;
 }
 .slogan {
   position: relative;
