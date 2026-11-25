@@ -194,7 +194,6 @@ export const phrases: Record<string, string> = {
   '护盾': 'Shield',
   '攻击': 'Attack',
   '防御': 'Shield',
-  '守护': 'Guard',
   '过牌': 'Draw',
   '抽牌': 'Draw',
   '未知': 'Unknown',
