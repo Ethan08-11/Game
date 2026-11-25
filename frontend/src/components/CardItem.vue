@@ -29,6 +29,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Switch, Aim, Download, Delete, MagicStick, Lightning, FirstAidKit, CirclePlus } from '@element-plus/icons-vue'
 import { getImageUrl } from '@/utils/imageUrl'
 import { displayCardDept } from '@/utils/cardDept'
+import { isPurchaseDuaneGuard } from '@/utils/cardTypeLabel'
 import { cardNameTopPercent } from '@/utils/cardOverlay'
 import { t, lang } from '@/i18n'
 import { localizeCardName, localizeEffect } from '@/i18n/catalog'
@@ -118,8 +119,9 @@ const typeIcon = computed(() => {
 })
 
 const typeLabel = computed(() => {
+  if (isPurchaseDuaneGuard(props)) return t('守护')
   const labels: Record<string, string> = {
-    defend: '守护',
+    defend: '防御',
     attack: '攻击',
     draw: '过牌',
     consume: '消耗',
