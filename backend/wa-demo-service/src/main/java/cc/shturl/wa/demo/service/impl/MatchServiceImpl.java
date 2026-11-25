@@ -58,6 +58,7 @@ import cc.shturl.wa.demo.service.GameEditionService;
 import cc.shturl.wa.demo.service.LeaderboardService;
 import cc.shturl.wa.demo.service.MakeupService;
 import cc.shturl.wa.demo.service.MatchService;
+import cc.shturl.wa.demo.service.NextCardMultiplierRules;
 import cc.shturl.wa.demo.service.RoomNotificationService;
 import cc.shturl.wa.demo.service.UserPresenceService;
 import cc.shturl.wa.demo.service.support.BullyCatalog;
@@ -759,17 +760,8 @@ public class MatchServiceImpl implements MatchService {
             }
         }
         Bullies bully = requireBully(match.getBullyId());
-        MatchPendingEffects multiplierEffect = findNextCardMultiplier(matchId, currentUserId);
-        Set<String> multiplyTypes = parseMultiplyEffectTypes(
-                multiplierEffect == null ? null : multiplierEffect.getExtraData());
-        boolean consumeMultiplier = multiplierEffect != null && configuredEffects.stream().anyMatch(effect -> {
-            if ("MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
-                return false;
-            }
-            return multiplyTypes.isEmpty() || multiplyTypes.contains(effect.getEffectType());
-        });
-        int multiplier = consumeMultiplier ? Math.max(value(multiplierEffect.getEffectValue()), 1) : 1;
-        requireSelfShieldCost(actor, configuredEffects, multiplier);
+        List<MatchPendingEffects> nextCardMultipliers = listNextCardMultipliers(matchId, currentUserId);
+        requireSelfShieldCost(actor, configuredEffects, nextCardFactor(nextCardMultipliers, "ADD_SHIELD"));
         List<CardEffectResp> effectResults = new ArrayList<>();
         int actionBeforeEffect = value(actor.getActionPoints());
         // 先扣费用，再结算立即效果，确保 ADD_ACTION_POINTS（如 Dylan）能真正增加剩余调用机会
@@ -777,6 +769,7 @@ public class MatchServiceImpl implements MatchService {
         actor.setTotalFundsUsed(value(actor.getTotalFundsUsed()) + cost);
         actor.setCardsPlayedCount(value(actor.getCardsPlayedCount()) + 1);
         MatchPendingEffects nullify = findHookPending(matchId, currentUserId, "NULLIFY_NEXT_CARD");
+        int multiplier = 1;
         if (nullify != null) {
             nullify.setRemainingTriggers(0);
             nullify.setStatus("RESOLVED");
@@ -786,15 +779,12 @@ public class MatchServiceImpl implements MatchService {
         } else {
             for (CardEffects effect : configuredEffects) {
                 if ("IMMEDIATE".equals(effect.getTriggerTiming())) {
-                    applyImmediateEffect(match, bully, actor, target, effect, multiplier, multiplyTypes, effectResults, instance);
+                    applyImmediateEffect(match, bully, actor, target, effect, nextCardMultipliers, effectResults, instance);
                 }
             }
-            schedulePendingEffects(match, actor, instance, target, configuredEffects, multiplier, effectResults);
-            if (consumeMultiplier) {
-                multiplierEffect.setRemainingTriggers(0);
-                multiplierEffect.setStatus("RESOLVED");
-                matchPendingEffectsMapper.updateById(multiplierEffect);
-            }
+            schedulePendingEffects(match, actor, instance, target, configuredEffects, nextCardMultipliers, effectResults);
+            multiplier = displayedNextCardMultiplier(nextCardMultipliers, configuredEffects);
+            consumeMatchedNextCardMultipliers(nextCardMultipliers, configuredEffects);
             if (configuredEffects.stream().anyMatch(effect -> "ADD_SHIELD".equals(effect.getEffectType()))) {
                 MatchPendingEffects zeroShield = findHookPending(matchId, currentUserId, "ZERO_DEFENSE_SHIELD");
                 if (zeroShield != null) {
@@ -1790,21 +1780,58 @@ public class MatchServiceImpl implements MatchService {
         return !card.isEmpty() && !SALES.equals(card) && !PURCHASE.equals(card);
     }
 
-    private MatchPendingEffects findNextCardMultiplier(Long matchId, Long userId) {
-        return matchPendingEffectsMapper.selectOne(Wrappers.<MatchPendingEffects>lambdaQuery()
+    private List<MatchPendingEffects> listNextCardMultipliers(Long matchId, Long userId) {
+        return matchPendingEffectsMapper.selectList(Wrappers.<MatchPendingEffects>lambdaQuery()
                 .eq(MatchPendingEffects::getMatchId, matchId).eq(MatchPendingEffects::getSourceUserId, userId)
                 .eq(MatchPendingEffects::getEffectType, "MULTIPLY_NEXT_CARD")
-                .eq(MatchPendingEffects::getStatus, "PENDING").orderByAsc(MatchPendingEffects::getId).last("LIMIT 1"));
+                .eq(MatchPendingEffects::getStatus, "PENDING").orderByAsc(MatchPendingEffects::getId));
     }
 
-    private void replacePendingNextCardMultipliers(Long matchId, Long userId) {
-        List<MatchPendingEffects> existing = matchPendingEffectsMapper.selectList(
-                Wrappers.<MatchPendingEffects>lambdaQuery()
-                        .eq(MatchPendingEffects::getMatchId, matchId)
-                        .eq(MatchPendingEffects::getSourceUserId, userId)
-                        .eq(MatchPendingEffects::getEffectType, "MULTIPLY_NEXT_CARD")
-                        .eq(MatchPendingEffects::getStatus, "PENDING"));
+    private void replacePendingNextCardMultipliers(Long matchId, Long userId, Set<String> incomingTypes) {
+        List<MatchPendingEffects> existing = listNextCardMultipliers(matchId, userId);
         for (MatchPendingEffects pending : existing) {
+            if (!NextCardMultiplierRules.replaces(incomingTypes, NextCardMultiplierRules.effectTypes(pending.getExtraData()))) {
+                continue;
+            }
+            pending.setRemainingTriggers(0);
+            pending.setStatus("RESOLVED");
+            matchPendingEffectsMapper.updateById(pending);
+        }
+    }
+
+    private int nextCardFactor(List<MatchPendingEffects> pendings, String effectType) {
+        int factor = 1;
+        if (pendings == null || effectType == null) {
+            return factor;
+        }
+        for (MatchPendingEffects pending : pendings) {
+            if (NextCardMultiplierRules.covers(NextCardMultiplierRules.effectTypes(pending.getExtraData()), effectType)) {
+                factor *= Math.max(value(pending.getEffectValue()), 1);
+            }
+        }
+        return Math.max(factor, 1);
+    }
+
+    private int displayedNextCardMultiplier(List<MatchPendingEffects> pendings, List<CardEffects> effects) {
+        int shown = 1;
+        for (CardEffects effect : effects) {
+            if ("MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
+                continue;
+            }
+            shown = Math.max(shown, nextCardFactor(pendings, effect.getEffectType()));
+        }
+        return shown;
+    }
+
+    private void consumeMatchedNextCardMultipliers(List<MatchPendingEffects> pendings, List<CardEffects> effects) {
+        for (MatchPendingEffects pending : pendings) {
+            Set<String> types = NextCardMultiplierRules.effectTypes(pending.getExtraData());
+            boolean matched = effects.stream().anyMatch(effect ->
+                    !"MULTIPLY_NEXT_CARD".equals(effect.getEffectType())
+                            && NextCardMultiplierRules.covers(types, effect.getEffectType()));
+            if (!matched) {
+                continue;
+            }
             pending.setRemainingTriggers(0);
             pending.setStatus("RESOLVED");
             matchPendingEffectsMapper.updateById(pending);
@@ -1812,10 +1839,10 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void applyImmediateEffect(Matches match, @SuppressWarnings("unused") Bullies bully, MatchPlayers actor, MatchPlayers target, CardEffects effect,
-                                      int multiplier, Set<String> multiplyTypes, List<CardEffectResp> results, MatchCards instance) {
+                                      List<MatchPendingEffects> nextCardMultipliers, List<CardEffectResp> results, MatchCards instance) {
         int rawValue = value(effect.getValue());
         int baseValue = "ADD_SHIELD".equals(effect.getEffectType()) ? rawValue : Math.max(rawValue, 0);
-        int typeMult = effectMultiplier(effect.getEffectType(), multiplier, multiplyTypes);
+        int typeMult = nextCardFactor(nextCardMultipliers, effect.getEffectType());
         int actualValue = applyTriggerChance(effect.getExtraData(), baseValue * typeMult);
         switch (effect.getEffectType()) {
             case "DAMAGE_BOSS" -> {
@@ -1927,10 +1954,11 @@ public class MatchServiceImpl implements MatchService {
             }
             case "CHASE_ALLY_ATTACK", "ON_BOSS_HP_LOSS", "COUNTER_ON_HIT", "DODGE_NEXT_HIT",
                  "ADD_TURN_DAMAGE", "MULTIPLY_TURN_DAMAGE", "MULTIPLY_TURN_SHIELD" -> {
-                MatchPendingEffects pending = insertHookPending(match, actor, instance, effect, multiplier);
+                int hookFactor = nextCardFactor(nextCardMultipliers, effect.getEffectType());
+                MatchPendingEffects pending = insertHookPending(match, actor, instance, effect, hookFactor);
                 results.add(new CardEffectResp(effect.getEffectType(), "IMMEDIATE",
                         "SELF".equals(effect.getEffectScope()) ? "PLAYER" : "BOSS",
-                        actor.getUserId(), value(effect.getValue()), value(effect.getValue()) * multiplier,
+                        actor.getUserId(), value(effect.getValue()), value(effect.getValue()) * hookFactor,
                         null, null, true, match.getCurrentRound(), pending.getId(), effect.getExtraData()));
             }
             case "MULTIPLY_CURRENT_SHIELD" -> {
@@ -2028,34 +2056,6 @@ public class MatchServiceImpl implements MatchService {
                 .compile("\"ignoreShield\"\\s*:\\s*(true|false)", java.util.regex.Pattern.CASE_INSENSITIVE)
                 .matcher(extraData);
         return matcher.find() && "true".equalsIgnoreCase(matcher.group(1));
-    }
-
-    private int effectMultiplier(String effectType, int cardMultiplier, Set<String> multiplyTypes) {
-        if (cardMultiplier <= 1) {
-            return 1;
-        }
-        if (multiplyTypes == null || multiplyTypes.isEmpty() || multiplyTypes.contains(effectType)) {
-            return cardMultiplier;
-        }
-        return 1;
-    }
-
-    private Set<String> parseMultiplyEffectTypes(String extraData) {
-        Set<String> types = new LinkedHashSet<>();
-        if (extraData == null || extraData.isBlank()) {
-            return types;
-        }
-        java.util.regex.Matcher block = java.util.regex.Pattern
-                .compile("\"multiplyEffectTypes\"\\s*:\\s*\\[([^\\]]*)]")
-                .matcher(extraData);
-        if (!block.find()) {
-            return types;
-        }
-        java.util.regex.Matcher names = java.util.regex.Pattern.compile("\"([A-Z_]+)\"").matcher(block.group(1));
-        while (names.find()) {
-            types.add(names.group(1));
-        }
-        return types;
     }
 
     private int applyTurnDamageModifiers(Long matchId, int amount) {
@@ -2386,7 +2386,8 @@ public class MatchServiceImpl implements MatchService {
     }
 
     private void schedulePendingEffects(Matches match, MatchPlayers actor, MatchCards instance, MatchPlayers target,
-                                        List<CardEffects> effects, int multiplier, List<CardEffectResp> results) {
+                                        List<CardEffects> effects, List<MatchPendingEffects> nextCardMultipliers,
+                                        List<CardEffectResp> results) {
         for (CardEffects effect : effects) {
             if ("IMMEDIATE".equals(effect.getTriggerTiming()) || isPersistentHook(effect.getEffectType())) {
                 continue;
@@ -2399,7 +2400,8 @@ public class MatchServiceImpl implements MatchService {
                 triggerRound = match.getCurrentRound() + Math.max(value(effect.getTriggerDelay()), 1);
             }
             if ("MULTIPLY_NEXT_CARD".equals(effect.getEffectType())) {
-                replacePendingNextCardMultipliers(match.getId(), actor.getUserId());
+                replacePendingNextCardMultipliers(match.getId(), actor.getUserId(),
+                        NextCardMultiplierRules.effectTypes(effect.getExtraData()));
             }
             List<Long> targetUserIds = pendingTargetUserIds(match.getId(), actor, target, effect);
             String pendingTargetType = pendingTargetType(effect);
@@ -2412,7 +2414,7 @@ public class MatchServiceImpl implements MatchService {
                 pending.setEffectType(effect.getEffectType());
                 pending.setTargetType(pendingTargetType);
                 pending.setTargetUserId(targetUserId);
-                int pendingValue = value(effect.getValue()) * multiplier;
+                int pendingValue = value(effect.getValue()) * nextCardFactor(nextCardMultipliers, effect.getEffectType());
                 if ("ADD_SHIELD".equals(effect.getEffectType())
                         && findHookPending(match.getId(), actor.getUserId(), "ZERO_DEFENSE_SHIELD") != null) {
                     pendingValue = 0;
@@ -3097,7 +3099,7 @@ public class MatchServiceImpl implements MatchService {
 
     private void grantNextDefenseMultiplier(Matches match, List<MatchPlayers> targets, int roundNo) {
         for (MatchPlayers player : targets) {
-            replacePendingNextCardMultipliers(match.getId(), player.getUserId());
+            replacePendingNextCardMultipliers(match.getId(), player.getUserId(), Set.of("ADD_SHIELD"));
             MatchPendingEffects pending = insertCustomerPending(match, player, roundNo, "MULTIPLY_NEXT_CARD", 2, roundNo);
             pending.setExtraData("{\"fromCustomer\":true,\"grantedRound\":" + roundNo
                     + ",\"multiplyEffectTypes\":[\"ADD_SHIELD\"]}");
