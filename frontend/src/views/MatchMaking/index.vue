@@ -58,7 +58,7 @@
       <div v-if="displayFriends.length === 0" class="empty-tip">暂无好友</div>
     </div>
 
-    <div class="right-panel" :style="{ '--team-bg': `url(${matchFriendListBg})` }">
+    <div class="right-panel" :class="{ 'has-picker': publicEdition }" :style="{ '--team-bg': `url(${matchFriendListBg})` }">
       <h3 class="panel-title">队伍房间</h3>
       <div class="room-slots">
         <div v-for="i in 2" :key="i" class="slot" :class="{ filled: displayPlayers[i-1], empty: !displayPlayers[i-1] }">
@@ -1182,9 +1182,16 @@ async function leaveCurrentRoom() {
   font-size: var(--text-md);
   animation: pulse 1s infinite;
 }
+.right-panel.has-picker .room-slots {
+  flex: 0 1 auto;
+}
 .public-customer {
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 12px 0;
   text-align: left;
+  display: flex;
+  flex-direction: column;
 }
 .public-customer-title {
   margin: 0 0 8px;
@@ -1193,7 +1200,18 @@ async function leaveCurrentRoom() {
 .public-customer-list {
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: 8px;
+  min-height: 72px;
+  max-height: 168px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #c4a962 transparent;
+}
+.ready-btn,
+.leave-room-btn,
+.battle-hint {
+  flex-shrink: 0;
 }
 .public-customer-btn,
 .public-confirm-btn {

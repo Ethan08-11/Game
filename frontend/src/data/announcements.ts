@@ -12,9 +12,9 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 export const publicAnnouncements: Announcement[] = [
   {
     id: 'public-choose-customer',
-    title: '对外版：开局自己选顾客',
-    date: '2026-11-24',
-    content: '对外版账号只和对外版组队。双方选好部门后，房主从对外顾客里选一位，队友确认后才能准备。没有随机抽取，也没有高压局。图鉴里只有这四位虚构顾客：稳当客、结伴客、发牌客、护盾客。复活仍要看完视频，视频和内部版不是同一套。',
+    title: '对外版：开局从全部顾客里选',
+    date: '2026-11-25',
+    content: '对外版账号只和对外版组队。双方选好部门后，房主从全部顾客里选一位，队友确认后才能准备。没有随机抽取，也没有高压局。顾客图鉴不再显示人物描述，只保留效果触发概率、效果类型和效果数值。复活仍要看完视频，视频和内部版不是同一套。',
   },
   {
     id: 'topic-auto-claim-gold',

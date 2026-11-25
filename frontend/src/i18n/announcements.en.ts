@@ -1,7 +1,7 @@
 export const announcementEn: Record<string, { title: string; content: string }> = {
   'public-choose-customer': {
-    title: 'Customer edition: you choose the customer',
-    content: 'Customer accounts only team with customer accounts. After both departments are chosen, the host picks one public customer and the teammate confirms before anyone can ready. There is no random draw and no pressure match. The gallery has four fictional customers: Steady, Pair, Draw, and Shield. Revive still requires watching the video, and that video is not the staff one.',
+    title: 'Customer edition: choose from every customer',
+    content: 'Customer accounts only team with customer accounts. After both departments are chosen, the host picks any customer from the full list and the teammate confirms before anyone can ready. There is no random draw and no pressure match. The gallery no longer shows the character description, only the trigger chance, the effect, and the value. Revive still requires watching the video, and that video is not the staff one.',
   },
   'topic-four-customers': {
     title: 'Customers: four new guests',
