@@ -42,7 +42,7 @@
             <div class="card-name">{{ card.unlocked ? card.cardName : '???' }}</div>
             <div v-if="card.unlocked" class="card-meta">
               <span class="card-cost">{{ card.cost }} {{ t('费') }}</span>
-              <span class="card-type-tag" :class="'type-' + card.cardType">{{ t(typeLabel(card.cardType)) }}</span>
+              <span class="card-type-tag" :class="'type-' + card.cardType">{{ t(typeLabel(card)) }}</span>
               <span class="card-dept-tag">{{ t(cardDeptLabel(card)) }}</span>
             </div>
             <div v-else class="card-locked-hint">{{ t('未解锁') }}</div>
@@ -61,6 +61,7 @@ import type { ApiCard } from '@/api'
 import BackButton from '@/components/BackButton.vue'
 import { getImageUrl } from '@/utils/imageUrl'
 import { displayCardDept } from '@/utils/cardDept'
+import { isPurchaseDuaneGuard } from '@/utils/cardTypeLabel'
 import { cardNameTopPercent } from '@/utils/cardOverlay'
 import { lang, t } from '@/i18n'
 import { localizeEffect } from '@/i18n/catalog'
@@ -186,11 +187,13 @@ function getDeptColor(dept: string): string {
   return colors[dept] || '#c4a962'
 }
 
-function typeLabel(type: string | null | undefined): string {
+function typeLabel(card: ApiCard): string {
+  if (isPurchaseDuaneGuard(card)) return '守护'
+  const type = card.cardType
   if (!type) return '未知'
   const labels: Record<string, string> = {
     attack: '攻击',
-    defend: '守护',
+    defend: '防御',
     draw: '抽牌',
     consume: '消耗',
     attack_defend: '攻防',
