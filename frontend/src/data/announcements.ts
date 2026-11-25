@@ -12,9 +12,9 @@ export const ANNOUNCEMENT_DISPLAY_LIMIT = 6
 export const publicAnnouncements: Announcement[] = [
   {
     id: 'public-choose-customer',
-    title: '对外版：开局从全部顾客里选',
+    title: '对外版：开始游戏后选择顾客',
     date: '2026-11-25',
-    content: '对外版账号只和对外版组队。双方选好部门后，房主从全部顾客里选一位，队友确认后才能准备。没有随机抽取，也没有高压局。顾客图鉴不再显示人物描述，只保留效果触发概率、效果类型和效果数值。复活仍要看完视频，视频和内部版不是同一套。',
+    content: '对外版账号只和对外版组队。点击开始游戏后，从小型顾客图鉴里选一位，再进入组队。组队页面不再选择顾客。没有随机抽取，也没有高压局。顾客图鉴只保留效果触发概率、效果类型和效果数值。复活仍要看完视频，视频和内部版不是同一套。',
   },
   {
     id: 'topic-auto-claim-gold',
