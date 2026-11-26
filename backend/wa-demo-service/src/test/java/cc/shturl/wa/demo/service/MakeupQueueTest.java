@@ -123,7 +123,25 @@ class MakeupQueueTest {
         assertThat(next.slot()).isEqualTo(2);
         assertThat(MakeupQueue.finishGold(2)).isEqualTo(40);
         assertThat(next.owedCount()).isEqualTo(2);
-        assertThat(next.partialDebt()).isFalse();
+        assertThat(next.partialDebt()).isTrue();
+    }
+
+    @Test
+    @DisplayName("补过一档的日子算漏打，排在更近的空白天前面")
+    void makeupStartedDayOutranksNewerEmptyDay() {
+        LocalDate owed = LocalDate.of(2026, 11, 1);
+        LocalDate newerEmpty = LocalDate.of(2026, 11, 7);
+        LocalDate today = LocalDate.of(2026, 11, 26);
+        MakeupQueue.Next next = MakeupQueue.next(today, START,
+                played(today, Map.of(owed, 0, newerEmpty, 0)),
+                Set.of(new MakeupQueue.DaySlot(owed, 1)));
+        assertThat(next.day()).isEqualTo(owed);
+        assertThat(next.slot()).isEqualTo(2);
+        assertThat(next.owedCount()).isEqualTo(2);
+        assertThat(next.partialDebt()).isTrue();
+        assertThat(MakeupQueue.monthClear(today, START, 21,
+                played(today, Map.of(owed, 0)), Set.of(owed),
+                Set.of(new MakeupQueue.DaySlot(owed, 1)))).isFalse();
     }
 
     @Test

@@ -9,7 +9,7 @@ import java.util.Set;
 
 /**
  * 补打队列只决定下一档，不改已经记过的场次和金币。
- * 先补打过但没满的日子，再补一把没打的日子。同一类里补最近的一天。
+ * 漏打优先：正常打过但没满，或者已经补过至少一档还没补满。再补一把没打的日子。同一类里补最近的一天。
  */
 public final class MakeupQueue {
     public static final int WIN_GOLD = 10;
@@ -20,7 +20,7 @@ public final class MakeupQueue {
     public record DaySlot(LocalDate day, int slot) {
     }
 
-    /** owedCount 只算正在补的这一天还剩几局。partialDebt 为真表示这一天打过但没满。 */
+    /** owedCount 只算正在补的这一天还剩几局。partialDebt 为真表示漏打。 */
     public record Next(LocalDate day, int slot, int owedCount, boolean partialDebt) {
     }
 
@@ -50,37 +50,51 @@ public final class MakeupQueue {
         return scan(today, countStart, usedSlotsByDay, claimed, false);
     }
 
-    /** partialOnly 为真时只看打过但没满的日子，否则只看一把没打的日子。都从昨天往前找最近的一天。 */
+    /** partialOnly 为真时只看漏打，否则只看一把没打的日子。都从昨天往前找最近的一天。 */
     private static Next scan(LocalDate today, LocalDate countStart,
                              Map<LocalDate, Integer> usedSlotsByDay,
                              Set<DaySlot> claimed, boolean partialOnly) {
         LocalDate yesterday = today.minusDays(1);
         for (LocalDate day = yesterday; !day.isBefore(countStart); day = day.minusDays(1)) {
-            int used = 0;
-            if (usedSlotsByDay != null) {
-                used = Math.max(usedSlotsByDay.getOrDefault(day, 0), 0);
-            }
-            int occupied = Math.min(used, 3);
-            if (partialOnly ? occupied <= 0 : occupied > 0) {
+            Gap gap = gap(day, usedOn(usedSlotsByDay, day), claimed);
+            if (gap.owed() <= 0 || partialOnly != gap.leaked()) {
                 continue;
             }
-            DaySlot first = null;
-            int owed = 0;
-            for (int slot = occupied + 1; slot <= 3; slot++) {
-                DaySlot owedSlot = new DaySlot(day, slot);
-                if (claimed != null && claimed.contains(owedSlot)) {
-                    continue;
-                }
-                if (first == null) {
-                    first = owedSlot;
-                }
-                owed++;
-            }
-            if (first != null) {
-                return new Next(first.day(), first.slot(), owed, occupied > 0);
-            }
+            return new Next(day, gap.slot(), gap.owed(), gap.leaked());
         }
         return null;
+    }
+
+    /** 正常打过，或已经补过至少一档，都算漏打。补过的档不再排。 */
+    private record Gap(int slot, int owed, boolean leaked) {
+    }
+
+    private static int usedOn(Map<LocalDate, Integer> usedSlotsByDay, LocalDate day) {
+        if (usedSlotsByDay == null || day == null) {
+            return 0;
+        }
+        return Math.max(usedSlotsByDay.getOrDefault(day, 0), 0);
+    }
+
+    private static Gap gap(LocalDate day, int used, Set<DaySlot> claimed) {
+        int played = Math.min(used, 3);
+        int first = 0;
+        int owed = 0;
+        boolean touched = played > 0;
+        for (int slot = 1; slot <= 3; slot++) {
+            boolean madeUp = claimed != null && claimed.contains(new DaySlot(day, slot));
+            if (slot <= played || madeUp) {
+                if (madeUp) {
+                    touched = true;
+                }
+                continue;
+            }
+            if (first == 0) {
+                first = slot;
+            }
+            owed++;
+        }
+        return new Gap(first, owed, touched && owed > 0);
     }
 
     /**
@@ -117,18 +131,8 @@ public final class MakeupQueue {
         }
         LocalDate yesterday = today.minusDays(1);
         for (LocalDate day = countStart; !day.isAfter(yesterday); day = day.plusDays(1)) {
-            int used = 0;
-            if (usedSlotsByDay != null) {
-                used = Math.max(usedSlotsByDay.getOrDefault(day, 0), 0);
-            }
-            int occupied = Math.min(used, 3);
-            if (occupied <= 0 || occupied >= 3) {
-                continue;
-            }
-            for (int slot = occupied + 1; slot <= 3; slot++) {
-                if (claimed == null || !claimed.contains(new DaySlot(day, slot))) {
-                    return true;
-                }
+            if (gap(day, usedOn(usedSlotsByDay, day), claimed).leaked()) {
+                return true;
             }
         }
         return false;
